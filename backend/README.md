@@ -36,7 +36,7 @@ Utwórz plik `.env` w folderze głównym projektu (lub `backend/`):
 
 ```env
 # Database
-DATABASE_URL=postgresql://postgres:haslo@localhost:5432/apaulo_db
+DATABASE_URL=postgresql://postgres:haslo@localhost:5432/xxx
 
 # Security
 SECRET_KEY=your-super-secret-key-here-at-least-32-chars
@@ -84,75 +84,10 @@ Aplikacja będzie dostępna pod: **http://127.0.0.1:8000**
 Dokumentacja OpenAPI (Swagger): **http://127.0.0.1:8000/docs**  
 ReDoc: **http://127.0.0.1:8000/redoc**
 
-## 📂 Struktura Aplikacji
-
-```
-backend/
-├── alembic/                    # Migracje bazy danych
-│   ├── versions/              # Pliki migracji
-│   ├── env.py                 # Konfiguracja Alembica
-│   └── script.py.mako         # Template migracji
-├── app/                        # Główna aplikacja
-│   ├── main.py                # FastAPI app, routing
-│   ├── core/
-│   │   ├── config.py          # Konfiguracja (settings)
-│   │   ├── dependencies.py    # Globalne dependencies
-│   │   └── errors.py          # Exception handlers
-│   ├── infrastructure/
-│   │   └── sql/
-│   │       ├── base.py        # SQLAlchemy Base
-│   │       ├── factory.py     # Session factory
-│   │       ├── models_registry.py  # Rejestr wszystkich modeli
-│   │       └── tests/         # SQL testy
-│   └── modules/               # Moduły biznesowe
-│       ├── attachments/       # Załączniki
-│       │   ├── api/
-│       │   ├── schemas/
-│       │   ├── services/
-│       │   ├── repositories/
-│       │   ├── models/
-│       │   ├── storage.py     # Adapter lokalnego przechowywania
-│       │   └── tests/
-│       ├── security/          # Uwierzytelnianie & tokeny
-│       │   ├── api/
-│       │   │   └── auth.py    # Endpoints
-│       │   ├── schemas/
-│       │   │   └── auth.py    # Pydantic schemas
-│       │   ├── services/
-│       │   │   ├── auth.py    # Business logic
-│       │   │   ├── password.py # Hash/Verify
-│       │   │   └── token.py   # JWT management
-│       │   ├── dependencies.py# DI (get_auth_service, etc)
-│       │   └── tests/
-│       ├── core_data/         # Dane użytkowników & role
-│       │   ├── api/
-│       │   │   ├── users.py   # User endpoints
-│       │   │   └── roles.py   # Role endpoints
-│       │   ├── schemas/
-│       │   ├── services/
-│       │   ├── repositories/
-│       │   ├── models/
-│       │   ├── dependencies.py# DI
-│       │   └── tests/
-│       └── pi/                # Podopieczni, Wolontariusze & Grupy
-│           ├── api/
-│           │   ├── volunteers.py
-│           │   ├── beneficiaries.py
-│           │   └── groups.py
-│           ├── schemas/
-│           ├── services/
-│           ├── repositories/
-│           ├── models/
-│           ├── dependencies.py
-│           └── tests/
-├── alembic.ini
-├── pyproject.toml
-└── requirements.txt
-```
 
 ## 🏗️ Architektura Modułów
 
-Każdy moduł biznesowy (`security`, `core_data`, `pi`, `attachments`) trzyma własne endpointy,
+Każdy moduł biznesowy (`security`, `core_data`,..) trzyma własne endpointy,
 schematy, serwisy, repozytoria, modele i testy:
 
 ```
@@ -192,35 +127,3 @@ module/
 | python-jose | 3.3+ | JWT tokens |
 | passlib | 1.7+ | Password hashing |
 | bcrypt | 4.0+ | Bcrypt password hashing |
-
-## 📎 Załączniki
-
-Moduł `app/modules/attachments` obsługuje metadane i pliki załączników.
-
-- Endpointy: `/api/v1/attachments`.
-- Upload Kart BO: `POST /api/v1/attachments/bo-cards`.
-- Upload wykorzystuje `multipart/form-data`: pole `content` zawiera plik, a pola
-  `group_id`, `beneficiary_id`, `volunteer_id` i `period` zawierają metadane.
-- Lista metadanych: `GET /api/v1/attachments/bo-cards`; opcjonalne filtry
-  obejmują m.in. `group_id`, osoby, okres, komentarz i wyszukiwanie tekstowe.
-- Archiwum z tymi samymi filtrami: `GET /api/v1/attachments/bo-cards/download`.
-- Podgląd/treść pliku: `GET /api/v1/attachments/{attachment_id}/content`.
-- Edycja nazwy/opisu: `PATCH /api/v1/attachments/{attachment_id}`.
-- Usuwanie: `DELETE /api/v1/attachments/{attachment_id}`.
-- Lokalny storage: `storage/attachments` względem folderu `backend/`.
-- Obsługiwane pliki: PDF, JPG, PNG, WEBP, HEIC/HEIF do 10 MB.
-
-Pliki są przechowywane poza bazą, a tabela `attachments` trzyma metadane:
-kontekst, grupa, podopieczny, wolontariusz, okres, nazwa, typ MIME, rozmiar,
-checksum oraz informacje kto i kiedy dodał lub zmienił plik. Dzięki temu podmiana
-lokalnego storage na usługę chmurową wymaga głównie nowego adaptera storage.
-
-
-```bash
-# Install production dependencies
-pip install gunicorn
-
-# Run with Gunicorn
-gunicorn app.main:app --workers 4 --worker-class uvicorn.workers.UvicornWorker --bind 0.0.0.0:8000
-```
-
