@@ -1,0 +1,136 @@
+import logging
+from collections.abc import Callable, Generator
+
+from sqlalchemy import Engine, create_engine, event
+from sqlalchemy.orm import Session, scoped_session, sessionmaker
+
+from app.modules.audit.exceptions import MissingAuditRecordError
+
+logger = logging.getLogger(__name__)
+
+
+class AuditAwareSession(Session):
+    """Block commits unless an audit event exists or skipping is explicit."""
+
+    def commit(self, skip_audit: bool = False) -> None:  # type: ignore[override]
+        if not self.info.get("audit_recorded", False) and not skip_audit:
+            raise MissingAuditRecordError(
+                "Commit without audit record. Call audit.record() before commit() "
+                "or use skip_audit=True."
+            )
+        try:
+            super().commit()
+        finally:
+            self.info.pop("audit_recorded", None)
+
+    def rollback(self) -> None:
+        try:
+            super().rollback()
+        finally:
+            self.info.pop("audit_recorded", None)
+
+
+def _mask_url(url: str) -> str:
+    """Mask password in a database URL for safe logging."""
+    if "://" in url and "@" in url:
+        scheme, rest = url.split("://", 1)
+        creds, host = rest.split("@", 1)
+        user = creds.split(":")[0] if ":" in creds else creds
+        return f"{scheme}://{user}:***@{host}"
+    return url
+
+
+class SQLConnectionFactory:
+    """
+    Manages SQLAlchemy engine lifecycle and session creation.
+
+    Engines are cached by database URL - each URL gets one engine for the
+    lifetime of this factory instance. Sessions are scoped per request.
+    """
+
+    def __init__(self) -> None:
+        self._engines: dict[str, Engine] = {}
+
+    def get_or_create_engine(
+        self, database_url: str, target_schema: str | None = None
+    ) -> Engine:
+        """Return cached engine for the given URL, or create and cache a new one."""
+        if database_url in self._engines:
+            logger.debug("Returning cached engine for: %s", _mask_url(database_url))
+            return self._engines[database_url]
+
+        logger.info("Creating new engine for: %s", _mask_url(database_url))
+        connect_args = (
+            {"check_same_thread": False} if database_url.startswith("sqlite") else {}
+        )
+        engine = create_engine(
+            database_url,
+            pool_pre_ping=True,
+            connect_args=connect_args,
+        )
+
+        if engine.dialect.name == "postgresql" and target_schema:
+            schema_sql = engine.dialect.identifier_preparer.quote(target_schema)
+
+            def _on_begin(connection):
+                # Supabase uses a transaction-mode connection pooler. Session-level
+                # SET executed only when a physical connection is opened can be lost
+                # between requests and make one request read another schema. Apply
+                # the schema to every transaction instead.
+                connection.exec_driver_sql(f"SET LOCAL search_path TO {schema_sql}")
+
+            event.listen(engine, "begin", _on_begin)
+
+        self._engines[database_url] = engine
+        return engine
+
+    def create_session_factory(
+        self,
+        engine: Engine,
+        autocommit: bool = False,
+        autoflush: bool = False,
+        use_scoped_session: bool = True,
+    ) -> sessionmaker | scoped_session:
+        """Create a request-safe session factory bound to the engine."""
+        factory = sessionmaker(
+            autocommit=autocommit,
+            autoflush=autoflush,
+            expire_on_commit=False,
+            bind=engine,
+            class_=AuditAwareSession,
+        )
+        if use_scoped_session:
+            return scoped_session(factory)
+        return factory
+
+    def get_session_dependency(
+        self,
+        session_factory: sessionmaker[Session] | scoped_session[Session],
+    ) -> Callable[[], Generator[Session, None, None]]:
+        """Create FastAPI dependency function for database sessions."""
+
+        def session_generator() -> Generator[Session, None, None]:
+            session = session_factory()
+            try:
+                yield session
+            except Exception:
+                session.rollback()
+                raise
+            finally:
+                session.close()
+                if hasattr(session_factory, "remove"):
+                    session_factory.remove()
+
+        return session_generator
+
+    def dispose_all(self) -> None:
+        """Dispose all cached engines. Call on application shutdown."""
+        for url, engine in list(self._engines.items()):
+            try:
+                engine.dispose()
+            except Exception as exc:
+                logger.warning("Error disposing engine for %s: %s", _mask_url(url), exc)
+        self._engines.clear()
+
+
+sql_factory = SQLConnectionFactory()
