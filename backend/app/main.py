@@ -8,6 +8,7 @@ from app.core.errors import register_error_handlers
 
 from app.modules.core_data.api.users import router as users_router
 from app.modules.security.api import router as security_router
+from app.modules.telemetry.api import router as telemetry_router
 
 
 @asynccontextmanager
@@ -40,6 +41,9 @@ def root_redirect():
 
 # Auth endpoints (no /api/v1 prefix for backward compatibility)
 app.include_router(security_router)
+
+# Telemetry ingest endpoint for ESP32 MVP
+app.include_router(telemetry_router)
 
 # API v1 endpoints
 app.include_router(users_router, prefix="/api/v1")

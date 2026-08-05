@@ -18,6 +18,9 @@ class Settings(BaseSettings):
     # Attachments
     attachment_storage_path: str = "storage/attachments"
 
+    # Telemetry ingest
+    telemetry_ingest_key: str | None = None
+
     # A deployment may retain variables used by an older/newer application
     # version. They must not prevent the backend from starting after a rollback.
     model_config = SettingsConfigDict(
