@@ -1,8 +1,10 @@
 #include <Arduino.h>
+
+#define TINY_GSM_RX_BUFFER 1024
+
 #include <TinyGsmClient.h>
 #include <ArduinoHttpClient.h>
 
-#define TINY_GSM_RX_BUFFER 1024
 #define GSM_AUTOBAUD_MIN 9600
 #define GSM_AUTOBAUD_MAX 115200
 
@@ -51,195 +53,67 @@ bool connectNetwork() {
   Serial.println("[2] Starting UART...");
   SerialAT.begin(MODEM_BAUD, SERIAL_8N1, MODEM_RX, MODEM_TX);
   delay(3000);
+  TinyGsmAutoBaud(SerialAT, GSM_AUTOBAUD_MIN, GSM_AUTOBAUD_MAX);
 
-  Serial.println("[3] Probing modem with AT...");
-  const uint32_t baud = TinyGsmAutoBaud(SerialAT, GSM_AUTOBAUD_MIN, GSM_AUTOBAUD_MAX);
-  if (baud == 0) {
-    Serial.println("    Modem did NOT respond to AT!");
-    return false;
-  }
-  Serial.print("    Modem responded at baud ");
-  Serial.println(baud);
-
-  Serial.println("[4] Initializing modem...");
-  bool initOk = false;
-  for (int attempt = 1; attempt <= 5; ++attempt) {
-    if (modem.init()) {
-      initOk = true;
-      break;
+  Serial.println("[3] Initializing modem...");
+  if (!modem.restart()) {
+    Serial.println("Failed to restart modem! Trying init()...");
+    if (!modem.init()) {
+      Serial.println("Failed to initialize modem! Halt.");
+      return false;
     }
-    Serial.print("    modem.init() failed, attempt ");
-    Serial.println(attempt);
-    delay(5000);
   }
 
-  if (!initOk) {
-    Serial.println("Failed to initialize modem!");
-    return false;
-  }
-
-  Serial.print("    Modem: ");
+  Serial.print("    Modem info: ");
   Serial.println(modem.getModemInfo());
 
-  Serial.println("[5] Checking SIM status...");
-  if (modem.getSimStatus() != SIM_READY) {
-    Serial.println("    SIM not ready!");
-    return false;
-  }
-
-  Serial.println("[6] Waiting for network...");
-  for (int i = 0; i < 30; ++i) {
-    int16_t csq = modem.getSignalQuality();
-    if (csq > 0) {
-      Serial.print("    Signal: ");
-      Serial.println(csq);
-    }
-    if (modem.isNetworkConnected()) break;
-    delay(2000);
-  }
-
+  Serial.println("[4] Waiting for network...");
   if (!modem.waitForNetwork(60000L)) {
-    Serial.println("Network registration failed!");
+    Serial.println("Network fail! Halt.");
     return false;
   }
   Serial.println("    Network registered.");
 
-  Serial.println("[7] Connecting to GPRS...");
+  Serial.println("[5] Connecting to GPRS...");
   if (!modem.gprsConnect(apn, gprsUser, gprsPass)) {
-    Serial.println("    Warning: gprsConnect returned false, but may still work...");
+    Serial.println("GPRS fail! Halt.");
+    return false;
   }
 
-  delay(3000);
   Serial.print("    Local IP: ");
   Serial.println(modem.localIP());
-
-  // Workaround for TinyGSM bug: open network session before HTTPS
-  modem.sendAT(GF("+NETOPEN"));
-  modem.waitResponse(5000L);
-
   return true;
 }
 
-// Custom CCH parser - workaround for TinyGSM not fully parsing +CCHRECV responses
-// This sends raw AT commands and reads HTTP response directly from modem UART
-bool httpsGetCustom() {
-  Serial.println("[8] HTTPS GET /docs (custom CCH)...");
+bool probeDocs() {
+  Serial.println("[6] Performing HTTPS GET /docs...");
+  http.setHttpResponseTimeout(60000);
+  http.connectionKeepAlive();  // required for HTTPS with this library
 
-  // Configure SSL
-  modem.sendAT(GF("+CTCPKA=1,2,5,1"));
-  if (modem.waitResponse(2000L) != 1) return false;
-
-  modem.sendAT(GF("+CSSLCFG=\"sslversion\",0,3"));
-  if (modem.waitResponse(5000L) != 1) return false;
-
-  modem.sendAT(GF("+CSSLCFG=\"enableSNI\",0,1"));
-  if (modem.waitResponse(2000L) != 1) return false;
-
-  modem.sendAT(GF("+CCHSET=1,1"));
-  if (modem.waitResponse(2000L) != 1) return false;
-
-  modem.sendAT(GF("+CCHSTART"));
-  if (modem.waitResponse(2000L) != 1) return false;
-
-  modem.sendAT(GF("+CCHSSLCFG=0,0"));
-  if (modem.waitResponse(2000L) != 1) return false;
-
-  // Open SSL connection
-  modem.sendAT(GF("+CCHOPEN=0,\""), host, GF("\","), httpsPort, GF(",2"));
-  int8_t openRsp = modem.waitResponse(30000L, GF("+CCHOPEN: 0,0"), GF("+CCHOPEN: 0,1"), GF("ERROR"));
-  if (openRsp < 1) {
-    Serial.println("    CCHOPEN failed!");
-    return false;
-  }
-  Serial.println("    SSL connection opened.");
-
-  // Send HTTP request
-  String request = "GET " + String(resource) + " HTTP/1.1\r\n";
-  request += "Host: " + String(host) + "\r\n";
-  request += "User-Agent: Arduino/2.2.0\r\nConnection: close\r\n\r\n";
-
-  modem.sendAT(GF("+CCHSEND=0,"), (uint16_t)request.length());
-  if (modem.waitResponse(GF(">")) != 1) {
-    Serial.println("    CCHSEND prompt failed!");
-    return false;
-  }
-  SerialAT.write((const uint8_t*)request.c_str(), request.length());
-  SerialAT.flush();
-
-  if (modem.waitResponse(2000L) != 1) {
-    Serial.println("    CCHSEND failed!");
+  const int connectError = http.get(resource);
+  if (connectError != 0) {
+    Serial.print("    HTTP connect failed, err = ");
+    Serial.println(connectError);
     return false;
   }
 
-  // Wait for response
-  Serial.println("    Waiting for response...");
-  uint32_t waitStart = millis();
-  bool success = false;
+  const int statusCode = http.responseStatusCode();
+  Serial.print("    HTTP status: ");
+  Serial.println(statusCode);
 
-  while (millis() - waitStart < 90000) {
-    delay(500);
-
-    // Poll for data
-    modem.sendAT(GF("+CCHRECV?"));
-    String input = modem.stream.readStringUntil('\n');
-
-    if (input.indexOf("+CCHRECV: LEN") >= 0) {
-      // Parse response length
-      int comma1 = input.indexOf(',', 0);
-      int comma2 = input.indexOf(',', comma1 + 1);
-
-      if (comma1 > 0 && comma2 > 0) {
-        String lenStr = input.substring(comma1 + 1, comma2);
-        int dataLen = lenStr.toInt();
-
-        if (dataLen > 0) {
-          Serial.print("    Got ");
-          Serial.print(dataLen);
-          Serial.println(" bytes - reading...");
-          delay(300);
-
-          // Read HTTP response directly from modem UART
-          char buffer[300];
-          memset(buffer, 0, sizeof(buffer));
-          int bytesRead = 0;
-          uint32_t readStart = millis();
-
-          while (bytesRead < 299 && (millis() - readStart) < 2000) {
-            if (SerialAT.available()) {
-              char c = SerialAT.read();
-              buffer[bytesRead++] = c;
-              // Stop after first line
-              if (bytesRead > 10 && c == '\n') break;
-            } else {
-              delay(10);
-            }
-          }
-
-          String response(buffer);
-          Serial.print("    Response: ");
-          Serial.println(response.substring(0, 50));
-
-          if (response.indexOf("200") >= 0) {
-            Serial.println("    ✓ HTTP 200 OK!");
-            success = true;
-          } else if (response.indexOf("HTTP/1") >= 0) {
-            Serial.println("    ✓ HTTP response received!");
-            success = true;
-          } else if (bytesRead > 0) {
-            Serial.println("    ✓ Got response (parsing skipped)");
-            success = true;
-          }
-          break;
-        }
-      }
-    }
+  if (statusCode <= 0) {
+    http.stop();
+    return false;
   }
 
-  // Close connection
-  modem.sendAT(GF("+CCHCLOSE=0"));
-  modem.waitResponse(2000L);
+  String body = http.responseBody();
+  Serial.print("    Body length: ");
+  Serial.println(body.length());
+  Serial.println("    First 200 chars:");
+  Serial.println(body.substring(0, 200));
 
-  return success;
+  http.stop();
+  return statusCode == 200;
 }
 
 void setup() {
@@ -247,18 +121,18 @@ void setup() {
   delay(500);
 
   Serial.println("\n========================================");
-  Serial.println("  Waterworks A7670E HTTPS Monitor      ");
+  Serial.println("       A7670E HTTPS PROBE               ");
   Serial.println("========================================");
 
   if (!connectNetwork()) {
-    Serial.println("Network connection failed!");
-    while (true) delay(1000);
+    while (true) {
+      delay(1000);
+    }
   }
 
-  const bool ok = httpsGetCustom();
-
+  const bool ok = probeDocs();
   Serial.println("========================================");
-  Serial.println(ok ? "            SUCCESS ✓                 " : "            FAILED ✗                 ");
+  Serial.println(ok ? "            GET /docs OK              " : "         GET /docs FAILED             ");
   Serial.println("========================================");
 
   modem.gprsDisconnect();
@@ -267,17 +141,15 @@ void setup() {
 void loop() {
   delay(60000);
 
-  if (!modem.isGprsConnected()) {
-    Serial.println("[LOOP] Reconnecting GPRS...");
-    modem.gprsConnect(apn, gprsUser, gprsPass);
+  if (modem.isGprsConnected()) {
+    return;
   }
 
-  if (httpsGetCustom()) {
-    Serial.println("[LOOP] ✓ HTTPS GET succeeded");
-  } else {
-    Serial.println("[LOOP] ✗ HTTPS GET failed");
+  if (!modem.gprsConnect(apn, gprsUser, gprsPass)) {
+    Serial.println("Retry GPRS failed.");
+    return;
   }
 
-  delay(30000);
+  probeDocs();
   modem.gprsDisconnect();
 }
