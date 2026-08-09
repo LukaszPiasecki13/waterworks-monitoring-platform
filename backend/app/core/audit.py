@@ -10,14 +10,7 @@ class EntityType(StrEnum):
     """Canonical identifiers for auditable business entities."""
 
     CORE_DATA_USER = "core_data_user"
-    PI_VOLUNTEER = "pi_volunteer"
-    PI_BENEFICIARY = "pi_beneficiary"
-    PI_GROUP = "pi_group"
-    PI_BENEFICIARY_ASSIGNMENT = "pi_beneficiary_assignment"
     SECURITY_USER_GROUP = "security_user_group"
-    RECRUITMENT_SUBMISSION = "recruitment_submission"
-    RECRUITMENT_DEPARTURE = "recruitment_departure"
-    CALENDAR_EVENT = "calendar_event"
     ATTACHMENT = "attachment"
 
 

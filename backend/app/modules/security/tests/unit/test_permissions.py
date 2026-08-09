@@ -21,7 +21,7 @@ def _service(session: Session) -> PermissionService:
     )
 
 
-def _user(session: Session, username: str, status: str = "new_volunteer") -> User:
+def _user(session: Session, username: str, status: str = "regular") -> User:
     user = User(
         username=username,
         email=f"{username}@example.org",

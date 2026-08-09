@@ -6,3 +6,4 @@
 */.env
 */.claude/
 .pio
+*.code-workspace

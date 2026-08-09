@@ -1,6 +1,6 @@
 """Telemetry-specific exceptions."""
 
-from app.core.errors import ConflictError, PermissionError
+from app.core.errors import ConflictError, ForbiddenError
 
 
 class TelemetryPacketAlreadyExistsError(ConflictError):
@@ -12,7 +12,7 @@ class TelemetryPacketAlreadyExistsError(ConflictError):
         )
 
 
-class InvalidTelemetryIngestKeyError(PermissionError):
+class InvalidTelemetryIngestKeyError(ForbiddenError):
     """Raised when the telemetry ingest key is missing or invalid."""
 
     def __init__(self):

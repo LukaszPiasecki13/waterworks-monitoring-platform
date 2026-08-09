@@ -4,7 +4,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
-UserStatus = Literal["new_volunteer", "regular", "admin"]
+UserStatus = Literal["regular", "admin"]
 
 
 class UserRegisterRequest(BaseModel):

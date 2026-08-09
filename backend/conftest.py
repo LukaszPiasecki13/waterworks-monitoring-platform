@@ -12,26 +12,36 @@ from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
+os.environ["ENVIRONMENT"] = "test"
 os.environ["DATABASE_URL"] = "sqlite+pysqlite:///:memory:"
 os.environ["SECRET_KEY"] = "test-secret-key"
 os.environ["ALGORITHM"] = "HS256"
 
-from app.core.dependencies import get_db  # noqa: E402
-from app.core.errors import register_error_handlers  # noqa: E402
-from app.infrastructure.sql.base import Base  # noqa: E402
-from app.infrastructure.sql import models_registry  # noqa: F401, E402
-from app.modules.core_data.api.users import router as users_router  # noqa: E402
-from app.modules.core_data.models import User  # noqa: E402
-from app.modules.security.api import router as security_router  # noqa: E402
-from app.modules.security.dependencies import (  # noqa: E402
+from app.core.config import get_settings
+from app.core.dependencies import get_db
+from app.core.errors import register_error_handlers
+from app.infrastructure.sql import models_registry  # noqa: F401
+from app.infrastructure.sql.base import Base
+from app.modules.core_data.api.users import router as users_router
+from app.modules.core_data.models import User
+from app.modules.security.api import router as security_router
+from app.modules.security.dependencies import (
     get_current_user,
     require_admin,
 )
-from app.modules.security.models import (  # noqa: E402
+from app.modules.security.models import (
+    Permission,
     UserGroup,
     security_user_groups,
 )
-
+from app.modules.security.models.constants import (
+    CAN_MANAGE_ATTACHMENTS,
+    CAN_MANAGE_SECURITY,
+    CAN_MANAGE_USERS,
+    CAN_VIEW_ATTACHMENTS,
+    CAN_VIEW_SECURITY,
+    CAN_VIEW_USERS,
+)
 
 
 @pytest.fixture
@@ -66,6 +76,14 @@ def db_session(db_engine: Engine) -> Generator[Session, None, None]:
         session.close()
 
 
+@pytest.fixture(autouse=True)
+def clear_settings_cache() -> Generator[None, None, None]:
+    """Keep env-var driven settings from leaking between tests."""
+    get_settings.cache_clear()
+    yield
+    get_settings.cache_clear()
+
+
 @pytest.fixture
 def admin_user(db_session: Session) -> User:
     db_session.flush()
@@ -81,7 +99,25 @@ def admin_user(db_session: Session) -> User:
         created_at=datetime(2026, 1, 1),
         updated_at=datetime(2026, 1, 1),
     )
-    admin_group = db_session.query(UserGroup).filter_by(system_key="admin").one()
+    all_permissions = [
+        Permission(code=code, name=code, category="test")
+        for code in (
+            CAN_VIEW_USERS,
+            CAN_MANAGE_USERS,
+            CAN_VIEW_SECURITY,
+            CAN_MANAGE_SECURITY,
+            CAN_VIEW_ATTACHMENTS,
+            CAN_MANAGE_ATTACHMENTS,
+        )
+    ]
+    admin_group = UserGroup(
+        name="Admin",
+        description="Full system access",
+        is_system=True,
+        system_key="admin",
+        permissions=all_permissions,
+    )
+    db_session.add(admin_group)
     db_session.add(user)
     db_session.flush()
     db_session.execute(

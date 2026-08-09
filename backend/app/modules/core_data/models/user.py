@@ -19,9 +19,9 @@ class User(Base):
     first_name: Mapped[str] = mapped_column(String(150), default="")
     last_name: Mapped[str] = mapped_column(String(150), default="")
     hashed_password: Mapped[str] = mapped_column(String(255))
-    status: Mapped[str] = mapped_column(
-        String(50), default="regular"
-    )  # new_volunteer, regular, admin
+    # Account role hint used when assigning the default security group.
+    # Effective authorization always comes from security groups.
+    status: Mapped[str] = mapped_column(String(50), default="regular")
     is_active: Mapped[bool] = mapped_column(default=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),

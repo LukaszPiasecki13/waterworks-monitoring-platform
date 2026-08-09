@@ -58,9 +58,6 @@ alembic current
 # Wykonaj migracje
 alembic upgrade head
 
-# Wgraj wymagane dane startowe (po każdej migracji/deploymentcie)
-python -m scripts.seed_required_data
-
 # Utwórz nową migrację (jeśli edytujesz modele)
 alembic revision --autogenerate -m "Opis zmian"
 

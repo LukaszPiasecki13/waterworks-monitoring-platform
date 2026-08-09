@@ -2,7 +2,16 @@
 
 from datetime import datetime
 
-from sqlalchemy import BigInteger, DateTime, Index, Integer, JSON, String, UniqueConstraint, func
+from sqlalchemy import (
+    JSON,
+    BigInteger,
+    DateTime,
+    Index,
+    Integer,
+    String,
+    UniqueConstraint,
+    func,
+)
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -21,10 +30,16 @@ class TelemetryPacket(Base):
     device_id: Mapped[str] = mapped_column(String(128), nullable=False)
     org_id: Mapped[str] = mapped_column(String(128), nullable=False)
     object_id: Mapped[str] = mapped_column(String(128), nullable=False)
-    seq: Mapped[int] = mapped_column(Integer().with_variant(BigInteger(), "postgresql"), nullable=False)
+    seq: Mapped[int] = mapped_column(
+        Integer().with_variant(BigInteger(), "postgresql"), nullable=False
+    )
 
-    sent_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-    received_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    sent_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+    received_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,

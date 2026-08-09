@@ -45,7 +45,11 @@ class TelemetryPacketRepository(SQLRepository):
             self.commit(skip_audit=True)
         except IntegrityError as exc:
             self.rollback()
-            message = str(exc.orig).lower() if exc.orig is not None else str(exc).lower()
+            message = (
+                str(exc.orig).lower()
+                if exc.orig is not None
+                else str(exc).lower()
+            )
             is_unique_device_seq = (
                 "uq_telemetry_packets_device_seq" in message
                 or "telemetry_packets.device_id, telemetry_packets.seq" in message

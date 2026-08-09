@@ -21,7 +21,7 @@ def verify_telemetry_ingest_key(
         return
 
     if x_device_key is None or not secrets.compare_digest(x_device_key, expected_key):
-        raise InvalidTelemetryIngestKeyError()
+        raise InvalidTelemetryIngestKeyError
 
 
 def get_telemetry_packet_repository(

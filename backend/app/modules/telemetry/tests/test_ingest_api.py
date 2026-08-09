@@ -51,8 +51,6 @@ def _client(db_session: Session) -> TestClient:
 
 
 def test_ingest_accepts_then_returns_duplicate(db_session: Session) -> None:
-    get_settings.cache_clear()
-
     with _client(db_session) as client:
         first = client.post("/telemetry/ingest", json=_payload(seq=10542))
         assert first.status_code == 202
@@ -88,9 +86,6 @@ def test_ingest_rejects_invalid_device_key(
     assert response.status_code == 403
     assert response.json() == {"detail": "Invalid telemetry ingest key"}
 
-    monkeypatch.delenv("TELEMETRY_INGEST_KEY", raising=False)
-    get_settings.cache_clear()
-
 
 def test_ingest_accepts_valid_device_key(
     db_session: Session,
@@ -108,6 +103,3 @@ def test_ingest_accepts_valid_device_key(
 
     assert response.status_code == 202
     assert response.json()["status"] == "accepted"
-
-    monkeypatch.delenv("TELEMETRY_INGEST_KEY", raising=False)
-    get_settings.cache_clear()

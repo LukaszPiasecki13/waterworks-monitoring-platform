@@ -1,8 +1,12 @@
 """Global error handling and custom exceptions."""
 
+import logging
+
 from fastapi import FastAPI, Request, status
 from fastapi.responses import JSONResponse
 from pydantic import ValidationError
+
+logger = logging.getLogger(__name__)
 
 
 class APIError(Exception):
@@ -39,7 +43,7 @@ class AuthenticationError(APIError):
         super().__init__(message, status.HTTP_401_UNAUTHORIZED)
 
 
-class PermissionError(APIError):
+class ForbiddenError(APIError):
     """Permission denied."""
 
     def __init__(self, message: str = "Permission denied"):
@@ -53,26 +57,49 @@ class ValidationException(APIError):  # noqa: N818
         super().__init__(message, status.HTTP_422_UNPROCESSABLE_CONTENT)
 
 
+def _error_response(status_code: int, detail: object) -> JSONResponse:
+    return JSONResponse(status_code=status_code, content={"detail": detail})
+
+
 def register_error_handlers(app: FastAPI) -> None:
     """Register global error handlers."""
 
     @app.exception_handler(APIError)
     async def api_exception_handler(request: Request, exc: APIError):
-        return JSONResponse(
-            status_code=exc.status_code,
-            content={"detail": exc.message},
-        )
+        if exc.status_code >= status.HTTP_500_INTERNAL_SERVER_ERROR:
+            logger.error(
+                "API error on %s %s: %s",
+                request.method,
+                request.url.path,
+                exc.message,
+            )
+        else:
+            logger.info(
+                "API error on %s %s: %s (%s)",
+                request.method,
+                request.url.path,
+                exc.message,
+                exc.status_code,
+            )
+        return _error_response(exc.status_code, exc.message)
 
     @app.exception_handler(ValidationError)
     async def validation_exception_handler(request: Request, exc: ValidationError):
-        return JSONResponse(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            content={"detail": exc.errors()},
+        logger.info(
+            "Validation error on %s %s", request.method, request.url.path
+        )
+        return _error_response(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            exc.errors(),
         )
 
     @app.exception_handler(Exception)
     async def general_exception_handler(request: Request, exc: Exception):
-        return JSONResponse(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            content={"detail": "Internal server error"},
+        # Never leak internals to the client, but always keep the traceback.
+        logger.exception(
+            "Unhandled error on %s %s", request.method, request.url.path
+        )
+        return _error_response(
+            status.HTTP_500_INTERNAL_SERVER_ERROR,
+            "Internal server error",
         )

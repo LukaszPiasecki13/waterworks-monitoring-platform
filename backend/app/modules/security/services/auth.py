@@ -4,7 +4,6 @@ from app.core.errors import (
     AuthenticationError,
     BadRequestError,
     ConflictError,
-    ValidationException,
 )
 from app.modules.core_data.audit_state import user_audit_state
 from app.modules.core_data.models import User
@@ -84,7 +83,7 @@ class AuthService:
             # Hash password
             hashed_password = hash_password(password)
 
-            old_state = {}
+            old_state: dict[str, object] = {}
             user = self.repo.create(
                 username=normalized_username,
                 email=normalized_email,

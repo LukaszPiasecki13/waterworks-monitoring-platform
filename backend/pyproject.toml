@@ -3,9 +3,9 @@ requires = ["setuptools>=68.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "apaulo-backend"
+name = "fastapi-backend"
 version = "0.1.0"
-description = "A-PAULO Backend - FastAPI with PostgreSQL"
+description = "FastAPI Backend with PostgreSQL, SQLAlchemy, and Alembic"
 requires-python = ">=3.12"
 
 dependencies = [
@@ -47,7 +47,7 @@ exclude = [
     ".pytest_cache",
     ".mypy_cache",
     ".git",
-    "/alembic",
+    "alembic",
 ]
 
 [tool.ruff.lint]

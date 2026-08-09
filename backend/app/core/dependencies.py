@@ -36,6 +36,17 @@ _sql_session_factory = sql_factory.create_session_factory(
 get_sql_session = sql_factory.get_session_dependency(_sql_session_factory)
 get_db = get_sql_session
 
+
+def get_sql_engine() -> Engine:
+    """Return the process-wide engine (health checks, maintenance tasks)."""
+    return _sql_engine
+
+
+def dispose_sql_engines() -> None:
+    """Release pooled connections on application shutdown."""
+    sql_factory.dispose_all()
+
+
 # =============================================================================
 # Attachment Storage Setup
 # =============================================================================
