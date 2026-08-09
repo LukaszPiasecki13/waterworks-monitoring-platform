@@ -94,7 +94,7 @@ def test_system_group_permission_matrix_cannot_be_modified(
 def test_staff_group_permissions_are_editable_but_metadata_stays_locked(
     db_session: Session,
 ) -> None:
-    """PAP-95: admins can tune STAFF permissions; name/description stay locked."""
+    """Admins can tune STAFF permissions; name/description stay locked."""
     view = Permission(code="CAN_VIEW_USERS", name="View", category="Users")
     manage = Permission(code="CAN_MANAGE_USERS", name="Manage", category="Users")
     group = UserGroup(
@@ -187,7 +187,7 @@ def test_default_group_assignment_preserves_explicit_memberships(
 
 
 def test_permission_only_group_change_is_persisted(db_session: Session) -> None:
-    """Regression (PAP-79 review): permission codes are part of the group snapshot."""
+    """Permission codes are included in the group snapshot."""
     view = Permission(code="CAN_VIEW_USERS", name="View", category="Users")
     manage = Permission(code="CAN_MANAGE_USERS", name="Manage", category="Users")
     group = UserGroup(name="Zespol", permissions=[view])

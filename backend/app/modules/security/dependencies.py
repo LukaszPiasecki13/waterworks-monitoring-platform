@@ -25,6 +25,7 @@ def get_token_service() -> TokenService:
         secret_key=settings.secret_key,
         algorithm=settings.algorithm,
         access_token_expire_minutes=settings.access_token_expire_minutes,
+        refresh_token_expire_days=settings.refresh_token_expire_days,
     )
 
 

@@ -166,7 +166,6 @@ class PermissionService:
             self.repo.refresh(group)
             new_state = self._group_state(group)
             if not calculate_delta(old_state, new_state):
-                # Genuine no-op: persist (nothing changed) without an audit entry.
                 self.repo.commit(skip_audit=True)
                 return self._serialize_group(group)
             self._record_group("UPDATE", group, actor, old_state, new_state)
@@ -188,7 +187,6 @@ class PermissionService:
             self.repo.refresh(group)
             new_state = self._group_state(group)
             if not calculate_delta(old_state, new_state):
-                # Genuine no-op: persist (nothing changed) without an audit entry.
                 self.repo.commit(skip_audit=True)
                 return self._serialize_group(group)
             self._record_group("PERMISSIONS_UPDATE", group, actor, old_state, new_state)
@@ -208,7 +206,9 @@ class PermissionService:
         """Save metadata, permissions and members atomically."""
 
         try:
-            group = self.get_group(group_id)
+            group = self.repo.get_group_for_update(group_id)
+            if not group:
+                raise NotFoundError("Grupa użytkowników nie istnieje")
             old_state = self._group_state(group)
             member_ids = set(request.user_ids)
             changed_user_ids = set(old_state["user_ids"]) ^ member_ids
@@ -247,7 +247,6 @@ class PermissionService:
             self.repo.refresh(group)
             new_state = self._group_state(group)
             if not calculate_delta(old_state, new_state):
-                # Genuine no-op: persist (nothing changed) without an audit entry.
                 self.repo.commit(skip_audit=True)
                 return self._serialize_group(group)
             self._record_group("UPDATE", group, actor, old_state, new_state)
@@ -262,7 +261,9 @@ class PermissionService:
         self, group_id: int, user_ids: list[int], actor: User
     ) -> dict:
         try:
-            group = self.get_group(group_id)
+            group = self.repo.get_group_for_update(group_id)
+            if not group:
+                raise NotFoundError("Grupa użytkowników nie istnieje")
             old_state = self._group_state(group)
             ids = set(user_ids)
             changed_user_ids = set(old_state["user_ids"]) ^ ids
@@ -273,7 +274,6 @@ class PermissionService:
             self.repo.flush()
             new_state = self._group_state(group)
             if not calculate_delta(old_state, new_state):
-                # Genuine no-op: persist (nothing changed) without an audit entry.
                 self.repo.commit(skip_audit=True)
                 return self._serialize_group(group)
             self._record_group("MEMBERS_UPDATE", group, actor, old_state, new_state)
@@ -300,7 +300,7 @@ class PermissionService:
             }
             for group_id in ids:
                 self.get_group(group_id)
-            admin_group = self.repo.get_group_by_system_key(ADMIN_GROUP_KEY)
+            admin_group = self.repo.get_group_by_system_key_for_update(ADMIN_GROUP_KEY)
             if admin_group:
                 existing_admins = set(self.repo.user_ids_for_group(admin_group.id))
                 if (
@@ -315,7 +315,6 @@ class PermissionService:
             self.repo.flush()
             new_ids = sorted(ids)
             if old_ids == new_ids:
-                # Genuine no-op: persist (nothing changed) without an audit entry.
                 self.repo.commit(skip_audit=True)
                 return old_ids
             self._record_user_groups(user, actor, old_ids, new_ids)
@@ -433,9 +432,8 @@ class PermissionService:
 
     @staticmethod
     def _ensure_permissions_editable(group: UserGroup) -> None:
-        """STAFF permissions are admin-tunable (PAP-95); other system groups
-        stay locked — Admin especially, so administrators cannot cut off
-        their own access."""
+        """STAFF permissions are admin-tunable; other system groups stay locked
+        — Admin especially, so administrators cannot cut off their own access."""
         if group.is_system and group.system_key != STAFF_GROUP_KEY:
             raise BadRequestError(
                 "Uprawnień tej grupy systemowej nie można modyfikować"

@@ -37,8 +37,19 @@ class PermissionRepository(SQLRepository):
     def get_group(self, group_id: int) -> UserGroup | None:
         return self.session.query(UserGroup).filter_by(id=group_id).first()
 
+    def get_group_for_update(self, group_id: int) -> UserGroup | None:
+        return self.session.query(UserGroup).filter_by(id=group_id).with_for_update().first()
+
     def get_group_by_system_key(self, system_key: str) -> UserGroup | None:
         return self.session.query(UserGroup).filter_by(system_key=system_key).first()
+
+    def get_group_by_system_key_for_update(self, system_key: str) -> UserGroup | None:
+        return (
+            self.session.query(UserGroup)
+            .filter_by(system_key=system_key)
+            .with_for_update()
+            .first()
+        )
 
     def create_group(self, *, name: str, description: str) -> UserGroup:
         group = UserGroup(name=name, description=description)

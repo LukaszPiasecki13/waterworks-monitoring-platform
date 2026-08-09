@@ -14,10 +14,12 @@ class TokenService:
         secret_key: str,
         algorithm: str = "HS256",
         access_token_expire_minutes: int = 120,
+        refresh_token_expire_days: int = 1,
     ) -> None:
         self._secret_key = secret_key
         self._algorithm = algorithm
         self._access_expire_minutes = access_token_expire_minutes
+        self._refresh_expire_days = refresh_token_expire_days
 
     def create_access_token(
         self, data: dict, expires_delta: timedelta | None = None
@@ -31,7 +33,7 @@ class TokenService:
 
     def create_refresh_token(self, data: dict) -> str:
         to_encode = data.copy()
-        expire = datetime.now(UTC) + timedelta(days=1)
+        expire = datetime.now(UTC) + timedelta(days=self._refresh_expire_days)
         to_encode.update({"exp": expire, "type": "refresh"})
         return jwt.encode(to_encode, self._secret_key, algorithm=self._algorithm)
 

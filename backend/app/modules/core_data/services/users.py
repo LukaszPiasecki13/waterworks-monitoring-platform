@@ -1,18 +1,7 @@
-"""Authentication service for users."""
-
-from datetime import datetime, timedelta
-
-from jose import JWTError, jwt
-from passlib.context import CryptContext
+"""User management service."""
 
 from app.core.audit import AuditEntry, AuditPort, EntityType, calculate_delta
-from app.core.config import get_settings
-from app.core.errors import (
-    AuthenticationError,
-    BadRequestError,
-    ConflictError,
-    NotFoundError,
-)
+from app.core.errors import BadRequestError, ConflictError, NotFoundError
 from app.modules.core_data.audit_state import user_audit_state
 from app.modules.core_data.models.user import User
 from app.modules.core_data.repositories.users import UserRepository
@@ -20,12 +9,9 @@ from app.modules.core_data.schemas.users import UserCreateRequest, UserUpdateReq
 from app.modules.security.services.password import hash_password
 from app.modules.security.services.permissions import PermissionService
 
-# Password hashing
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-
 
 class UserService:
-    """Service for user authentication operations."""
+    """Service for user management operations."""
 
     def __init__(
         self,
@@ -36,7 +22,6 @@ class UserService:
         self.user_repo = user_repo
         self.permissions = permissions
         self.audit = audit
-        self.settings = get_settings()
 
     def _state(self, user: User) -> dict:
         return user_audit_state(user)
@@ -64,106 +49,6 @@ class UserService:
                 changes=changes,
             )
         )
-
-    def hash_password(self, password: str) -> str:
-        """Hash a password."""
-        return pwd_context.hash(password)
-
-    def verify_password(self, plain_password: str, hashed_password: str) -> bool:
-        """Verify password against hash."""
-        return pwd_context.verify(plain_password, hashed_password)
-
-    def register_user(
-        self,
-        username: str,
-        email: str,
-        password: str,
-        first_name: str = "",
-        last_name: str = "",
-        status: str = "regular",
-    ) -> User:
-        """Register new user."""
-        try:
-            normalized_username = username.strip().lower()
-            normalized_email = email.strip().lower()
-
-            # Check if user already exists
-            if self.user_repo.exists(username=normalized_username):
-                raise ConflictError(f"Username '{username}' already exists")
-            if self.user_repo.exists(email=normalized_email):
-                raise ConflictError(f"Email '{email}' already exists")
-
-            hashed_password = self.hash_password(password)
-            user = self.user_repo.create(
-                username=normalized_username,
-                email=normalized_email,
-                hashed_password=hashed_password,
-                first_name=first_name,
-                last_name=last_name,
-                status=status,
-            )
-            self.user_repo.flush()
-            self.user_repo.refresh(user)
-            self.permissions.assign_default_group(user, actor=user)
-            self._record("REGISTER", user, user, {}, self._state(user))
-            self.user_repo.commit()
-            return user
-        except Exception:
-            self.user_repo.rollback()
-            raise
-
-    def authenticate_user(self, username: str, password: str) -> User:
-        """Authenticate user by username or email."""
-        # Try to find by username first, then by email
-        user = self.user_repo.get_by_username(username)
-        if not user:
-            user = self.user_repo.get_by_email(username)
-
-        if not user or not self.verify_password(password, user.hashed_password):
-            raise AuthenticationError("Invalid username/email or password")
-
-        if not user.is_active:
-            raise AuthenticationError("User account is inactive")
-
-        return user
-
-    def create_access_token(self, user_id: int) -> str:
-        """Create JWT access token."""
-        data: dict[str, object] = {
-            "sub": str(user_id),
-            "type": "access",
-        }
-        expires_delta = timedelta(minutes=self.settings.access_token_expire_minutes)
-        expire = datetime.utcnow() + expires_delta
-        data["exp"] = expire
-        return jwt.encode(
-            data,
-            self.settings.secret_key,
-            algorithm=self.settings.algorithm,
-        )
-
-    def verify_token(self, token: str) -> int:
-        """Verify JWT token and return user_id."""
-        try:
-            payload = jwt.decode(
-                token,
-                self.settings.secret_key,
-                algorithms=[self.settings.algorithm],
-            )
-            user_id: str = payload.get("sub")
-            if user_id is None:
-                raise AuthenticationError("Invalid token")
-            return int(user_id)
-        except JWTError:
-            raise AuthenticationError("Invalid token") from None
-
-    def get_current_user(self, token: str) -> User:
-        """Get current user from token."""
-        user_id = self.verify_token(token)
-        user = self.user_repo.get_by_id(user_id)
-        if not user:
-            raise AuthenticationError("User not found")
-        return user
 
     def get_user_by_id(self, user_id: int) -> User:
         """Get user by ID or raise NotFoundError."""
@@ -279,7 +164,6 @@ class UserService:
                     "new": "[zmieniono]",
                 }
             if not changes:
-                # Genuine no-op: persist (nothing changed) without an audit entry.
                 self.user_repo.commit(skip_audit=True)
                 return user
             self._record(

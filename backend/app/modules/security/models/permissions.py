@@ -1,7 +1,4 @@
-"""Flexible user groups and permission assignments.
-
-These groups intentionally have no relationship to the PI domain Group model.
-"""
+"""Flexible user groups and permission assignments."""
 
 from datetime import datetime
 

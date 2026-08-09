@@ -1,10 +1,21 @@
 """Pydantic schemas for users."""
 
-from typing import Literal
+from typing import Generic, Literal, TypeVar
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
 UserStatus = Literal["regular", "admin"]
+
+T = TypeVar("T")
+
+
+class PaginatedResponse(BaseModel, Generic[T]):
+    """Paginated response wrapper."""
+
+    items: list[T]
+    total: int
+    skip: int
+    limit: int
 
 
 class UserRegisterRequest(BaseModel):
@@ -12,7 +23,7 @@ class UserRegisterRequest(BaseModel):
 
     username: str = Field(..., min_length=3, max_length=150)
     email: EmailStr
-    password: str = Field(..., min_length=6)
+    password: str = Field(..., min_length=6, max_length=72)
     first_name: str = Field(default="", max_length=150)
     last_name: str = Field(default="", max_length=150)
     status: UserStatus = "regular"
@@ -54,7 +65,7 @@ class UserCreateRequest(BaseModel):
 
     username: str = Field(..., min_length=3, max_length=150)
     email: EmailStr
-    password: str = Field(..., min_length=6)
+    password: str = Field(..., min_length=6, max_length=72)
     first_name: str = Field(default="", max_length=150)
     last_name: str = Field(default="", max_length=150)
     status: UserStatus = "regular"
@@ -70,4 +81,4 @@ class UserUpdateRequest(BaseModel):
     last_name: str | None = Field(default=None, max_length=150)
     status: UserStatus | None = None
     is_active: bool | None = None
-    password: str | None = Field(default=None, min_length=6)
+    password: str | None = Field(default=None, min_length=6, max_length=72)

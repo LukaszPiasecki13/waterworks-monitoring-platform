@@ -15,8 +15,6 @@ def test_settings_ignore_variables_from_other_application_versions(
     env_file.write_text(
         "DATABASE_URL=sqlite+pysqlite:///:memory:\n"
         "SECRET_KEY=test-key\n"
-        "EMAIL_PROVIDER=resend\n"
-        "RESEND_API_KEY=legacy-key\n"
         "EMAIL_FROM=mail@example.com\n"
         "FRONTEND_BASE_URL=http://localhost:5173\n",
         encoding="utf-8",

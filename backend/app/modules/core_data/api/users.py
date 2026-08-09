@@ -8,6 +8,7 @@ from app.modules.audit.schemas import AuditEventResponse
 from app.modules.core_data.dependencies import get_user_service
 from app.modules.core_data.models import User
 from app.modules.core_data.schemas.users import (
+    PaginatedResponse,
     UserCreateRequest,
     UserResponse,
     UserUpdateRequest,
@@ -23,7 +24,7 @@ from app.modules.security.models.constants import (
 router = APIRouter(prefix="/users", tags=["users"])
 
 
-@router.get("", response_model=list[UserResponse])
+@router.get("", response_model=PaginatedResponse[UserResponse])
 def list_users(
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=1000),
@@ -34,14 +35,19 @@ def list_users(
     _user: User = Depends(require_any_permission(CAN_VIEW_USERS, CAN_VIEW_SECURITY)),
 ):
     """List users with optional filters."""
-    users, _ = service.list_users(
+    users, total = service.list_users(
         skip=skip,
         limit=limit,
         search=search,
         status=status,
         is_active=is_active,
     )
-    return users
+    return {
+        "items": users,
+        "total": total,
+        "skip": skip,
+        "limit": limit,
+    }
 
 
 @router.post("", response_model=UserResponse)

@@ -64,7 +64,7 @@ def test_users_api_supports_admin_crud_flow(api_client) -> None:
 
     list_response = api_client.get("/api/v1/users", params={"search": "panel"})
     assert list_response.status_code == 200
-    assert [user["email"] for user in list_response.json()] == ["panel@example.com"]
+    assert [user["email"] for user in list_response.json()["items"]] == ["panel@example.com"]
 
     update_response = api_client.patch(
         f"/api/v1/users/{created['id']}",
@@ -145,4 +145,4 @@ def test_security_group_viewer_can_list_users_for_membership_management(
     app.dependency_overrides.clear()
 
     assert response.status_code == 200
-    assert [item["email"] for item in response.json()] == [user.email]
+    assert [item["email"] for item in response.json()["items"]] == [user.email]

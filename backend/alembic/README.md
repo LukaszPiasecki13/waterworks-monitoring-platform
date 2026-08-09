@@ -94,6 +94,29 @@ alembic upgrade head
 7. **Keep reference data out of migrations** - permissions, system groups,
    questions and dictionaries are owned by `scripts.seed_required_data`
 
-The current PAP-98 baseline is intended for fresh environments. A non-production
+## 6. PostgreSQL Partitioning (audit_events)
+
+The `audit_events` table is partitioned by `RANGE (created_at)` for scalability on large datasets.
+
+**Important:** On fresh PostgreSQL databases, manually create at least one partition after migrations:
+
+```sql
+-- Connect to your PostgreSQL database and run:
+CREATE TABLE IF NOT EXISTS audit_events_default
+PARTITION OF audit_events DEFAULT;
+```
+
+Alternatively, drop the partition clause from the table definition if you don't need time-based partitioning yet:
+
+```sql
+-- Only if you want to remove partitioning (development/testing):
+ALTER TABLE audit_events SET UNLOGGED;  -- optional, for testing speed
+```
+
+**Note:** SQLite tests skip this requirement (SQLite has no partitioning support).
+
+---
+
+The current baseline is intended for fresh environments. A non-production
 schema stamped with an older revision must be reset before using this baseline;
 do not stamp it over an existing populated schema.

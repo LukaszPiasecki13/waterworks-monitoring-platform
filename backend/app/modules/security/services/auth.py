@@ -165,7 +165,6 @@ class AuthService:
                     "new": "[zmieniono]",
                 }
             if not changes:
-                # Genuine no-op: persist (nothing changed) without an audit entry.
                 self.repo.commit(skip_audit=True)
                 return user
             self._record_user(

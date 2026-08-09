@@ -10,7 +10,7 @@ from app.core.dependencies import dispose_sql_engines
 from app.core.errors import register_error_handlers
 from app.core.health import router as health_router
 from app.core.logging import configure_logging
-from app.modules.core_data.api.users import router as users_router
+from app.modules.core_data.api import router as core_data_router
 from app.modules.security.api import router as security_router
 from app.modules.telemetry.api import router as telemetry_router
 
@@ -68,4 +68,4 @@ app.include_router(security_router)
 app.include_router(telemetry_router)
 
 # API v1 endpoints
-app.include_router(users_router, prefix=API_V1_PREFIX)
+app.include_router(core_data_router, prefix=API_V1_PREFIX)
