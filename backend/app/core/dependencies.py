@@ -1,4 +1,5 @@
 from sqlalchemy import Engine
+from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
 from app.infrastructure.sql.factory import SQLConnectionFactory
@@ -45,6 +46,11 @@ def get_sql_engine() -> Engine:
 def dispose_sql_engines() -> None:
     """Release pooled connections on application shutdown."""
     sql_factory.dispose_all()
+
+
+def create_session() -> Session:
+    """Create a standalone session (for startup tasks, not request-scoped)."""
+    return _sql_session_factory()
 
 
 # =============================================================================

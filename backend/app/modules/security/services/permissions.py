@@ -11,7 +11,7 @@ from app.modules.core_data.models import User
 from app.modules.core_data.repositories.users import UserRepository
 from app.modules.security.audit_state import security_group_audit_state
 from app.modules.security.models import UserGroup
-from app.modules.security.models.constants import (
+from app.modules.security.permission_catalog import (
     ADMIN_GROUP_KEY,
     STAFF_GROUP_KEY,
 )

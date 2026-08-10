@@ -3,6 +3,7 @@
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
+from app.core.errors import NotFoundError
 from app.infrastructure.sql.repository import SQLRepository
 from app.modules.core_data.models.user import User
 
@@ -26,6 +27,13 @@ class UserRepository(SQLRepository):
     def get_by_id(self, user_id: int) -> User | None:
         """Get user by ID."""
         return self.session.query(User).filter(User.id == user_id).first()
+
+    def find_by_id(self, user_id: int) -> User:
+        """Find user by ID or raise NotFoundError."""
+        user = self.get_by_id(user_id)
+        if not user:
+            raise NotFoundError("User not found")
+        return user
 
     def list_all(
         self,
@@ -95,6 +103,7 @@ class UserRepository(SQLRepository):
         last_name: str = "",
         status: str = "regular",
         is_active: bool = True,
+        organization_id: int | None = None,
     ) -> User:
         """Create new user."""
         user = User(
@@ -105,6 +114,7 @@ class UserRepository(SQLRepository):
             last_name=last_name,
             status=status,
             is_active=is_active,
+            organization_id=organization_id,
         )
         self.session.add(user)
         return user
@@ -120,6 +130,7 @@ class UserRepository(SQLRepository):
         status: str | None = None,
         is_active: bool | None = None,
         hashed_password: str | None = None,
+        organization_id: int | None = None,
     ) -> User:
         """Update user fields."""
         if username is not None:
@@ -136,15 +147,9 @@ class UserRepository(SQLRepository):
             user.is_active = is_active
         if hashed_password is not None:
             user.hashed_password = hashed_password
+        if organization_id is not None:
+            user.organization_id = organization_id
         return user
-
-    def exists(self, username: str | None = None, email: str | None = None) -> bool:
-        """Check if user exists by username or email."""
-        if username:
-            return self.get_by_username(username) is not None
-        if email:
-            return self.get_by_email(email) is not None
-        return False
 
     def delete(self, user: User) -> None:
         """Delete user."""

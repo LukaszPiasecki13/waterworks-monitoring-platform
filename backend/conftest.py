@@ -34,7 +34,7 @@ from app.modules.security.models import (
     UserGroup,
     security_user_groups,
 )
-from app.modules.security.models.constants import (
+from app.modules.security.permission_catalog import (
     CAN_MANAGE_ATTACHMENTS,
     CAN_MANAGE_SECURITY,
     CAN_MANAGE_USERS,

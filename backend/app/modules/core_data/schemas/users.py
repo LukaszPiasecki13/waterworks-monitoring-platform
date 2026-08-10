@@ -50,6 +50,7 @@ class UserResponse(BaseModel):
     """User response DTO."""
 
     id: int
+    organization_id: int | None
     username: str
     email: str
     first_name: str
@@ -63,6 +64,7 @@ class UserResponse(BaseModel):
 class UserCreateRequest(BaseModel):
     """Admin user creation request."""
 
+    organization_id: int | None = None
     username: str = Field(..., min_length=3, max_length=150)
     email: EmailStr
     password: str = Field(..., min_length=6, max_length=72)
@@ -75,6 +77,7 @@ class UserCreateRequest(BaseModel):
 class UserUpdateRequest(BaseModel):
     """Admin user update request."""
 
+    organization_id: int | None = None
     username: str | None = Field(default=None, min_length=3, max_length=150)
     email: EmailStr | None = None
     first_name: str | None = Field(default=None, max_length=150)
@@ -82,3 +85,13 @@ class UserUpdateRequest(BaseModel):
     status: UserStatus | None = None
     is_active: bool | None = None
     password: str | None = Field(default=None, min_length=6, max_length=72)
+
+
+class ListUsersRequest(BaseModel):
+    """List users query parameters."""
+
+    skip: int = Field(0, ge=0)
+    limit: int = Field(100, ge=1, le=1000)
+    search: str | None = None
+    status: UserStatus | None = None
+    is_active: bool | None = None

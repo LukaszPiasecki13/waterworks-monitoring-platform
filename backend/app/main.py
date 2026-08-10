@@ -6,12 +6,14 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse
 
 from app.core.config import get_settings
-from app.core.dependencies import dispose_sql_engines
+from app.core.dependencies import create_session, dispose_sql_engines
 from app.core.errors import register_error_handlers
 from app.core.health import router as health_router
 from app.core.logging import configure_logging
 from app.modules.core_data.api import router as core_data_router
 from app.modules.security.api import router as security_router
+from app.modules.security.dependencies import get_permission_repo
+from app.modules.security.services.seed import SecuritySeedService
 from app.modules.telemetry.api import router as telemetry_router, query_router as telemetry_query_router
 
 API_V1_PREFIX = "/api/v1"
@@ -23,8 +25,15 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(application: FastAPI):
-    # Tables are managed by Alembic migrations.
+    # Seed security (permissions + system groups)
     try:
+        session = create_session()
+        try:
+            perm_repo = get_permission_repo(session)
+            seed = SecuritySeedService(perm_repo)
+            seed.seed()
+        finally:
+            session.close()
         yield
     finally:
         dispose_sql_engines()

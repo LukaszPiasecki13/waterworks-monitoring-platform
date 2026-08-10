@@ -11,7 +11,7 @@ from app.modules.core_data.api.users import router as users_router
 from app.modules.core_data.repositories.users import UserRepository
 from app.modules.security.dependencies import get_current_user
 from app.modules.security.models import Permission, UserGroup, security_user_groups
-from app.modules.security.models.constants import CAN_VIEW_SECURITY
+from app.modules.security.permission_catalog import CAN_VIEW_SECURITY
 
 
 def test_user_repository_filters_and_counts_users(db_session: Session) -> None:
@@ -41,8 +41,8 @@ def test_user_repository_filters_and_counts_users(db_session: Session) -> None:
 
     assert [user.username for user in active_admins] == ["anna"]
     assert inactive_count == 1
-    assert repo.exists(email="jan@example.com") is True
-    assert repo.exists(username="missing") is False
+    assert repo.get_by_email("jan@example.com") is not None
+    assert repo.get_by_username("missing") is None
 
 
 def test_users_api_supports_admin_crud_flow(api_client) -> None:

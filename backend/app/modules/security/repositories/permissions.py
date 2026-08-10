@@ -15,6 +15,32 @@ class PermissionRepository(SQLRepository):
     def __init__(self, session: Session):
         self.session = session
 
+    def get_permission_by_code(self, code: str) -> Permission | None:
+        return self.session.query(Permission).filter_by(code=code).first()
+
+    def create_permission(self, *, code: str, name: str, category: str) -> Permission:
+        permission = Permission(code=code, name=name, category=category)
+        self.session.add(permission)
+        return permission
+
+    def create_system_group(
+        self,
+        *,
+        name: str,
+        description: str,
+        system_key: str,
+        permissions: list[Permission] | None = None,
+    ) -> UserGroup:
+        group = UserGroup(
+            name=name,
+            description=description,
+            is_system=True,
+            system_key=system_key,
+            permissions=permissions or [],
+        )
+        self.session.add(group)
+        return group
+
     def list_permissions(self) -> list[Permission]:
         return (
             self.session.query(Permission)

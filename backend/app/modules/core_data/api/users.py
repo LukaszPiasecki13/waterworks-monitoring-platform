@@ -12,10 +12,11 @@ from app.modules.core_data.schemas.users import (
     UserCreateRequest,
     UserResponse,
     UserUpdateRequest,
+    ListUsersRequest,
 )
 from app.modules.core_data.services.users import UserService
 from app.modules.security.dependencies import require_any_permission, require_permission
-from app.modules.security.models.constants import (
+from app.modules.security.permission_catalog import (
     CAN_MANAGE_USERS,
     CAN_VIEW_SECURITY,
     CAN_VIEW_USERS,
@@ -26,28 +27,18 @@ router = APIRouter(prefix="/users", tags=["users"])
 
 @router.get("", response_model=PaginatedResponse[UserResponse])
 def list_users(
-    skip: int = Query(0, ge=0),
-    limit: int = Query(100, ge=1, le=1000),
-    search: str | None = Query(None),
-    status: str | None = Query(None),
-    is_active: bool | None = Query(None),
+    query: ListUsersRequest = Depends(),
     service: UserService = Depends(get_user_service),
     _user: User = Depends(require_any_permission(CAN_VIEW_USERS, CAN_VIEW_SECURITY)),
 ):
     """List users with optional filters."""
-    users, total = service.list_users(
-        skip=skip,
-        limit=limit,
-        search=search,
-        status=status,
-        is_active=is_active,
+    users, total = service.list_users(query)
+    return PaginatedResponse(
+        items=users,
+        total=total,
+        skip=query.skip,
+        limit=query.limit,
     )
-    return {
-        "items": users,
-        "total": total,
-        "skip": skip,
-        "limit": limit,
-    }
 
 
 @router.post("", response_model=UserResponse)

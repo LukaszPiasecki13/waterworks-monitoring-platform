@@ -10,7 +10,7 @@ from app.core.dependencies import get_db
 from app.modules.audit.dependencies import get_audit_service
 from app.modules.core_data.models import User
 from app.modules.core_data.repositories.users import UserRepository
-from app.modules.security.models.constants import CAN_MANAGE_SECURITY
+from app.modules.security.permission_catalog import CAN_MANAGE_SECURITY
 from app.modules.security.repositories import PermissionRepository
 from app.modules.security.services.auth import AuthService
 from app.modules.security.services.permissions import PermissionService
@@ -153,6 +153,11 @@ def require_assigned_permission(
             detail="Insufficient permissions",
         )
     return user
+
+
+def get_current_user_organization_id(user: User = Depends(get_current_user)) -> int | None:
+    """Get current user's organization ID (None = platform admin)."""
+    return user.organization_id
 
 
 # Backward-compatible aliases for code that has not yet moved to an

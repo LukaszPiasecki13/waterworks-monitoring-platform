@@ -12,6 +12,10 @@ class EntityType(StrEnum):
     CORE_DATA_USER = "core_data_user"
     SECURITY_USER_GROUP = "security_user_group"
     ATTACHMENT = "attachment"
+    CORE_DATA_ORGANIZATION = "core_data_organization"
+    CORE_DATA_WATER_OBJECT = "core_data_water_object"
+    CORE_DATA_DEVICE = "core_data_device"
+    CORE_DATA_MEASUREMENT_POINT = "core_data_measurement_point"
 
 
 @dataclass(frozen=True, slots=True)

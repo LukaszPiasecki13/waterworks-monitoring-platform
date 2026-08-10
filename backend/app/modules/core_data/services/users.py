@@ -26,7 +26,7 @@ class UserService:
     def _state(self, user: User) -> dict:
         return user_audit_state(user)
 
-    def _record(
+    def _record_audit(
         self,
         action: str,
         user: User,
@@ -52,31 +52,21 @@ class UserService:
 
     def get_user_by_id(self, user_id: int) -> User:
         """Get user by ID or raise NotFoundError."""
-        user = self.user_repo.get_by_id(user_id)
-        if not user:
-            raise NotFoundError(f"User with ID {user_id} not found")
-        return user
+        return self.user_repo.find_by_id(user_id)
 
-    def list_users(
-        self,
-        skip: int = 0,
-        limit: int = 100,
-        search: str | None = None,
-        status: str | None = None,
-        is_active: bool | None = None,
-    ):
+    def list_users(self, query):
         """List users with pagination and filters."""
         users = self.user_repo.list_all(
-            skip=skip,
-            limit=limit,
-            search=search,
-            status=status,
-            is_active=is_active,
+            skip=query.skip,
+            limit=query.limit,
+            search=query.search,
+            status=query.status,
+            is_active=query.is_active,
         )
         count = self.user_repo.count(
-            search=search,
-            status=status,
-            is_active=is_active,
+            search=query.search,
+            status=query.status,
+            is_active=query.is_active,
         )
         return users, count
 
@@ -96,6 +86,11 @@ class UserService:
             if self.user_repo.get_by_email(normalized_email):
                 raise ConflictError(f"Email '{request.email}' already exists")
 
+            if actor.organization_id is not None:
+                org_id = actor.organization_id
+            else:
+                org_id = request.organization_id
+
             user = self.user_repo.create(
                 username=normalized_username,
                 email=normalized_email,
@@ -104,11 +99,12 @@ class UserService:
                 last_name=request.last_name,
                 status=request.status,
                 is_active=request.is_active,
+                organization_id=org_id,
             )
             self.user_repo.flush()
             self.user_repo.refresh(user)
             self.permissions.assign_default_group(user, actor=actor)
-            self._record("CREATE", user, actor, {}, self._state(user))
+            self._record_audit("CREATE", user, actor, {}, self._state(user))
             self.user_repo.commit()
             return user
         except Exception:
@@ -144,6 +140,14 @@ class UserService:
                     raise ConflictError(f"Email '{request.email}' already exists")
 
             password = request.password
+
+            if request.organization_id is not None:
+                if actor.organization_id is not None and actor.organization_id != request.organization_id:
+                    raise ConflictError("Non-admin cannot change user to another organization")
+                new_org_id = request.organization_id
+            else:
+                new_org_id = None
+
             user = self.user_repo.update(
                 user,
                 username=username,
@@ -153,6 +157,7 @@ class UserService:
                 status=request.status,
                 is_active=request.is_active,
                 hashed_password=hash_password(password) if password else None,
+                organization_id=new_org_id,
             )
             self.user_repo.flush()
             self.user_repo.refresh(user)
@@ -166,7 +171,7 @@ class UserService:
             if not changes:
                 self.user_repo.commit(skip_audit=True)
                 return user
-            self._record(
+            self._record_audit(
                 "UPDATE",
                 user,
                 actor,
@@ -189,7 +194,7 @@ class UserService:
             user = self.get_user_by_id(user_id)
             old_state = self._state(user)
             self.user_repo.delete(user)
-            self._record("DELETE", user, actor, old_state, {})
+            self._record_audit("DELETE", user, actor, old_state, {})
             self.user_repo.commit()
         except Exception:
             self.user_repo.rollback()

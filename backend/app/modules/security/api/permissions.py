@@ -11,7 +11,7 @@ from app.modules.security.dependencies import (
     get_permission_service,
     require_permission,
 )
-from app.modules.security.models.constants import CAN_MANAGE_SECURITY, CAN_VIEW_SECURITY
+from app.modules.security.permission_catalog import CAN_MANAGE_SECURITY, CAN_VIEW_SECURITY
 from app.modules.security.schemas import (
     GroupIdsRequest,
     MyPermissionsResponse,

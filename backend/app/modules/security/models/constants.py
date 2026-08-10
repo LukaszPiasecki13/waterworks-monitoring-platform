@@ -1,14 +1,32 @@
-"""Stable permission identifiers used by authorization rules.
+"""Deprecated: Permission constants have been moved to app.modules.security.permission_catalog."""
 
-Human-readable permission and group data belongs to the SQL deployment seed.
-"""
+# Re-export for backwards compatibility
+from app.modules.security.permission_catalog import (
+    ADMIN_GROUP_KEY,
+    CAN_MANAGE_ASSETS,
+    CAN_MANAGE_ATTACHMENTS,
+    CAN_MANAGE_ORGANIZATIONS,
+    CAN_MANAGE_SECURITY,
+    CAN_MANAGE_USERS,
+    CAN_VIEW_ASSETS,
+    CAN_VIEW_ATTACHMENTS,
+    CAN_VIEW_ORGANIZATIONS,
+    CAN_VIEW_SECURITY,
+    CAN_VIEW_USERS,
+    STAFF_GROUP_KEY,
+)
 
-CAN_VIEW_USERS = "CAN_VIEW_USERS"
-CAN_MANAGE_USERS = "CAN_MANAGE_USERS"
-CAN_VIEW_SECURITY = "CAN_VIEW_SECURITY"
-CAN_MANAGE_SECURITY = "CAN_MANAGE_SECURITY"
-CAN_VIEW_ATTACHMENTS = "CAN_VIEW_ATTACHMENTS"
-CAN_MANAGE_ATTACHMENTS = "CAN_MANAGE_ATTACHMENTS"
-
-ADMIN_GROUP_KEY = "admin"
-STAFF_GROUP_KEY = "staff"
+__all__ = [
+    "CAN_VIEW_USERS",
+    "CAN_MANAGE_USERS",
+    "CAN_VIEW_SECURITY",
+    "CAN_MANAGE_SECURITY",
+    "CAN_VIEW_ATTACHMENTS",
+    "CAN_MANAGE_ATTACHMENTS",
+    "CAN_VIEW_ORGANIZATIONS",
+    "CAN_MANAGE_ORGANIZATIONS",
+    "CAN_VIEW_ASSETS",
+    "CAN_MANAGE_ASSETS",
+    "ADMIN_GROUP_KEY",
+    "STAFF_GROUP_KEY",
+]
