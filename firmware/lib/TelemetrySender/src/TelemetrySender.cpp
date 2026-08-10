@@ -27,11 +27,8 @@ void TelemetrySender::update(unsigned long now) {
     return;
   }
 
-  if (now - last_send_ms_ < send_interval_ms_) {
-    return;
-  }
-
-  last_send_ms_ = now;
+  unsigned long send_start_ms = millis();
+  next_allowed_send_ms_ = send_start_ms + send_interval_ms_;
 
   if (!modem_.ensureConnected()) {
     SerialMon.println("[LOOP] Connection not ready");
@@ -40,7 +37,10 @@ void TelemetrySender::update(unsigned long now) {
     return;
   }
 
-  String payloadStr = payload_.build(seq_);
+  String payloadStr = payload_.build(seq_, send_start_ms);
+  SerialMon.print("[DATA] Payload: ");
+  SerialMon.println(payloadStr);
+
   HttpResponse resp = http_.post(RESOURCE, payloadStr);
 
   if (resp.statusCode == 200 || resp.statusCode == 202) {
@@ -50,8 +50,6 @@ void TelemetrySender::update(unsigned long now) {
     seq_++;
     led_.blinkSuccess();
     last_success_ms_ = now;
-
-    next_allowed_send_ms_ = millis() + send_interval_ms_;
   } else {
     SerialMon.print("[LOOP] Send failed, will retry same seq=");
     SerialMon.println(seq_);

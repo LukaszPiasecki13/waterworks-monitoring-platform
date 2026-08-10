@@ -9,12 +9,15 @@
 #include <TelemetryHttpClient.h>
 #include <TelemetryPayload.h>
 #include <TelemetrySender.h>
+#include <TimeSync.h>
 #include <Watchdog.h>
 
 #define SerialMon Serial
 HardwareSerial SerialAT(1);
 
 RTC_DATA_ATTR uint32_t rtcRestartCounter = 0;  // Definition for linking
+RTC_DATA_ATTR uint32_t rtcSyncedTimeUtcSec = 0;
+RTC_DATA_ATTR uint32_t rtcSyncMillis = 0;
 
 // =========================
 // Global instances
@@ -52,7 +55,20 @@ void setup() {
     return;
   }
 
+  TimeSync::init();
+  SerialMon.println("[TIME] Attempting NTP sync...");
+  if (!TimeSync::sync(modemLink)) {
+    SerialMon.println("[TIME] NTP sync failed, will use boot-relative time");
+    SerialMon.print("[TIME] Synced before: ");
+    SerialMon.println(TimeSync::isSynced() ? "yes" : "no");
+  } else {
+    SerialMon.println("[TIME] NTP sync SUCCESS");
+    SerialMon.print("[TIME] UTC timestamp: ");
+    SerialMon.println(TimeSync::getUtcTimestamp());
+  }
+
   httpClient = new TelemetryHttpClient(modemLink, SERVER, PORT, DEVICE_KEY);
+  telemetryPayload.setGetUtcTime([]() { return TimeSync::getUtcTimestamp(); });
   telemetrySender = new TelemetrySender(modemLink, *httpClient, telemetryPayload, led, SEND_INTERVAL_MS, ERROR_RETRY_MS);
   watchdog = new Watchdog(modemLink, modemPower, WATCHDOG_STUCK_MS, MAX_RESTART_ATTEMPTS);
 

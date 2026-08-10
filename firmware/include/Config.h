@@ -48,7 +48,7 @@ const char OBJECT_ID[] = "test-object";
 // Timings
 // =========================
 
-const unsigned long SEND_INTERVAL_MS = 1000;
+const unsigned long SEND_INTERVAL_MS = 15000;
 const unsigned long ERROR_RETRY_MS = 5000;
 const unsigned long WATCHDOG_STUCK_MS = 5 * 60 * 1000;  // 5 minutes
 const uint8_t MAX_RESTART_ATTEMPTS = 2;
