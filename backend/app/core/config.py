@@ -34,6 +34,9 @@ class Settings(BaseSettings):
     # Telemetry ingest
     telemetry_ingest_key: str | None = None
 
+    # Telemetry query
+    telemetry_stale_after_seconds: int = Field(default=300, gt=0, description="Seconds since last contact to mark object as 'no_comm'")
+
     # A deployment may retain variables used by an older/newer application
     # version. They must not prevent the backend from starting after a rollback.
     model_config = SettingsConfigDict(
