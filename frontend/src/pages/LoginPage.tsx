@@ -35,8 +35,9 @@ export function LoginPage() {
     try {
       const { access, refresh } = await authService.login(data)
       const userProfile = await authService.getUserProfile(access)
+      const { permissions, group_ids } = await authService.getUserPermissions(access)
 
-      login(access, refresh, userProfile)
+      login(access, refresh, userProfile, permissions, group_ids)
       navigate('/', { replace: true })
     } catch (err) {
       console.error('Login error:', err)

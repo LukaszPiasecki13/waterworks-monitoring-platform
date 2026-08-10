@@ -1,15 +1,14 @@
-export interface User {
-  id: string
-  organization_id: string | null
-  username: string
-  email: string
-  first_name: string
-  last_name: string
-  status: string
-  is_active: boolean
+/* Auth endpoint — /auth/user */
+export interface AuthUser {
+  id: number;
+  username: string;
+  email: string;
+  first_name: string;
+  last_name: string;
+  status: string;
 }
 
 export interface LoginResponse {
-  access: string
-  refresh: string
+  access: string;
+  refresh: string;
 }

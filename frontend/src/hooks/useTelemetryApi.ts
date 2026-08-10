@@ -58,10 +58,27 @@ export function useTelemetryObjects(limit = 50) {
   return useQuery<PaginatedResponse<ObjectSummary>>({
     queryKey: ['telemetry', 'objects'],
     queryFn: async () => {
-      const { data } = await apiClient.get('/api/v1/telemetry/objects', {
-        params: { limit },
-      })
-      return data
+      try {
+        const response = await apiClient.get('/api/v1/telemetry/objects', {
+          params: { limit },
+        })
+        console.log('Telemetry API response:', response.data)
+
+        if (!response.data || typeof response.data !== 'object') {
+          console.error('Invalid response format:', response.data)
+          throw new Error(`Invalid response format: ${typeof response.data}`)
+        }
+
+        if (!Array.isArray(response.data.items)) {
+          console.error('Response.items is not an array:', response.data.items)
+          throw new Error('Response.items is not an array')
+        }
+
+        return response.data
+      } catch (error) {
+        console.error('Error fetching telemetry objects:', error)
+        throw error
+      }
     },
   })
 }

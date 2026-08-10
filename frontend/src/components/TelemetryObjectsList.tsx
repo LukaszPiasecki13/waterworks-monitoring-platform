@@ -73,9 +73,9 @@ export function TelemetryObjectsList({ onSelectObject }: TelemetryObjectsListPro
         >
           <div className="flex items-start justify-between">
             <div className="flex-1">
-              <h3 className="font-semibold text-gray-900">{obj.object_id}</h3>
+              <h3 className="font-semibold text-gray-900">Urządzenie: {obj.device_id}</h3>
               <p className="text-sm text-gray-500">
-                Urządzenie: {obj.device_id} • Org: {obj.org_id}
+                Połączone o {obj.last_contact_at ? new Date(obj.last_contact_at).toLocaleTimeString('pl-PL') : 'nigdy'}
               </p>
               {obj.last_contact_at && (
                 <p className="text-xs text-gray-400 mt-1">

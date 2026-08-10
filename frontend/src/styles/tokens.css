@@ -1,0 +1,182 @@
+/* Waterworks Monitoring Platform — Design Tokens */
+/* System wizualny: powściągliwa, inżyniersko-komunalna estetyka */
+/* Neutralna baza slate, akcent teal, tabularne cyfry, interfejsy dostępne */
+
+@theme {
+  /* ===== Brand / Neutral ===== */
+  /* Teal akcent — #0F766E i его odcienie */
+  --color-brand-50: #f0fdfb;
+  --color-brand-100: #ccf7f1;
+  --color-brand-200: #99efe7;
+  --color-brand-300: #66e7df;
+  --color-brand-400: #33dfd7;
+  --color-brand-500: #0d9b91; /* dominant — lekko bardziej dojrzały niż 0F766E */
+  --color-brand-600: #0a7a6f;
+  --color-brand-700: #085d57;
+  --color-brand-800: #054538;
+  --color-brand-900: #032c22;
+
+  /* Neutral slate — szare dla tekstu, granic, tła */
+  --color-neutral-50: #f9fafb;
+  --color-neutral-100: #f3f4f6;
+  --color-neutral-200: #e5e7eb;
+  --color-neutral-300: #d1d5db;
+  --color-neutral-400: #9ca3af;
+  --color-neutral-500: #6b7280;
+  --color-neutral-600: #4b5563;
+  --color-neutral-700: #374151;
+  --color-neutral-800: #1f2937;
+  --color-neutral-900: #111827;
+
+  /* ===== Surface ===== */
+  --color-surface: #ffffff;
+  --color-surface-page: #f9fafb; /* tło strony — niemal-biały */
+  --color-border: #e5e7eb;
+  --color-border-strong: #d1d5db;
+
+  /* ===== Status Obiektu ===== */
+  /* OK — zielony */
+  --color-status-ok-50: #f0fdf4;
+  --color-status-ok-200: #bbf7d0;
+  --color-status-ok-500: #22c55e;
+  --color-status-ok-700: #16a34a;
+
+  /* Warning — żółty/pomarańczowy */
+  --color-status-warning-50: #fffbeb;
+  --color-status-warning-200: #fef08a;
+  --color-status-warning-500: #eab308;
+  --color-status-warning-700: #b45309;
+
+  /* Alarm — czerwony (Etap 5, teraz nieużywany ale zarezerwowany) */
+  --color-status-alarm-50: #fef2f2;
+  --color-status-alarm-200: #fecaca;
+  --color-status-alarm-500: #ef4444;
+  --color-status-alarm-700: #b91c1c;
+
+  /* No Communication — szary */
+  --color-status-no-comm-50: #f9fafb;
+  --color-status-no-comm-200: #e5e7eb;
+  --color-status-no-comm-500: #6b7280;
+  --color-status-no-comm-700: #374151;
+
+  /* No Data — szary/neutralny */
+  --color-status-no-data-50: #f9fafb;
+  --color-status-no-data-200: #e5e7eb;
+  --color-status-no-data-500: #9ca3af;
+  --color-status-no-data-700: #6b7280;
+
+  /* ===== Jakość Danych ===== */
+  /* Good — zielony */
+  --color-quality-good-50: #f0fdf4;
+  --color-quality-good-200: #bbf7d0;
+  --color-quality-good-500: #22c55e;
+
+  /* Stale — żółty */
+  --color-quality-stale-50: #fffbeb;
+  --color-quality-stale-200: #fef08a;
+  --color-quality-stale-500: #eab308;
+
+  /* Out of Range — pomarańczowy */
+  --color-quality-out-of-range-50: #fff7ed;
+  --color-quality-out-of-range-200: #fed7aa;
+  --color-quality-out-of-range-500: #fb923c;
+
+  /* Sensor Error — czerwony */
+  --color-quality-sensor-error-50: #fef2f2;
+  --color-quality-sensor-error-200: #fecaca;
+  --color-quality-sensor-error-500: #ef4444;
+
+  /* Communication Error — szary */
+  --color-quality-communication-error-50: #f9fafb;
+  --color-quality-communication-error-200: #e5e7eb;
+  --color-quality-communication-error-500: #6b7280;
+
+  /* Delayed — żółty */
+  --color-quality-delayed-50: #fffbeb;
+  --color-quality-delayed-200: #fef08a;
+  --color-quality-delayed-500: #eab308;
+
+  /* Unknown — szary */
+  --color-quality-unknown-50: #f9fafb;
+  --color-quality-unknown-200: #e5e7eb;
+  --color-quality-unknown-500: #9ca3af;
+
+  /* ===== Elevation / Radius ===== */
+  --shadow-xs: 0 1px 3px rgba(0, 0, 0, 0.08);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.06), 0 2px 4px rgba(0, 0, 0, 0.08);
+  --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.08), 0 2px 4px rgba(0, 0, 0, 0.06);
+  --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.08), 0 4px 6px rgba(0, 0, 0, 0.06);
+
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+
+  /* ===== Typografia ===== */
+  /* Font systemowy — zero zależności sieciowej (RODO/NIS2) */
+  --font-sans: -apple-system, "Segoe UI", Roboto, "Helvetica Neue", ui-sans-serif;
+  --font-mono: "SF Mono", Monaco, "Roboto Mono", ui-monospace;
+
+  /* Font weight — semibold (600) dla nagłówków, nie bold */
+  --font-weight-normal: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+
+  /* ===== Spacing ===== */
+  --spacing-xs: 4px;
+  --spacing-sm: 8px;
+  --spacing-md: 12px;
+  --spacing-lg: 16px;
+  --spacing-xl: 20px;
+  --spacing-2xl: 24px;
+  --spacing-3xl: 32px;
+
+  /* ===== Container / Max Width ===== */
+  --container-sm: 24rem;     /* 384px */
+  --container-md: 28rem;     /* 448px */
+  --container-lg: 32rem;     /* 512px */
+  --container-xl: 36rem;     /* 576px */
+  --container-2xl: 42rem;    /* 672px */
+
+  /* ===== Typography Sizes ===== */
+  --text-xs: 0.75rem;
+  --text-sm: 0.875rem;
+  --text-base: 1rem;
+  --text-lg: 1.125rem;
+  --text-xl: 1.25rem;
+  --text-2xl: 1.5rem;
+  --text-3xl: 1.875rem;
+}
+
+/* ===== Global Styles ===== */
+body {
+  background-color: var(--color-surface-page);
+  color: var(--color-neutral-900);
+  font-family: var(--font-sans);
+  font-weight: var(--font-weight-normal);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Tabularne cyfry dla wartości pomiarowych */
+.font-mono {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ===== Focus Visible — dostępność ===== */
+*:focus-visible {
+  outline: 2px solid var(--color-brand-500);
+  outline-offset: 2px;
+}
+
+/* Główny kontener */
+main {
+  background-color: var(--color-surface-page);
+  min-height: 100vh;
+}
+
+/* ===== Inne =====  */
+/* Usuń domyślny outline dla focusów */
+::-webkit-focus-outer {
+  outline: none;
+}

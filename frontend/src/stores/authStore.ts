@@ -1,4 +1,5 @@
-import type { User } from '@/types'
+import type { AuthUser } from '@/types'
+import type { PermissionCode } from '@/types/permissions'
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { markSessionChanged } from '@/lib/sessionLifecycle'
@@ -6,27 +7,35 @@ import { queryClient } from '@/lib/queryClient'
 import { resetBackendWakeupNotice } from '@/lib/backendWakeup'
 
 interface AuthState {
-  user: User | null
+  user: AuthUser | null
+  permissions: PermissionCode[]
+  groupIds: number[]
   accessToken: string | null
   refreshToken: string | null
   isAuthenticated: boolean
-  login: (accessToken: string, refreshToken: string, user: User) => void
+  login: (accessToken: string, refreshToken: string, user: AuthUser, permissions?: PermissionCode[], groupIds?: number[]) => void
   logout: () => void
-  updateUser: (user: User) => void
+  updateUser: (user: AuthUser) => void
   setTokens: (accessToken: string, refreshToken: string) => void
+  hasPermission: (permission: PermissionCode) => boolean
+  hasAnyPermission: (permissions: PermissionCode[]) => boolean
 }
 
 export const useAuthStore = create<AuthState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       user: null,
+      permissions: [],
+      groupIds: [],
       accessToken: null,
       refreshToken: null,
       isAuthenticated: false,
 
-      login: (accessToken, refreshToken, user) => {
+      login: (accessToken, refreshToken, user, permissions = [], groupIds = []) => {
         set({
           user,
+          permissions,
+          groupIds,
           accessToken,
           refreshToken,
           isAuthenticated: true,
@@ -39,6 +48,8 @@ export const useAuthStore = create<AuthState>()(
         markSessionChanged()
         set({
           user: null,
+          permissions: [],
+          groupIds: [],
           accessToken: null,
           refreshToken: null,
           isAuthenticated: false,
@@ -58,6 +69,14 @@ export const useAuthStore = create<AuthState>()(
         localStorage.setItem('access_token', accessToken)
         localStorage.setItem('refresh_token', refreshToken)
       },
+
+      hasPermission: (permission: PermissionCode) => {
+        return get().permissions.includes(permission)
+      },
+
+      hasAnyPermission: (permissions: PermissionCode[]) => {
+        return permissions.some((p) => get().permissions.includes(p))
+      },
     }),
     {
       name: 'auth-user',
@@ -65,6 +84,8 @@ export const useAuthStore = create<AuthState>()(
         accessToken: state.accessToken,
         refreshToken: state.refreshToken,
         user: state.user,
+        permissions: state.permissions,
+        groupIds: state.groupIds,
       }),
       onRehydrateStorage: () => (state) => {
         if (state) {
