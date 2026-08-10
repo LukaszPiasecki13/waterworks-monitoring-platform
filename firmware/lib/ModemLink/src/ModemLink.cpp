@@ -1,4 +1,5 @@
 #include <TinyGsmClient.h>
+#include <Config.h>
 #include "ModemLink.h"
 
 #define SerialMon Serial
@@ -8,8 +9,12 @@ ModemLink::ModemLink(HardwareSerial& serialAT, uint32_t baudRate)
 }
 
 bool ModemLink::init(const char* apn, const char* gprsUser, const char* gprsPass, const char* simPin) {
+  apn_ = apn;
+  gprs_user_ = gprsUser;
+  gprs_pass_ = gprsPass;
+
   SerialMon.println("[MODEM] Starting UART...");
-  serial_at_.begin(baud_rate_, SERIAL_8N1, 18, 17);  // RX=18, TX=17
+  serial_at_.begin(baud_rate_, SERIAL_8N1, MODEM_RX_PIN, MODEM_TX_PIN);
   delay(3000);
   TinyGsmAutoBaud(serial_at_, 9600, 115200);
 
@@ -69,7 +74,7 @@ bool ModemLink::waitForNetwork() {
 bool ModemLink::connectGprs() {
   SerialMon.println("[DATA] Connecting GPRS/LTE...");
 
-  if (!modem_->gprsConnect("internet", "", "")) {
+  if (!modem_->gprsConnect(apn_, gprs_user_, gprs_pass_)) {
     SerialMon.println("[DATA] gprsConnect() failed");
     return false;
   }
@@ -101,7 +106,7 @@ bool ModemLink::ensureConnected() {
     modem_->gprsDisconnect();
     delay(1000);
 
-    if (!modem_->gprsConnect("internet", "", "")) {
+    if (!modem_->gprsConnect(apn_, gprs_user_, gprs_pass_)) {
       SerialMon.println("[DATA] Reconnect APN failed");
       return false;
     }

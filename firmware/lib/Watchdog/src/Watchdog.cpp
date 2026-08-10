@@ -1,11 +1,10 @@
 #include <Arduino.h>
+#include <RtcState.h>
 #include "Watchdog.h"
-#include "ModemLink.h"
-#include "ModemPower.h"
+#include <ModemLink.h>
+#include <ModemPower.h>
 
 #define SerialMon Serial
-
-extern RTC_DATA_ATTR uint32_t rtcRestartCounter;
 
 Watchdog::Watchdog(ModemLink& modem,
                    ModemPower& power,

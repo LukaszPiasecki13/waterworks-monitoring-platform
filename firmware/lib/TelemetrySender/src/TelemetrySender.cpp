@@ -1,9 +1,10 @@
 #include <Arduino.h>
+#include <Config.h>
 #include "TelemetrySender.h"
-#include "ModemLink.h"
-#include "TelemetryHttpClient.h"
-#include "TelemetryPayload.h"
-#include "StatusLed.h"
+#include <ModemLink.h>
+#include <TelemetryHttpClient.h>
+#include <TelemetryPayload.h>
+#include <StatusLed.h>
 
 #define SerialMon Serial
 
@@ -40,7 +41,7 @@ void TelemetrySender::update(unsigned long now) {
   }
 
   String payloadStr = payload_.build(seq_);
-  HttpResponse resp = http_.post("/telemetry/ingest", payloadStr);
+  HttpResponse resp = http_.post(RESOURCE, payloadStr);
 
   if (resp.statusCode == 200 || resp.statusCode == 202) {
     SerialMon.print("[LOOP] Send OK, next seq=");

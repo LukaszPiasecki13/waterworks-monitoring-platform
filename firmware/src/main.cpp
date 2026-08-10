@@ -1,19 +1,20 @@
 #include <Arduino.h>
 #include <HardwareSerial.h>
 
-#include "Config.h"
-#include "StatusLed.h"
-#include "ModemPower.h"
-#include "ModemLink.h"
-#include "TelemetryHttpClient.h"
-#include "TelemetryPayload.h"
-#include "TelemetrySender.h"
-#include "Watchdog.h"
+#include <Config.h>
+#include <RtcState.h>
+#include <StatusLed.h>
+#include <ModemPower.h>
+#include <ModemLink.h>
+#include <TelemetryHttpClient.h>
+#include <TelemetryPayload.h>
+#include <TelemetrySender.h>
+#include <Watchdog.h>
 
 #define SerialMon Serial
 HardwareSerial SerialAT(1);
 
-RTC_DATA_ATTR uint32_t rtcRestartCounter = 0;
+RTC_DATA_ATTR uint32_t rtcRestartCounter = 0;  // Definition for linking
 
 // =========================
 // Global instances
@@ -22,10 +23,11 @@ RTC_DATA_ATTR uint32_t rtcRestartCounter = 0;
 StatusLed led(LED_PIN);
 ModemPower modemPower(MODEM_PWRKEY_PIN, MODEM_RESET_PIN, MODEM_POWER_ENABLE_PIN);
 ModemLink modemLink(SerialAT, MODEM_BAUD);
-TelemetryHttpClient httpClient(modemLink, SERVER, PORT, DEVICE_KEY);
 TelemetryPayload telemetryPayload(DEVICE_ID, ORG_ID, OBJECT_ID);
-TelemetrySender telemetrySender(modemLink, httpClient, telemetryPayload, led, SEND_INTERVAL_MS, ERROR_RETRY_MS);
-Watchdog watchdog(modemLink, modemPower, WATCHDOG_STUCK_MS, MAX_RESTART_ATTEMPTS);
+
+TelemetryHttpClient* httpClient = nullptr;
+TelemetrySender* telemetrySender = nullptr;
+Watchdog* watchdog = nullptr;
 
 // =========================
 // Arduino setup/loop
@@ -50,17 +52,26 @@ void setup() {
     return;
   }
 
+  httpClient = new TelemetryHttpClient(modemLink, SERVER, PORT, DEVICE_KEY);
+  telemetrySender = new TelemetrySender(modemLink, *httpClient, telemetryPayload, led, SEND_INTERVAL_MS, ERROR_RETRY_MS);
+  watchdog = new Watchdog(modemLink, modemPower, WATCHDOG_STUCK_MS, MAX_RESTART_ATTEMPTS);
+
   rtcRestartCounter = 0;
-  telemetrySender.update(millis());  // Initialize last_success_ms
+  telemetrySender->update(millis());  // Initialize last_success_ms
   SerialMon.println("[BOOT] Ready");
   led.blinkSuccess();
 }
 
 void loop() {
+  if (!telemetrySender || !watchdog) {
+    delay(10);
+    return;
+  }
+
   unsigned long now = millis();
 
-  watchdog.check(now, telemetrySender.lastSuccessMs());
-  telemetrySender.update(now);
+  watchdog->check(now, telemetrySender->lastSuccessMs());
+  telemetrySender->update(now);
 
   delay(10);
 }
