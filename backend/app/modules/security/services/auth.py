@@ -1,3 +1,5 @@
+from uuid import UUID
+
 from app.core.audit import AuditEntry, AuditPort, EntityType, calculate_delta
 from app.core.errors import (
     APIError,
@@ -190,7 +192,11 @@ class AuthService:
         user_id = payload.get("sub")
         if not isinstance(user_id, str):
             raise AuthenticationError("Invalid refresh token")
-        user = self.repo.get_by_id(int(user_id))
+        try:
+            user_id = UUID(user_id)
+        except (ValueError, TypeError):
+            raise AuthenticationError("Invalid refresh token")
+        user = self.repo.get_by_id(user_id)
         if not user or not user.is_active:
             raise AuthenticationError("User not found")
         return self._issue_tokens(user)

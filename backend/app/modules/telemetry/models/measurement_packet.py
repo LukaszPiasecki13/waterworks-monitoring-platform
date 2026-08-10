@@ -9,6 +9,7 @@ from sqlalchemy import (
     Index,
     Integer,
     String,
+    UUID,
     UniqueConstraint,
     func,
 )
@@ -21,10 +22,9 @@ from app.infrastructure.sql.base import Base
 class TelemetryPacket(Base):
     __tablename__ = "telemetry_packets"
 
-    id: Mapped[int] = mapped_column(
-        Integer().with_variant(BigInteger(), "postgresql"),
+    id: Mapped[UUID] = mapped_column(
+        UUID(),
         primary_key=True,
-        autoincrement=True,
     )
 
     device_id: Mapped[str] = mapped_column(String(128), nullable=False)

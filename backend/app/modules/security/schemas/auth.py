@@ -1,5 +1,7 @@
 """Authentication schemas."""
 
+from uuid import UUID
+
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
 
@@ -36,7 +38,7 @@ class TokenRefresh(BaseModel):
 class UserResponse(BaseModel):
     """User response DTO."""
 
-    id: int
+    id: UUID
     username: str
     email: str
     first_name: str

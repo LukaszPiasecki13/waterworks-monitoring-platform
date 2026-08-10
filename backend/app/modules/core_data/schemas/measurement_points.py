@@ -1,6 +1,7 @@
 """Pydantic schemas for measurement points."""
 
 from typing import Literal
+from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -10,7 +11,7 @@ PointType = Literal["pressure", "flow_rate", "total_volume", "power_status"]
 class MeasurementPointCreateRequest(BaseModel):
     """Create measurement point request."""
 
-    device_id: int
+    device_id: UUID
     external_id: str = Field(..., min_length=1, max_length=128)
     point_type: PointType
     unit: str = Field(..., min_length=1, max_length=20)
@@ -31,8 +32,8 @@ class MeasurementPointUpdateRequest(BaseModel):
 class MeasurementPointResponse(BaseModel):
     """Measurement point response DTO."""
 
-    id: int
-    device_id: int
+    id: UUID
+    device_id: UUID
     external_id: str
     point_type: str
     unit: str
@@ -48,4 +49,4 @@ class ListMeasurementPointsRequest(BaseModel):
 
     skip: int = Field(0, ge=0)
     limit: int = Field(100, ge=1, le=1000)
-    device_id: int | None = None
+    device_id: UUID | None = None

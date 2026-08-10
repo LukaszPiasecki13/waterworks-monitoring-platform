@@ -1,5 +1,7 @@
 """Water objects API endpoints."""
 
+from uuid import UUID
+
 from fastapi import APIRouter, Depends
 
 from app.modules.core_data.dependencies import get_water_object_service
@@ -52,7 +54,7 @@ def create_water_object(
 
 @router.get("/{obj_id}", response_model=WaterObjectResponse)
 def get_water_object(
-    obj_id: int,
+    obj_id: UUID,
     service: WaterObjectService = Depends(get_water_object_service),
     user: User = Depends(require_permission(CAN_VIEW_ASSETS)),
 ):
@@ -62,7 +64,7 @@ def get_water_object(
 
 @router.patch("/{obj_id}", response_model=WaterObjectResponse)
 def update_water_object(
-    obj_id: int,
+    obj_id: UUID,
     request: WaterObjectUpdateRequest,
     service: WaterObjectService = Depends(get_water_object_service),
     user: User = Depends(require_permission(CAN_MANAGE_ASSETS)),
@@ -73,7 +75,7 @@ def update_water_object(
 
 @router.delete("/{obj_id}")
 def delete_water_object(
-    obj_id: int,
+    obj_id: UUID,
     service: WaterObjectService = Depends(get_water_object_service),
     user: User = Depends(require_permission(CAN_MANAGE_ASSETS)),
 ):

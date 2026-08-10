@@ -1,9 +1,11 @@
 """Device model for core data domain."""
 
 from datetime import datetime
+from uuid import UUID, uuid4
 
-from sqlalchemy import BigInteger, DateTime, ForeignKey, Integer, String, func
+from sqlalchemy import DateTime, ForeignKey, String, func
 from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 
 from app.infrastructure.sql.base import Base
 
@@ -13,12 +15,13 @@ class Device(Base):
 
     __tablename__ = "devices"
 
-    id: Mapped[int] = mapped_column(
-        Integer().with_variant(BigInteger(), 'postgresql'),
+    id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
         primary_key=True,
+        default=uuid4,
     )
-    water_object_id: Mapped[int] = mapped_column(
-        Integer().with_variant(BigInteger(), 'postgresql'),
+    water_object_id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
         ForeignKey("water_objects.id"),
         nullable=False,
         index=True,

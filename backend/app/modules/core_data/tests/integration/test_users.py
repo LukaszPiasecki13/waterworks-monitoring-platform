@@ -1,5 +1,6 @@
 from collections.abc import Generator
 from types import SimpleNamespace
+from uuid import UUID, uuid4
 
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
@@ -90,9 +91,10 @@ def test_users_api_rejects_non_admin_user(db_session: Session) -> None:
     def override_get_db() -> Generator[Session, None, None]:
         yield db_session
 
+    mock_user_id = uuid4()
     app.dependency_overrides[get_db] = override_get_db
     app.dependency_overrides[get_current_user] = lambda: SimpleNamespace(
-        id=7,
+        id=mock_user_id,
         status="regular",
     )
 

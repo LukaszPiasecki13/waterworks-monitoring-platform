@@ -1,6 +1,7 @@
 """Pydantic schemas for users."""
 
 from typing import Generic, Literal, TypeVar
+from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
@@ -49,8 +50,8 @@ class TokenResponse(BaseModel):
 class UserResponse(BaseModel):
     """User response DTO."""
 
-    id: int
-    organization_id: int | None
+    id: UUID
+    organization_id: UUID | None
     username: str
     email: str
     first_name: str
@@ -64,7 +65,7 @@ class UserResponse(BaseModel):
 class UserCreateRequest(BaseModel):
     """Admin user creation request."""
 
-    organization_id: int | None = None
+    organization_id: UUID | None = None
     username: str = Field(..., min_length=3, max_length=150)
     email: EmailStr
     password: str = Field(..., min_length=6, max_length=72)
@@ -77,7 +78,7 @@ class UserCreateRequest(BaseModel):
 class UserUpdateRequest(BaseModel):
     """Admin user update request."""
 
-    organization_id: int | None = None
+    organization_id: UUID | None = None
     username: str | None = Field(default=None, min_length=3, max_length=150)
     email: EmailStr | None = None
     first_name: str | None = Field(default=None, max_length=150)

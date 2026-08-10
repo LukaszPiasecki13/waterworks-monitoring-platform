@@ -1,6 +1,7 @@
 """Pydantic schemas for water objects."""
 
 from typing import Literal
+from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -10,7 +11,7 @@ ObjectType = Literal["pump_station", "hydrophore", "intake", "network_point"]
 class WaterObjectCreateRequest(BaseModel):
     """Create water object request."""
 
-    organization_id: int
+    organization_id: UUID
     name: str = Field(..., min_length=1, max_length=255)
     object_type: ObjectType
     location_description: str | None = Field(None, max_length=500)
@@ -32,8 +33,8 @@ class WaterObjectUpdateRequest(BaseModel):
 class WaterObjectResponse(BaseModel):
     """Water object response DTO."""
 
-    id: int
-    organization_id: int
+    id: UUID
+    organization_id: UUID
     name: str
     object_type: str
     location_description: str | None

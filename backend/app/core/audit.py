@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from datetime import date, datetime
 from enum import StrEnum
 from typing import Any, Protocol
+from uuid import UUID
 
 
 class EntityType(StrEnum):
@@ -69,6 +70,8 @@ class AuditReaderPort(Protocol):
 def audit_value(value: Any) -> Any:
     """Convert common domain values into deterministic JSON-compatible values."""
 
+    if isinstance(value, UUID):
+        return str(value)
     if isinstance(value, datetime | date):
         return value.isoformat()
     if isinstance(value, StrEnum):

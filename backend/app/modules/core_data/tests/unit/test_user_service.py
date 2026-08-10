@@ -1,5 +1,6 @@
 from types import SimpleNamespace
 from unittest.mock import MagicMock
+from uuid import UUID, uuid4
 
 import pytest
 
@@ -37,7 +38,9 @@ def service(session: MagicMock, repo: MagicMock) -> UserService:
     return service
 
 
-def actor(user_id: int = 99) -> SimpleNamespace:
+def actor(user_id: UUID | None = None) -> SimpleNamespace:
+    if user_id is None:
+        user_id = uuid4()
     return SimpleNamespace(id=user_id, email="admin@example.com")
 
 
@@ -48,7 +51,7 @@ def test_create_user_normalizes_credentials_hashes_password_and_commits(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     created_user = SimpleNamespace(
-        id=1,
+        id=uuid4(),
         username="adminuser",
         email="admin@example.com",
         first_name="Ala",
@@ -100,7 +103,7 @@ def test_create_user_rolls_back_on_duplicate_email(
     session: MagicMock,
 ) -> None:
     repo.get_by_username.return_value = None
-    repo.get_by_email.return_value = SimpleNamespace(id=2)
+    repo.get_by_email.return_value = SimpleNamespace(id=uuid4())
 
     with pytest.raises(ConflictError):
         service.create_user(
@@ -122,8 +125,9 @@ def test_update_user_normalizes_unique_fields_and_hashes_password(
     session: MagicMock,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    user_id = uuid4()
     user = SimpleNamespace(
-        id=1,
+        id=user_id,
         username="old",
         email="old@example.com",
         first_name="",
@@ -141,7 +145,7 @@ def test_update_user_normalizes_unique_fields_and_hashes_password(
     )
 
     result = service.update_user(
-        1,
+        user_id,
         UserUpdateRequest(
             username=" NewName ",
             email=" New@Example.com ",
@@ -169,8 +173,9 @@ def test_update_user_rejects_duplicate_username(
     repo: MagicMock,
     session: MagicMock,
 ) -> None:
+    user_id = uuid4()
     user = SimpleNamespace(
-        id=1,
+        id=user_id,
         username="old",
         email="old@example.com",
         first_name="",
@@ -179,11 +184,11 @@ def test_update_user_rejects_duplicate_username(
         is_active=True,
     )
     repo.get_by_id.return_value = user
-    repo.get_by_username.return_value = SimpleNamespace(id=2)
+    repo.get_by_username.return_value = SimpleNamespace(id=uuid4())
 
     with pytest.raises(ConflictError):
         service.update_user(
-            1,
+            user_id,
             UserUpdateRequest(username="taken"),
             actor=actor(),
         )
@@ -197,8 +202,9 @@ def test_delete_user_rejects_self_delete(
     repo: MagicMock,
     session: MagicMock,
 ) -> None:
+    user_id = uuid4()
     with pytest.raises(BadRequestError) as exc_info:
-        service.delete_user(7, actor=actor(7))
+        service.delete_user(user_id, actor=actor(user_id))
 
     assert exc_info.value.status_code == 400
     repo.delete.assert_not_called()
@@ -212,4 +218,4 @@ def test_get_user_by_id_raises_not_found_when_missing(
     repo.get_by_id.return_value = None
 
     with pytest.raises(NotFoundError):
-        service.get_user_by_id(404)
+        service.get_user_by_id(uuid4())

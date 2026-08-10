@@ -1,5 +1,7 @@
 """User repository for data access."""
 
+from uuid import UUID
+
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
@@ -24,11 +26,11 @@ class UserRepository(SQLRepository):
         stmt = select(User).where(User.email == email)
         return self.session.execute(stmt).scalar_one_or_none()
 
-    def get_by_id(self, user_id: int) -> User | None:
+    def get_by_id(self, user_id: UUID) -> User | None:
         """Get user by ID."""
         return self.session.query(User).filter(User.id == user_id).first()
 
-    def find_by_id(self, user_id: int) -> User:
+    def find_by_id(self, user_id: UUID) -> User:
         """Find user by ID or raise NotFoundError."""
         user = self.get_by_id(user_id)
         if not user:
@@ -103,7 +105,7 @@ class UserRepository(SQLRepository):
         last_name: str = "",
         status: str = "regular",
         is_active: bool = True,
-        organization_id: int | None = None,
+        organization_id: UUID | None = None,
     ) -> User:
         """Create new user."""
         user = User(
@@ -130,7 +132,7 @@ class UserRepository(SQLRepository):
         status: str | None = None,
         is_active: bool | None = None,
         hashed_password: str | None = None,
-        organization_id: int | None = None,
+        organization_id: UUID | None = None,
     ) -> User:
         """Update user fields."""
         if username is not None:

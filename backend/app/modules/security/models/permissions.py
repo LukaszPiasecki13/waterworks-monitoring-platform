@@ -1,6 +1,7 @@
 """Flexible user groups and permission assignments."""
 
 from datetime import datetime
+from uuid import UUID
 
 from sqlalchemy import (
     Boolean,
@@ -12,6 +13,7 @@ from sqlalchemy import (
     Table,
     func,
 )
+from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.infrastructure.sql.base import Base
@@ -38,7 +40,7 @@ security_user_groups = Table(
     Base.metadata,
     Column(
         "user_id",
-        Integer,
+        PG_UUID(as_uuid=True),
         ForeignKey("users.id", ondelete="CASCADE"),
         primary_key=True,
     ),

@@ -3,6 +3,7 @@
 import os
 from collections.abc import Generator
 from datetime import datetime
+from uuid import UUID, uuid4
 
 import pytest
 from fastapi import FastAPI
@@ -12,10 +13,14 @@ from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
-os.environ["ENVIRONMENT"] = "test"
-os.environ["DATABASE_URL"] = "sqlite+pysqlite:///:memory:"
-os.environ["SECRET_KEY"] = "test-secret-key"
-os.environ["ALGORITHM"] = "HS256"
+# Configure test environment via .env file
+from dotenv import load_dotenv
+load_dotenv()
+
+# Use Settings defaults for test environment
+os.environ.setdefault("ENVIRONMENT", "test")
+os.environ.setdefault("SECRET_KEY", "test-secret-key-at-least-32-chars-long!")
+# DATABASE_URL must be provided in .env for tests
 
 from app.core.config import get_settings
 from app.core.dependencies import get_db
@@ -46,17 +51,9 @@ from app.modules.security.permission_catalog import (
 
 @pytest.fixture
 def db_engine() -> Generator[Engine, None, None]:
-    engine = create_engine(
-        "sqlite+pysqlite:///:memory:",
-        connect_args={"check_same_thread": False},
-        poolclass=StaticPool,
-    )
-
-    @event.listens_for(engine, "connect")
-    def _enable_foreign_keys(dbapi_connection, connection_record):
-        cursor = dbapi_connection.cursor()
-        cursor.execute("PRAGMA foreign_keys=ON")
-        cursor.close()
+    # Use production database for tests
+    settings = get_settings()
+    engine = create_engine(settings.database_url, echo=False)
 
     Base.metadata.create_all(engine)
     try:
@@ -85,10 +82,23 @@ def clear_settings_cache() -> Generator[None, None, None]:
 
 
 @pytest.fixture
+def settings_override(monkeypatch):
+    """Fixture to override Settings via environment variables.
+
+    Usage in test:
+        def test_something(settings_override):
+            settings_override.setenv("LOG_LEVEL", "DEBUG")
+            settings = get_settings()  # Will read new value
+    """
+    return monkeypatch
+
+
+@pytest.fixture
 def admin_user(db_session: Session) -> User:
     db_session.flush()
+    admin_uuid = uuid4()
     user = User(
-        id=999,
+        id=admin_uuid,
         username="admin",
         email="admin@example.com",
         first_name="Admin",
@@ -96,6 +106,7 @@ def admin_user(db_session: Session) -> User:
         hashed_password="not-used",
         status="admin",
         is_active=True,
+        organization_id=None,
         created_at=datetime(2026, 1, 1),
         updated_at=datetime(2026, 1, 1),
     )

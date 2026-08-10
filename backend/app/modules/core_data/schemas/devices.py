@@ -1,6 +1,7 @@
 """Pydantic schemas for devices."""
 
 from datetime import datetime
+from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -8,7 +9,7 @@ from pydantic import BaseModel, ConfigDict, Field
 class DeviceCreateRequest(BaseModel):
     """Create device request."""
 
-    water_object_id: int
+    water_object_id: UUID
     external_id: str = Field(..., min_length=1, max_length=128)
     firmware_version: str | None = Field(None, max_length=50)
 
@@ -23,8 +24,8 @@ class DeviceUpdateRequest(BaseModel):
 class DeviceResponse(BaseModel):
     """Device response DTO (no secret)."""
 
-    id: int
-    water_object_id: int
+    id: UUID
+    water_object_id: UUID
     external_id: str
     firmware_version: str | None
     last_seen_at: datetime | None = None
@@ -45,4 +46,4 @@ class ListDevicesRequest(BaseModel):
 
     skip: int = Field(0, ge=0)
     limit: int = Field(100, ge=1, le=1000)
-    water_object_id: int | None = None
+    water_object_id: UUID | None = None

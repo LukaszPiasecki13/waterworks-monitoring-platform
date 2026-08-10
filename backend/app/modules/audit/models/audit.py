@@ -37,7 +37,6 @@ class AuditEvent(Base):
         ),
         Index("idx_audit_actor", "actor_id", desc("created_at")),
         Index("idx_audit_changes_gin", "changes", postgresql_using="gin"),
-        {"postgresql_partition_by": "RANGE (created_at)"},
     )
 
     id: Mapped[int] = mapped_column(BigInteger, Identity(), primary_key=True)

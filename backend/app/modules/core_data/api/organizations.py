@@ -1,5 +1,7 @@
 """Organizations API endpoints."""
 
+from uuid import UUID
+
 from fastapi import APIRouter, Depends
 
 from app.modules.core_data.dependencies import get_organization_service
@@ -52,7 +54,7 @@ def create_organization(
 
 @router.get("/{org_id}", response_model=OrganizationResponse)
 def get_organization(
-    org_id: int,
+    org_id: UUID,
     service: OrganizationService = Depends(get_organization_service),
     user: User = Depends(require_permission(CAN_VIEW_ORGANIZATIONS)),
 ):
@@ -62,7 +64,7 @@ def get_organization(
 
 @router.patch("/{org_id}", response_model=OrganizationResponse)
 def update_organization(
-    org_id: int,
+    org_id: UUID,
     request: OrganizationUpdateRequest,
     service: OrganizationService = Depends(get_organization_service),
     user: User = Depends(require_permission(CAN_MANAGE_ORGANIZATIONS)),
@@ -73,7 +75,7 @@ def update_organization(
 
 @router.delete("/{org_id}")
 def delete_organization(
-    org_id: int,
+    org_id: UUID,
     service: OrganizationService = Depends(get_organization_service),
     user: User = Depends(require_permission(CAN_MANAGE_ORGANIZATIONS)),
 ):

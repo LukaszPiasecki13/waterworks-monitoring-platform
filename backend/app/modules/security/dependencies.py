@@ -1,4 +1,5 @@
 from collections.abc import Callable
+from uuid import UUID
 
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
@@ -80,7 +81,7 @@ def get_current_user(
         )
 
     user_id = payload.get("sub")
-    if not user_id:
+    if not user_id or not isinstance(user_id, str):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid token",
@@ -88,7 +89,7 @@ def get_current_user(
         )
 
     try:
-        user_id = int(user_id)
+        user_id = UUID(user_id)
     except (ValueError, TypeError):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

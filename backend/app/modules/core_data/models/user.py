@@ -1,9 +1,11 @@
 """User model for core data domain."""
 
 from datetime import datetime
+from uuid import UUID, uuid4
 
-from sqlalchemy import BigInteger, DateTime, ForeignKey, Integer, String, func
+from sqlalchemy import DateTime, ForeignKey, String, func
 from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 
 from app.infrastructure.sql.base import Base
 
@@ -13,9 +15,13 @@ class User(Base):
 
     __tablename__ = "users"
 
-    id: Mapped[int] = mapped_column(primary_key=True)
-    organization_id: Mapped[int | None] = mapped_column(
-        Integer().with_variant(BigInteger(), 'postgresql'),
+    id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid4,
+    )
+    organization_id: Mapped[UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
         ForeignKey("organizations.id"),
         nullable=True,
         index=True,

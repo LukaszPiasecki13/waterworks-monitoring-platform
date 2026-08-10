@@ -1,9 +1,11 @@
 """Measurement point model for core data domain."""
 
 from datetime import datetime
+from uuid import UUID, uuid4
 
-from sqlalchemy import BigInteger, DateTime, ForeignKey, Integer, String, UniqueConstraint, func
+from sqlalchemy import DateTime, ForeignKey, String, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 
 from app.infrastructure.sql.base import Base
 
@@ -20,12 +22,13 @@ class MeasurementPoint(Base):
         ),
     )
 
-    id: Mapped[int] = mapped_column(
-        Integer().with_variant(BigInteger(), 'postgresql'),
+    id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
         primary_key=True,
+        default=uuid4,
     )
-    device_id: Mapped[int] = mapped_column(
-        Integer().with_variant(BigInteger(), 'postgresql'),
+    device_id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
         ForeignKey("devices.id"),
         nullable=False,
         index=True,

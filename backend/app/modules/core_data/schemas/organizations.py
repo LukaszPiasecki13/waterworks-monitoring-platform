@@ -1,5 +1,7 @@
 """Pydantic schemas for organizations."""
 
+from uuid import UUID
+
 from pydantic import BaseModel, ConfigDict, Field
 
 
@@ -18,7 +20,7 @@ class OrganizationUpdateRequest(BaseModel):
 class OrganizationResponse(BaseModel):
     """Organization response DTO."""
 
-    id: int
+    id: UUID
     name: str
 
     model_config = ConfigDict(from_attributes=True)

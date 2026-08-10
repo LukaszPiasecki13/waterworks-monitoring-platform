@@ -1,9 +1,11 @@
 """Water object model for core data domain."""
 
 from datetime import datetime
+from uuid import UUID, uuid4
 
-from sqlalchemy import BigInteger, DateTime, ForeignKey, Integer, String, func
+from sqlalchemy import DateTime, ForeignKey, String, func
 from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 
 from app.infrastructure.sql.base import Base
 
@@ -13,12 +15,13 @@ class WaterObject(Base):
 
     __tablename__ = "water_objects"
 
-    id: Mapped[int] = mapped_column(
-        Integer().with_variant(BigInteger(), 'postgresql'),
+    id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
         primary_key=True,
+        default=uuid4,
     )
-    organization_id: Mapped[int] = mapped_column(
-        Integer().with_variant(BigInteger(), 'postgresql'),
+    organization_id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
         ForeignKey("organizations.id"),
         nullable=False,
         index=True,

@@ -1,5 +1,7 @@
 """Measurement points API endpoints."""
 
+from uuid import UUID
+
 from fastapi import APIRouter, Depends
 
 from app.modules.core_data.dependencies import get_measurement_point_service
@@ -51,7 +53,7 @@ def create_measurement_point(
 
 @router.get("/{point_id}", response_model=MeasurementPointResponse)
 def get_measurement_point(
-    point_id: int,
+    point_id: UUID,
     service: MeasurementPointService = Depends(get_measurement_point_service),
     user: User = Depends(require_permission(CAN_VIEW_ASSETS)),
 ):
@@ -61,7 +63,7 @@ def get_measurement_point(
 
 @router.patch("/{point_id}", response_model=MeasurementPointResponse)
 def update_measurement_point(
-    point_id: int,
+    point_id: UUID,
     request: MeasurementPointUpdateRequest,
     service: MeasurementPointService = Depends(get_measurement_point_service),
     user: User = Depends(require_permission(CAN_MANAGE_ASSETS)),
@@ -72,7 +74,7 @@ def update_measurement_point(
 
 @router.delete("/{point_id}")
 def delete_measurement_point(
-    point_id: int,
+    point_id: UUID,
     service: MeasurementPointService = Depends(get_measurement_point_service),
     user: User = Depends(require_permission(CAN_MANAGE_ASSETS)),
 ):
