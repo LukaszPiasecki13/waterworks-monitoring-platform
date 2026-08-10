@@ -41,7 +41,7 @@ def service(session: MagicMock, repo: MagicMock) -> UserService:
 def actor(user_id: UUID | None = None) -> SimpleNamespace:
     if user_id is None:
         user_id = uuid4()
-    return SimpleNamespace(id=user_id, email="admin@example.com")
+    return SimpleNamespace(id=user_id, email="admin@example.com", organization_id=None)
 
 
 def test_create_user_normalizes_credentials_hashes_password_and_commits(
@@ -91,6 +91,7 @@ def test_create_user_normalizes_credentials_hashes_password_and_commits(
         last_name="Admin",
         status="admin",
         is_active=False,
+        organization_id=None,
     )
     session.flush.assert_called_once()
     session.refresh.assert_called_once_with(created_user)
@@ -135,7 +136,7 @@ def test_update_user_normalizes_unique_fields_and_hashes_password(
         status="regular",
         is_active=True,
     )
-    repo.get_by_id.return_value = user
+    repo.find_by_id.return_value = user
     repo.get_by_username.return_value = None
     repo.get_by_email.return_value = None
     repo.update.return_value = user
@@ -164,6 +165,7 @@ def test_update_user_normalizes_unique_fields_and_hashes_password(
         status=None,
         is_active=None,
         hashed_password="hashed:NewStrongPass123",
+        organization_id=None,
     )
     session.commit.assert_called_once()
 
@@ -183,7 +185,7 @@ def test_update_user_rejects_duplicate_username(
         status="regular",
         is_active=True,
     )
-    repo.get_by_id.return_value = user
+    repo.find_by_id.return_value = user
     repo.get_by_username.return_value = SimpleNamespace(id=uuid4())
 
     with pytest.raises(ConflictError):
@@ -215,7 +217,7 @@ def test_get_user_by_id_raises_not_found_when_missing(
     service: UserService,
     repo: MagicMock,
 ) -> None:
-    repo.get_by_id.return_value = None
+    repo.find_by_id.side_effect = NotFoundError("User not found")
 
     with pytest.raises(NotFoundError):
         service.get_user_by_id(uuid4())

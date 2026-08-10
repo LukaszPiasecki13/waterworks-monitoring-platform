@@ -1,5 +1,7 @@
 """Data access for user groups and permissions."""
 
+from uuid import UUID
+
 from sqlalchemy import delete, insert, select
 from sqlalchemy.orm import Session
 
@@ -60,10 +62,10 @@ class PermissionRepository(SQLRepository):
             .all()
         )
 
-    def get_group(self, group_id: int) -> UserGroup | None:
+    def get_group(self, group_id: UUID) -> UserGroup | None:
         return self.session.query(UserGroup).filter_by(id=group_id).first()
 
-    def get_group_for_update(self, group_id: int) -> UserGroup | None:
+    def get_group_for_update(self, group_id: UUID) -> UserGroup | None:
         return self.session.query(UserGroup).filter_by(id=group_id).with_for_update().first()
 
     def get_group_by_system_key(self, system_key: str) -> UserGroup | None:
@@ -85,7 +87,7 @@ class PermissionRepository(SQLRepository):
     def delete_group(self, group: UserGroup) -> None:
         self.session.delete(group)
 
-    def permission_codes_for_user(self, user_id: int) -> set[str]:
+    def permission_codes_for_user(self, user_id: UUID) -> set[str]:
         statement = (
             select(Permission.code)
             .join(UserGroup.permissions)
@@ -94,19 +96,19 @@ class PermissionRepository(SQLRepository):
         )
         return set(self.session.execute(statement).scalars().all())
 
-    def group_ids_for_user(self, user_id: int) -> list[int]:
+    def group_ids_for_user(self, user_id: UUID) -> list[UUID]:
         statement = select(security_user_groups.c.group_id).where(
             security_user_groups.c.user_id == user_id
         )
         return list(self.session.execute(statement).scalars().all())
 
-    def user_ids_for_group(self, group_id: int) -> list[int]:
+    def user_ids_for_group(self, group_id: UUID) -> list[UUID]:
         statement = select(security_user_groups.c.user_id).where(
             security_user_groups.c.group_id == group_id
         )
         return list(self.session.execute(statement).scalars().all())
 
-    def replace_user_groups(self, user_id: int, group_ids: set[int]) -> None:
+    def replace_user_groups(self, user_id: UUID, group_ids: set[UUID]) -> None:
         self.session.execute(
             delete(security_user_groups).where(
                 security_user_groups.c.user_id == user_id
@@ -118,7 +120,7 @@ class PermissionRepository(SQLRepository):
                 [{"user_id": user_id, "group_id": group_id} for group_id in group_ids],
             )
 
-    def replace_group_users(self, group_id: int, user_ids: set[int]) -> None:
+    def replace_group_users(self, group_id: UUID, user_ids: set[UUID]) -> None:
         self.session.execute(
             delete(security_user_groups).where(
                 security_user_groups.c.group_id == group_id

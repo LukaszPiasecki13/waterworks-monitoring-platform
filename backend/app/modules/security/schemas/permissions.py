@@ -1,12 +1,13 @@
 """Request and response schemas for permissions and user groups."""
 
 from datetime import datetime
+from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class PermissionResponse(BaseModel):
-    id: int
+    id: UUID
     code: str
     name: str
     category: str
@@ -46,7 +47,7 @@ class UserGroupUpdateRequest(BaseModel):
 class UserGroupSaveRequest(UserGroupCreateRequest):
     """Complete editable group state saved in one transaction."""
 
-    user_ids: list[int] = Field(default_factory=list)
+    user_ids: list[UUID] = Field(default_factory=list)
 
 
 class PermissionCodesRequest(BaseModel):
@@ -54,25 +55,25 @@ class PermissionCodesRequest(BaseModel):
 
 
 class UserIdsRequest(BaseModel):
-    user_ids: list[int]
+    user_ids: list[UUID]
 
 
 class GroupIdsRequest(BaseModel):
-    group_ids: list[int]
+    group_ids: list[UUID]
 
 
 class UserGroupResponse(BaseModel):
-    id: int
+    id: UUID
     name: str
     description: str
     is_system: bool
     system_key: str | None
     permissions: list[PermissionResponse]
-    user_ids: list[int]
+    user_ids: list[UUID]
     created_at: datetime
     updated_at: datetime
 
 
 class MyPermissionsResponse(BaseModel):
     permissions: list[str]
-    group_ids: list[int]
+    group_ids: list[UUID]

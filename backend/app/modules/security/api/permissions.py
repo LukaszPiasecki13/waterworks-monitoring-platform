@@ -1,5 +1,7 @@
 """API for the permission catalog and user security groups."""
 
+from uuid import UUID
+
 from fastapi import APIRouter, Depends, Query, Response, status
 
 from app.core.audit import AuditReaderPort, EntityType
@@ -68,7 +70,7 @@ def create_group(
 
 @router.patch("/groups/{group_id}", response_model=UserGroupResponse)
 def update_group(
-    group_id: int,
+    group_id: UUID,
     request: UserGroupUpdateRequest,
     user: User = Depends(require_permission(CAN_MANAGE_SECURITY)),
     service: PermissionService = Depends(get_permission_service),
@@ -78,7 +80,7 @@ def update_group(
 
 @router.put("/groups/{group_id}", response_model=UserGroupResponse)
 def save_group(
-    group_id: int,
+    group_id: UUID,
     request: UserGroupSaveRequest,
     user: User = Depends(require_permission(CAN_MANAGE_SECURITY)),
     service: PermissionService = Depends(get_permission_service),
@@ -88,7 +90,7 @@ def save_group(
 
 @router.put("/groups/{group_id}/permissions", response_model=UserGroupResponse)
 def replace_group_permissions(
-    group_id: int,
+    group_id: UUID,
     request: PermissionCodesRequest,
     user: User = Depends(require_permission(CAN_MANAGE_SECURITY)),
     service: PermissionService = Depends(get_permission_service),
@@ -100,7 +102,7 @@ def replace_group_permissions(
 
 @router.put("/groups/{group_id}/users", response_model=UserGroupResponse)
 def replace_group_users(
-    group_id: int,
+    group_id: UUID,
     request: UserIdsRequest,
     user: User = Depends(require_permission(CAN_MANAGE_SECURITY)),
     service: PermissionService = Depends(get_permission_service),
@@ -110,7 +112,7 @@ def replace_group_users(
 
 @router.delete("/groups/{group_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_group(
-    group_id: int,
+    group_id: UUID,
     user: User = Depends(require_permission(CAN_MANAGE_SECURITY)),
     service: PermissionService = Depends(get_permission_service),
 ):
@@ -120,7 +122,7 @@ def delete_group(
 
 @router.get("/groups/{group_id}/audit", response_model=list[AuditEventResponse])
 def security_group_audit_history(
-    group_id: int,
+    group_id: UUID,
     limit: int = Query(100, ge=1, le=200),
     offset: int = Query(0, ge=0),
     service: PermissionService = Depends(get_permission_service),
@@ -136,18 +138,18 @@ def security_group_audit_history(
     )
 
 
-@router.get("/users/{user_id}/groups", response_model=list[int])
+@router.get("/users/{user_id}/groups", response_model=list[UUID])
 def user_groups(
-    user_id: int,
+    user_id: UUID,
     _user: User = Depends(require_permission(CAN_VIEW_SECURITY)),
     service: PermissionService = Depends(get_permission_service),
 ):
     return service.group_ids_for_user(user_id)
 
 
-@router.put("/users/{user_id}/groups", response_model=list[int])
+@router.put("/users/{user_id}/groups", response_model=list[UUID])
 def replace_user_groups(
-    user_id: int,
+    user_id: UUID,
     request: GroupIdsRequest,
     user: User = Depends(require_permission(CAN_MANAGE_SECURITY)),
     service: PermissionService = Depends(get_permission_service),

@@ -1,10 +1,12 @@
 """Audit state snapshots for security domain entities."""
 
+from uuid import UUID
+
 from app.core.audit import audit_value
 from app.modules.security.models import UserGroup
 
 
-def security_group_audit_state(group: UserGroup, user_ids: list[int]) -> dict:
+def security_group_audit_state(group: UserGroup, user_ids: list[UUID]) -> dict:
     """Capture user group state for audit comparison."""
     return {
         "name": audit_value(group.name),

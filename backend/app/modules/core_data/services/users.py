@@ -1,5 +1,7 @@
 """User management service."""
 
+from uuid import UUID
+
 from app.core.audit import AuditEntry, AuditPort, EntityType, calculate_delta
 from app.core.errors import BadRequestError, ConflictError, NotFoundError
 from app.modules.core_data.audit_state import user_audit_state
@@ -50,7 +52,7 @@ class UserService:
             )
         )
 
-    def get_user_by_id(self, user_id: int) -> User:
+    def get_user_by_id(self, user_id: UUID) -> User:
         """Get user by ID or raise NotFoundError."""
         return self.user_repo.find_by_id(user_id)
 
@@ -112,7 +114,7 @@ class UserService:
             raise
 
     def update_user(
-        self, user_id: int, request: UserUpdateRequest, actor: User
+        self, user_id: UUID, request: UserUpdateRequest, actor: User
     ) -> User:
         """Update a user from the admin panel."""
         try:
@@ -185,7 +187,7 @@ class UserService:
             self.user_repo.rollback()
             raise
 
-    def delete_user(self, user_id: int, actor: User) -> None:
+    def delete_user(self, user_id: UUID, actor: User) -> None:
         """Delete a user from the admin panel."""
         if actor.id == user_id:
             raise BadRequestError("You cannot delete your own account")

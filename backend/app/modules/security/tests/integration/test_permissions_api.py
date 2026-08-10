@@ -50,7 +50,7 @@ def test_group_editor_saves_metadata_permissions_and_users_atomically(
             "name": "Reviewer",
             "description": "Reviews data",
             "permission_codes": ["CAN_VIEW_USERS", "CAN_VIEW_SECURITY"],
-            "user_ids": [admin_user.id],
+            "user_ids": [str(admin_user.id)],
         },
     )
 
@@ -58,7 +58,7 @@ def test_group_editor_saves_metadata_permissions_and_users_atomically(
     payload = response.json()
     assert payload["name"] == "Reviewer"
     assert payload["description"] == "Reviews data"
-    assert payload["user_ids"] == [admin_user.id]
+    assert payload["user_ids"] == [str(admin_user.id)]
     assert {permission["code"] for permission in payload["permissions"]} == {
         "CAN_VIEW_USERS",
         "CAN_VIEW_SECURITY",
@@ -83,7 +83,7 @@ def test_atomic_group_save_rolls_back_all_changes_on_invalid_permission(
             "name": "Changed",
             "description": "After",
             "permission_codes": ["CAN_DO_EVERYTHING"],
-            "user_ids": [admin_user.id],
+            "user_ids": [str(admin_user.id)],
         },
     )
 

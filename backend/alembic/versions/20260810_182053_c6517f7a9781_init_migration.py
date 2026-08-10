@@ -1,8 +1,8 @@
 """init migration
 
-Revision ID: b748ca677391
+Revision ID: c6517f7a9781
 Revises: 
-Create Date: 2026-08-10 15:56:53.238541+00:00
+Create Date: 2026-08-10 18:20:53.761367+00:00
 
 """
 from typing import Sequence, Union
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
-revision: str = 'b748ca677391'
+revision: str = 'c6517f7a9781'
 down_revision: Union[str, Sequence[str], None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -47,7 +47,7 @@ def upgrade() -> None:
     )
     op.create_index(op.f('ix_organizations_name'), 'organizations', ['name'], unique=True)
     op.create_table('security_groups',
-    sa.Column('id', sa.Integer(), nullable=False),
+    sa.Column('id', sa.UUID(), nullable=False),
     sa.Column('name', sa.String(length=120), nullable=False),
     sa.Column('description', sa.String(length=500), nullable=False),
     sa.Column('is_system', sa.Boolean(), nullable=False),
@@ -59,7 +59,7 @@ def upgrade() -> None:
     op.create_index(op.f('ix_security_groups_name'), 'security_groups', ['name'], unique=True)
     op.create_index(op.f('ix_security_groups_system_key'), 'security_groups', ['system_key'], unique=True)
     op.create_table('security_permissions',
-    sa.Column('id', sa.Integer(), nullable=False),
+    sa.Column('id', sa.UUID(), nullable=False),
     sa.Column('code', sa.String(length=100), nullable=False),
     sa.Column('name', sa.String(length=200), nullable=False),
     sa.Column('category', sa.String(length=100), nullable=False),
@@ -85,8 +85,8 @@ def upgrade() -> None:
     op.create_index('ix_telemetry_packets_org_id', 'telemetry_packets', ['org_id'], unique=False)
     op.create_index('ix_telemetry_packets_received_at', 'telemetry_packets', ['received_at'], unique=False)
     op.create_table('security_group_permissions',
-    sa.Column('group_id', sa.Integer(), nullable=False),
-    sa.Column('permission_id', sa.Integer(), nullable=False),
+    sa.Column('group_id', sa.UUID(), nullable=False),
+    sa.Column('permission_id', sa.UUID(), nullable=False),
     sa.ForeignKeyConstraint(['group_id'], ['security_groups.id'], ondelete='CASCADE'),
     sa.ForeignKeyConstraint(['permission_id'], ['security_permissions.id'], ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('group_id', 'permission_id')
@@ -142,7 +142,7 @@ def upgrade() -> None:
     op.create_index(op.f('ix_devices_water_object_id'), 'devices', ['water_object_id'], unique=False)
     op.create_table('security_user_groups',
     sa.Column('user_id', sa.UUID(), nullable=False),
-    sa.Column('group_id', sa.Integer(), nullable=False),
+    sa.Column('group_id', sa.UUID(), nullable=False),
     sa.ForeignKeyConstraint(['group_id'], ['security_groups.id'], ondelete='CASCADE'),
     sa.ForeignKeyConstraint(['user_id'], ['users.id'], ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('user_id', 'group_id')

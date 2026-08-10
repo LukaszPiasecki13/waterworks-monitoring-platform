@@ -1,7 +1,7 @@
 """Flexible user groups and permission assignments."""
 
 from datetime import datetime
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from sqlalchemy import (
     Boolean,
@@ -23,13 +23,13 @@ security_group_permissions = Table(
     Base.metadata,
     Column(
         "group_id",
-        Integer,
+        PG_UUID(as_uuid=True),
         ForeignKey("security_groups.id", ondelete="CASCADE"),
         primary_key=True,
     ),
     Column(
         "permission_id",
-        Integer,
+        PG_UUID(as_uuid=True),
         ForeignKey("security_permissions.id", ondelete="CASCADE"),
         primary_key=True,
     ),
@@ -46,7 +46,7 @@ security_user_groups = Table(
     ),
     Column(
         "group_id",
-        Integer,
+        PG_UUID(as_uuid=True),
         ForeignKey("security_groups.id", ondelete="CASCADE"),
         primary_key=True,
     ),
@@ -56,7 +56,11 @@ security_user_groups = Table(
 class Permission(Base):
     __tablename__ = "security_permissions"
 
-    id: Mapped[int] = mapped_column(primary_key=True)
+    id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid4,
+    )
     code: Mapped[str] = mapped_column(
         String(100), unique=True, nullable=False, index=True
     )
@@ -67,7 +71,11 @@ class Permission(Base):
 class UserGroup(Base):
     __tablename__ = "security_groups"
 
-    id: Mapped[int] = mapped_column(primary_key=True)
+    id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid4,
+    )
     name: Mapped[str] = mapped_column(
         String(120), unique=True, nullable=False, index=True
     )

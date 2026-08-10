@@ -156,7 +156,7 @@ def require_assigned_permission(
     return user
 
 
-def get_current_user_organization_id(user: User = Depends(get_current_user)) -> int | None:
+def get_current_user_organization_id(user: User = Depends(get_current_user)) -> UUID | None:
     """Get current user's organization ID (None = platform admin)."""
     return user.organization_id
 

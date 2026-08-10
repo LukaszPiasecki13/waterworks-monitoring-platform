@@ -1,5 +1,7 @@
 """Admin users API endpoints."""
 
+from uuid import UUID
+
 from fastapi import APIRouter, Depends, Query
 
 from app.core.audit import AuditReaderPort, EntityType
@@ -53,7 +55,7 @@ def create_user(
 
 @router.get("/{user_id}", response_model=UserResponse)
 def get_user(
-    user_id: int,
+    user_id: UUID,
     service: UserService = Depends(get_user_service),
     _user: User = Depends(require_any_permission(CAN_VIEW_USERS, CAN_VIEW_SECURITY)),
 ):
@@ -63,7 +65,7 @@ def get_user(
 
 @router.patch("/{user_id}", response_model=UserResponse)
 def update_user(
-    user_id: int,
+    user_id: UUID,
     request: UserUpdateRequest,
     service: UserService = Depends(get_user_service),
     user: User = Depends(require_permission(CAN_MANAGE_USERS)),
@@ -74,7 +76,7 @@ def update_user(
 
 @router.delete("/{user_id}")
 def delete_user(
-    user_id: int,
+    user_id: UUID,
     service: UserService = Depends(get_user_service),
     admin: User = Depends(require_permission(CAN_MANAGE_USERS)),
 ):
@@ -85,7 +87,7 @@ def delete_user(
 
 @router.get("/{user_id}/audit", response_model=list[AuditEventResponse])
 def user_audit_history(
-    user_id: int,
+    user_id: UUID,
     limit: int = Query(100, ge=1, le=200),
     offset: int = Query(0, ge=0),
     service: UserService = Depends(get_user_service),

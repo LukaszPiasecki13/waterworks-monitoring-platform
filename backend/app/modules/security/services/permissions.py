@@ -1,5 +1,7 @@
 """Permission resolution and user-group management rules."""
 
+from uuid import UUID
+
 from app.core.audit import AuditEntry, AuditPort, EntityType, calculate_delta
 from app.core.errors import (
     BadRequestError,
@@ -77,7 +79,7 @@ class PermissionService:
             )
         )
 
-    def _capture_user_groups(self, user_ids: set[int]) -> dict[int, list[int]]:
+    def _capture_user_groups(self, user_ids: set[UUID]) -> dict[UUID, list[int]]:
         return {
             user_id: sorted(self.repo.group_ids_for_user(user_id))
             for user_id in user_ids
@@ -85,7 +87,7 @@ class PermissionService:
 
     def _record_membership_changes(
         self,
-        before: dict[int, list[int]],
+        before: dict[UUID, list[int]],
         actor: User,
     ) -> None:
         for user_id, old_group_ids in before.items():
@@ -108,7 +110,7 @@ class PermissionService:
     def list_groups(self) -> list[dict]:
         return [self._serialize_group(group) for group in self.repo.list_groups()]
 
-    def get_group(self, group_id: int) -> UserGroup:
+    def get_group(self, group_id: UUID) -> UserGroup:
         group = self.repo.get_group(group_id)
         if not group:
             raise NotFoundError("Grupa użytkowników nie istnieje")
@@ -142,7 +144,7 @@ class PermissionService:
 
     def update_group(
         self,
-        group_id: int,
+        group_id: UUID,
         request: UserGroupUpdateRequest,
         actor: User,
     ) -> dict:
@@ -176,7 +178,7 @@ class PermissionService:
             raise
 
     def replace_group_permissions(
-        self, group_id: int, codes: list[str], actor: User
+        self, group_id: UUID, codes: list[str], actor: User
     ) -> dict:
         try:
             group = self.get_group(group_id)
@@ -198,7 +200,7 @@ class PermissionService:
 
     def save_group(
         self,
-        group_id: int,
+        group_id: UUID,
         request: UserGroupSaveRequest,
         *,
         actor: User,
@@ -211,7 +213,7 @@ class PermissionService:
                 raise NotFoundError("Grupa użytkowników nie istnieje")
             old_state = self._group_state(group)
             member_ids = set(request.user_ids)
-            changed_user_ids = set(old_state["user_ids"]) ^ member_ids
+            changed_user_ids: set[UUID] = set(old_state["user_ids"]) ^ member_ids
             user_groups_before = self._capture_user_groups(changed_user_ids)
             self._validate_users(member_ids)
             self._protect_last_admin(group, member_ids)
@@ -258,7 +260,7 @@ class PermissionService:
             raise
 
     def replace_group_users(
-        self, group_id: int, user_ids: list[int], actor: User
+        self, group_id: UUID, user_ids: list[UUID], actor: User
     ) -> dict:
         try:
             group = self.repo.get_group_for_update(group_id)
@@ -285,7 +287,7 @@ class PermissionService:
             raise
 
     def replace_user_groups(
-        self, user_id: int, group_ids: list[int], actor: User
+        self, user_id: UUID, group_ids: list[int], actor: User
     ) -> list[int]:
         try:
             user = self.users.get_by_id(user_id)
@@ -380,7 +382,7 @@ class PermissionService:
                     self._group_state(group),
                 )
 
-    def delete_group(self, group_id: int, actor: User) -> None:
+    def delete_group(self, group_id: UUID, actor: User) -> None:
         try:
             group = self.get_group(group_id)
             old_state = self._group_state(group)
@@ -396,7 +398,7 @@ class PermissionService:
             self.repo.rollback()
             raise
 
-    def group_ids_for_user(self, user_id: int) -> list[int]:
+    def group_ids_for_user(self, user_id: UUID) -> list[UUID]:
         if not self.users.get_by_id(user_id):
             raise NotFoundError("Użytkownik nie istnieje")
         return sorted(self.repo.group_ids_for_user(user_id))
@@ -412,7 +414,7 @@ class PermissionService:
             )
         return permissions
 
-    def _validate_users(self, user_ids: set[int]) -> None:
+    def _validate_users(self, user_ids: set[UUID]) -> None:
         missing = [user_id for user_id in user_ids if not self.users.get_by_id(user_id)]
         if missing:
             raise NotFoundError(f"Nie istnieją użytkownicy: {missing}")
