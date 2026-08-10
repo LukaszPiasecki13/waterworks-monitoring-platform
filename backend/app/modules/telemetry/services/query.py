@@ -125,6 +125,7 @@ class TelemetryQueryService:
             summary = ObjectSummary(
                 org_id=row["org_id"],
                 object_id=row["object_id"],
+                name=row["name"],
                 device_id=row["last_device_id"],
                 status=obj_status,
                 last_contact_at=row["last_contact_at"],
@@ -149,6 +150,10 @@ class TelemetryQueryService:
         if not packet:
             raise NotFoundError(f"Object {object_id} not found")
 
+        water_object = self.repo.get_water_object(object_id)
+        if not water_object:
+            raise NotFoundError(f"Object {object_id} not found")
+
         points = self._unpack_latest_points(packet)
         obj_status = self._compute_status(packet.received_at, points)
 
@@ -166,6 +171,7 @@ class TelemetryQueryService:
         return ObjectDetail(
             org_id=packet.org_id,
             object_id=packet.object_id,
+            name=water_object.name,
             device_id=packet.device_id,
             status=obj_status,
             last_contact_at=packet.received_at,

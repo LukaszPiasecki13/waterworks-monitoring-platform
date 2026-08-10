@@ -35,6 +35,10 @@ def list_objects(
     limit: int = Query(50, ge=1, le=500, description="Number of items to return"),
 ) -> PaginatedResponse[ObjectSummary]:
     """List all monitored objects with their latest readings and status."""
+    # Platform admin (org_id=None) can see all; regular users see only their org
+    if org_id is None and user.organization_id is not None:
+        org_id = str(user.organization_id)
+
     return service.list_objects(org_id=org_id, status=status, skip=skip, limit=limit)
 
 

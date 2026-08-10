@@ -27,6 +27,7 @@ class ObjectSummary(BaseModel):
 
     org_id: str
     object_id: str
+    name: str
     device_id: str
     status: ObjectStatus
     last_contact_at: datetime | None = None

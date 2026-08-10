@@ -2,10 +2,11 @@
 
 from datetime import datetime
 
-from sqlalchemy import func, select
+from sqlalchemy import UUID as SA_UUID, func, select
 from sqlalchemy.orm import Session
 
 from app.infrastructure.sql.repository import SQLRepository
+from app.modules.core_data.models import WaterObject
 from app.modules.telemetry.models.measurement_packet import TelemetryPacket
 
 
@@ -23,17 +24,22 @@ class TelemetryQueryRepository(SQLRepository):
     ) -> list[dict]:
         """List unique objects, grouped by object_id/org_id with their latest contact time.
 
-        Returns list of dicts with keys: object_id, org_id, last_contact_at, last_device_id.
+        Returns list of dicts with keys: object_id, org_id, name, last_contact_at, last_device_id.
         Sorted by last_contact_at DESC (most recent first).
         """
         stmt = (
             select(
                 TelemetryPacket.object_id,
                 TelemetryPacket.org_id,
+                WaterObject.name,
                 func.max(TelemetryPacket.received_at).label("last_contact_at"),
                 func.max(TelemetryPacket.device_id).label("last_device_id"),
             )
-            .group_by(TelemetryPacket.object_id, TelemetryPacket.org_id)
+            .join(
+                WaterObject,
+                TelemetryPacket.object_id.cast(SA_UUID) == WaterObject.id,
+            )
+            .group_by(TelemetryPacket.object_id, TelemetryPacket.org_id, WaterObject.name)
         )
 
         if org_id is not None:
@@ -46,6 +52,7 @@ class TelemetryQueryRepository(SQLRepository):
             {
                 "object_id": row.object_id,
                 "org_id": row.org_id,
+                "name": row.name,
                 "last_contact_at": row.last_contact_at,
                 "last_device_id": row.last_device_id,
             }
@@ -96,3 +103,13 @@ class TelemetryQueryRepository(SQLRepository):
         )
 
         return self.session.execute(stmt).scalars().all()
+
+    def get_water_object(self, object_id: str) -> WaterObject | None:
+        """Get a water object by ID (stored as UUID, but object_id is a string)."""
+        from uuid import UUID
+        try:
+            obj_uuid = UUID(object_id)
+            stmt = select(WaterObject).where(WaterObject.id == obj_uuid)
+            return self.session.execute(stmt).scalar_one_or_none()
+        except ValueError:
+            return None

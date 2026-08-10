@@ -14,6 +14,7 @@ export interface LatestPointValue {
 export interface ObjectSummary {
   org_id: string
   object_id: string
+  name: string
   device_id: string
   status: 'ok' | 'warning' | 'no_comm' | 'no_data'
   last_contact_at: string | null

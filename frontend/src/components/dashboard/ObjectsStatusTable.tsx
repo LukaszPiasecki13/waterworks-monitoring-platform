@@ -66,14 +66,14 @@ export function ObjectsStatusTable({ onSelectObject }: ObjectsStatusTableProps) 
 
   const columns = [
     {
-      key: 'object_id',
-      label: 'ID Obiektu',
+      key: 'name',
+      label: 'Nazwa Obiektu',
       render: (row: ObjectSummary) => (
         <button
           onClick={() => onSelectObject(row.object_id)}
           className="text-brand-600 hover:text-brand-700 hover:underline font-medium"
         >
-          {row.object_id}
+          {row.name}
         </button>
       ),
     },

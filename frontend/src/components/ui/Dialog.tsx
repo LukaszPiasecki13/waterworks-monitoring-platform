@@ -28,12 +28,12 @@ const DialogContent = React.forwardRef<
   React.ComponentPropsWithoutRef<typeof RadixDialog.Content>
 >(({ className, ...props }, ref) => (
   <RadixDialog.Portal>
-    <RadixDialog.Overlay className="fixed inset-0 bg-black bg-opacity-50 z-50" />
+    <RadixDialog.Overlay className="fixed inset-0 bg-black/50 z-50" />
     <RadixDialog.Content
       ref={ref}
       className={cn(
-        'fixed left-1/2 top-1/2 z-50 w-full max-w-lg translate-x--1/2 translate-y--1/2',
-        'rounded-lg border border-neutral-200 bg-surface shadow-lg p-6',
+        'fixed left-1/2 top-1/2 z-50 w-full max-w-lg -translate-x-1/2 -translate-y-1/2',
+        'rounded-lg border border-neutral-200 bg-white shadow-lg p-6',
         'focus-visible:outline-none',
         className
       )}
