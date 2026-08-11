@@ -6,7 +6,7 @@ from sqlalchemy import UUID as SA_UUID, func, select
 from sqlalchemy.orm import Session
 
 from app.infrastructure.sql.repository import SQLRepository
-from app.modules.core_data.models import WaterObject
+from app.modules.core_data.models import WaterObject, Organization
 from app.modules.telemetry.models.measurement_packet import TelemetryPacket
 
 
@@ -34,12 +34,17 @@ class TelemetryQueryRepository(SQLRepository):
                 WaterObject.name,
                 func.max(TelemetryPacket.received_at).label("last_contact_at"),
                 func.max(TelemetryPacket.device_id).label("last_device_id"),
+                Organization.name.label("org_name"),
             )
             .join(
                 WaterObject,
                 TelemetryPacket.object_id.cast(SA_UUID) == WaterObject.id,
             )
-            .group_by(TelemetryPacket.object_id, TelemetryPacket.org_id, WaterObject.name)
+            .join(
+                Organization,
+                TelemetryPacket.org_id.cast(SA_UUID) == Organization.id,
+            )
+            .group_by(TelemetryPacket.object_id, TelemetryPacket.org_id, WaterObject.name, Organization.name)
         )
 
         if org_id is not None:
@@ -53,8 +58,10 @@ class TelemetryQueryRepository(SQLRepository):
                 "object_id": row.object_id,
                 "org_id": row.org_id,
                 "name": row.name,
+                "org_name": row.org_name,
                 "last_contact_at": row.last_contact_at,
                 "last_device_id": row.last_device_id,
+                "device_name": row.last_device_id,  # Use device_id as name since it's a string identifier
             }
             for row in rows
         ]
@@ -113,3 +120,19 @@ class TelemetryQueryRepository(SQLRepository):
             return self.session.execute(stmt).scalar_one_or_none()
         except ValueError:
             return None
+
+    def get_device_name(self, device_id: str) -> str:
+        """Get device name. Since device_id is a string identifier (not UUID), return it as-is."""
+        return device_id
+
+    def get_organization_name(self, org_id: str) -> str:
+        """Get organization name by ID, or return 'Nieznana' if not found."""
+        from uuid import UUID
+        try:
+            org_uuid = UUID(org_id)
+            stmt = select(Organization.name).where(Organization.id == org_uuid)
+            result = self.session.execute(stmt).scalar_one_or_none()
+            return result or "Nieznana"
+        except ValueError:
+            return "Nieznana"
+

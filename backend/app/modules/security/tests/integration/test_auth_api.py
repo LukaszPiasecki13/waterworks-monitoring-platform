@@ -91,7 +91,10 @@ def test_register_login_refresh_and_current_user(
         headers={"Authorization": f"Bearer {tokens['access']}"},
     )
     assert current_user_response.status_code == 200
-    assert current_user_response.json()["email"] == "newuser@example.com"
+    user_data = current_user_response.json()
+    assert user_data["email"] == "newuser@example.com"
+    assert "organization_id" in user_data
+    assert user_data["organization_id"] is None  # New user has no organization
 
 
 

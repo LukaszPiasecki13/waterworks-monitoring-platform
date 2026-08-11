@@ -1,5 +1,7 @@
 """Organization repository for data access."""
 
+from uuid import UUID
+
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
@@ -14,11 +16,11 @@ class OrganizationRepository(SQLRepository):
     def __init__(self, session: Session):
         self.session = session
 
-    def get_by_id(self, org_id: int) -> Organization | None:
+    def get_by_id(self, org_id: UUID) -> Organization | None:
         """Get organization by ID."""
         return self.session.query(Organization).filter(Organization.id == org_id).first()
 
-    def find_by_id(self, org_id: int) -> Organization:
+    def find_by_id(self, org_id: UUID) -> Organization:
         """Find organization by ID or raise NotFoundError."""
         org = self.get_by_id(org_id)
         if not org:
@@ -29,19 +31,25 @@ class OrganizationRepository(SQLRepository):
         """Get organization by name."""
         return self.session.query(Organization).filter(Organization.name == name).first()
 
-    def list_all(self, skip: int = 0, limit: int = 100) -> list[Organization]:
+    def list_all(self, skip: int = 0, limit: int = 100, name: str | None = None) -> list[Organization]:
         """List all organizations."""
+        query = self.session.query(Organization)
+        if name:
+            query = query.filter(Organization.name.ilike(f"%{name}%"))
         return (
-            self.session.query(Organization)
+            query
             .order_by(Organization.name)
             .offset(skip)
             .limit(limit)
             .all()
         )
 
-    def count(self) -> int:
+    def count(self, name: str | None = None) -> int:
         """Count all organizations."""
-        return self.session.query(func.count(Organization.id)).scalar() or 0
+        query = self.session.query(func.count(Organization.id))
+        if name:
+            query = query.filter(Organization.name.ilike(f"%{name}%"))
+        return query.scalar() or 0
 
     def create(self, name: str) -> Organization:
         """Create new organization."""

@@ -1,6 +1,9 @@
 """Device management service."""
 
 import secrets
+from uuid import UUID
+
+from sqlalchemy.exc import IntegrityError
 
 from app.core.audit import AuditEntry, AuditPort, EntityType, calculate_delta
 from app.core.errors import ConflictError, NotFoundError
@@ -67,7 +70,7 @@ class DeviceService:
             )
         )
 
-    def get_by_id(self, device_id: int, actor: User):
+    def get_by_id(self, device_id: UUID, actor: User):
         """Get device by ID with org isolation."""
         device = self.repo.find_by_id(device_id)
         water_obj = self.water_object_repo.get_by_id(device.water_object_id)
@@ -77,7 +80,10 @@ class DeviceService:
 
     def list_all(self, query, *, actor: User | None = None):
         """List devices with org isolation."""
-        org_id = actor.organization_id if actor else None
+        if actor and actor.organization_id is not None:
+            org_id = actor.organization_id  # non-admin: wymuszone, ignoruje query.organization_id
+        else:
+            org_id = getattr(query, "organization_id", None)  # admin: z klienta; None = bez filtra
 
         if query.water_object_id is not None and org_id is not None:
             water_obj = self.water_object_repo.get_by_id(query.water_object_id)
@@ -144,7 +150,7 @@ class DeviceService:
             self.repo.rollback()
             raise
 
-    def delete(self, device_id: int, actor: User) -> None:
+    def delete(self, device_id: UUID, actor: User) -> None:
         """Delete device."""
         try:
             device = self.get_by_id(device_id, actor)

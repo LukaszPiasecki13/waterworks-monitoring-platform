@@ -1,5 +1,7 @@
 """Measurement point management service."""
 
+from uuid import UUID
+
 from app.core.audit import AuditEntry, AuditPort, EntityType, calculate_delta
 from app.core.errors import ConflictError, NotFoundError
 from app.modules.core_data.models.user import User
@@ -51,7 +53,7 @@ class MeasurementPointService:
             )
         )
 
-    def get_by_id(self, point_id: int, actor: User):
+    def get_by_id(self, point_id: UUID, actor: User):
         """Get measurement point by ID with org isolation."""
         point = self.repo.find_by_id(point_id)
         device = self.device_repo.get_by_id(point.device_id)
@@ -63,7 +65,10 @@ class MeasurementPointService:
 
     def list_all(self, query, *, actor: User | None = None):
         """List measurement points with org isolation."""
-        org_id = actor.organization_id if actor else None
+        if actor and actor.organization_id is not None:
+            org_id = actor.organization_id  # non-admin: wymuszone, ignoruje query.organization_id
+        else:
+            org_id = getattr(query, "organization_id", None)  # admin: z klienta; None = bez filtra
 
         if query.device_id is not None and org_id is not None:
             device = self.device_repo.get_by_id(query.device_id)

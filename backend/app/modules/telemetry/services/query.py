@@ -4,6 +4,7 @@ from datetime import datetime, timedelta, timezone
 
 from app.core.config import Settings
 from app.core.errors import NotFoundError
+from app.modules.core_data.models import User
 from app.modules.telemetry.repositories.queries import TelemetryQueryRepository
 from app.modules.telemetry.schemas.query import (
     LatestPointValue,
@@ -48,21 +49,28 @@ class TelemetryQueryService:
         else:
             measured_at = packet.received_at
 
+        device_name = self.repo.get_device_name(packet.device_id)
+
         result = []
         for point in points:
             value = point.get("value")
             if value is None:
                 value = point.get("avg")
 
+            point_id = point.get("point_id", "unknown")
+            point_type = point.get("type", "unknown")
+
             result.append(
                 LatestPointValue(
-                    point_id=point.get("point_id", "unknown"),
-                    type=point.get("type", "unknown"),
+                    point_id=point_id,
+                    point_name=point_type,
+                    type=point_type,
                     unit=point.get("unit", "unknown"),
                     value=value,
                     quality=point.get("quality", "unknown"),
                     measured_at=measured_at,
                     device_id=packet.device_id,
+                    device_name=device_name,
                 )
             )
 
@@ -97,6 +105,7 @@ class TelemetryQueryService:
 
     def list_objects(
         self,
+        user: User,
         org_id: str | None = None,
         status: ObjectStatus | None = None,
         skip: int = 0,
@@ -104,10 +113,13 @@ class TelemetryQueryService:
     ) -> PaginatedResponse[ObjectSummary]:
         """List all objects with their latest readings and status.
 
-        Applies optional org_id filter and status filter (in-memory).
-        Limit applies to DB fetch; if status filter is used, we fetch more
-        candidates from the DB and filter in Python.
+        Regular users: forced to their organization, org_id param ignored.
+        Platform admins: can filter by any org_id or see all if org_id=None.
+        Applies optional status filter (in-memory).
         """
+        if user.organization_id is not None:
+            org_id = str(user.organization_id)
+
         candidates_limit = 500 if status else limit
 
         total = self.repo.count_objects(org_id=org_id)
@@ -124,9 +136,11 @@ class TelemetryQueryService:
 
             summary = ObjectSummary(
                 org_id=row["org_id"],
+                org_name=row["org_name"],
                 object_id=row["object_id"],
                 name=row["name"],
                 device_id=row["last_device_id"],
+                device_name=row["device_name"],
                 status=obj_status,
                 last_contact_at=row["last_contact_at"],
                 last_measurement_at=points[0].measured_at if points else row["last_contact_at"],
@@ -144,10 +158,17 @@ class TelemetryQueryService:
             limit=limit,
         )
 
-    def get_object_detail(self, object_id: str) -> ObjectDetail:
-        """Get detailed view of a single object."""
+    def get_object_detail(self, user: User, object_id: str) -> ObjectDetail:
+        """Get detailed view of a single object.
+
+        Regular users: can only see objects in their organization.
+        Platform admins: can see any object.
+        """
         packet = self.repo.get_latest_packet(object_id)
         if not packet:
+            raise NotFoundError(f"Object {object_id} not found")
+
+        if user.organization_id is not None and packet.org_id != str(user.organization_id):
             raise NotFoundError(f"Object {object_id} not found")
 
         water_object = self.repo.get_water_object(object_id)
@@ -168,11 +189,16 @@ class TelemetryQueryService:
                 for point in window.get("points", []):
                     available_points_set.add(point.get("point_id", "unknown"))
 
+        org_name = self.repo.get_organization_name(packet.org_id)
+        device_name = self.repo.get_device_name(packet.device_id)
+
         return ObjectDetail(
             org_id=packet.org_id,
+            org_name=org_name,
             object_id=packet.object_id,
             name=water_object.name,
             device_id=packet.device_id,
+            device_name=device_name,
             status=obj_status,
             last_contact_at=packet.received_at,
             last_measurement_at=points[0].measured_at if points else packet.received_at,
@@ -183,6 +209,7 @@ class TelemetryQueryService:
 
     def get_measurements(
         self,
+        user: User,
         object_id: str,
         point_id: str | None = None,
         type_: str | None = None,
@@ -192,6 +219,8 @@ class TelemetryQueryService:
     ) -> MeasurementsResponse:
         """Get time series measurements for an object.
 
+        Regular users: can only see measurements from objects in their organization.
+        Platform admins: can see any object's measurements.
         Defaults start/end to last 24h if not provided.
         Flattens all windows/points from packets in range.
         Optionally filters by point_id and/or type.
@@ -200,6 +229,9 @@ class TelemetryQueryService:
 
         latest_packet = self.repo.get_latest_packet(object_id)
         if not latest_packet:
+            raise NotFoundError(f"Object {object_id} not found")
+
+        if user.organization_id is not None and latest_packet.org_id != str(user.organization_id):
             raise NotFoundError(f"Object {object_id} not found")
 
         if end is None:
@@ -232,8 +264,11 @@ class TelemetryQueryService:
                     if type_ is not None and point_type != type_:
                         continue
 
+                    device_name = self.repo.get_device_name(packet.device_id)
+
                     item = MeasurementSeriesItem(
                         point_id=point_point_id,
+                        point_name=point_type,
                         type=point_type,
                         unit=point.get("unit", "unknown"),
                         measured_at=window_start,
@@ -243,6 +278,7 @@ class TelemetryQueryService:
                         max=point.get("max"),
                         quality=point.get("quality", "unknown"),
                         device_id=packet.device_id,
+                        device_name=device_name,
                     )
                     items.append(item)
 

@@ -1,5 +1,7 @@
 """Water object repository for data access."""
 
+from uuid import UUID
+
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
@@ -14,11 +16,11 @@ class WaterObjectRepository(SQLRepository):
     def __init__(self, session: Session):
         self.session = session
 
-    def get_by_id(self, obj_id: int) -> WaterObject | None:
+    def get_by_id(self, obj_id: UUID) -> WaterObject | None:
         """Get water object by ID."""
         return self.session.query(WaterObject).filter(WaterObject.id == obj_id).first()
 
-    def find_by_id(self, obj_id: int) -> WaterObject:
+    def find_by_id(self, obj_id: UUID) -> WaterObject:
         """Find water object by ID or raise NotFoundError."""
         obj = self.get_by_id(obj_id)
         if not obj:
@@ -27,7 +29,7 @@ class WaterObjectRepository(SQLRepository):
 
     def list_all(
         self,
-        organization_id: int | None = None,
+        organization_id: UUID | None = None,
         skip: int = 0,
         limit: int = 100,
     ) -> list[WaterObject]:
@@ -37,7 +39,7 @@ class WaterObjectRepository(SQLRepository):
             query = query.filter(WaterObject.organization_id == organization_id)
         return query.order_by(WaterObject.name).offset(skip).limit(limit).all()
 
-    def count(self, organization_id: int | None = None) -> int:
+    def count(self, organization_id: UUID | None = None) -> int:
         """Count water objects."""
         query = self.session.query(func.count(WaterObject.id))
         if organization_id is not None:
@@ -46,7 +48,7 @@ class WaterObjectRepository(SQLRepository):
 
     def create(
         self,
-        organization_id: int,
+        organization_id: UUID,
         name: str,
         object_type: str,
         location_description: str | None = None,

@@ -1,5 +1,7 @@
 """Measurement point repository for data access."""
 
+from uuid import UUID
+
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
@@ -16,11 +18,11 @@ class MeasurementPointRepository(SQLRepository):
     def __init__(self, session: Session):
         self.session = session
 
-    def get_by_id(self, point_id: int) -> MeasurementPoint | None:
+    def get_by_id(self, point_id: UUID) -> MeasurementPoint | None:
         """Get measurement point by ID."""
         return self.session.query(MeasurementPoint).filter(MeasurementPoint.id == point_id).first()
 
-    def find_by_id(self, point_id: int) -> MeasurementPoint:
+    def find_by_id(self, point_id: UUID) -> MeasurementPoint:
         """Find measurement point by ID or raise NotFoundError."""
         point = self.get_by_id(point_id)
         if not point:
@@ -42,8 +44,8 @@ class MeasurementPointRepository(SQLRepository):
 
     def list_all_with_org_filter(
         self,
-        organization_id: int | None = None,
-        device_id: int | None = None,
+        organization_id: UUID | None = None,
+        device_id: UUID | None = None,
         skip: int = 0,
         limit: int = 100,
     ) -> list[MeasurementPoint]:
@@ -64,8 +66,8 @@ class MeasurementPointRepository(SQLRepository):
 
     def count_with_org_filter(
         self,
-        organization_id: int | None = None,
-        device_id: int | None = None,
+        organization_id: UUID | None = None,
+        device_id: UUID | None = None,
     ) -> int:
         """Count measurement points with org isolation."""
         query = self.session.query(func.count(MeasurementPoint.id))

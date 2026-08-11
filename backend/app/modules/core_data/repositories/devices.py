@@ -1,5 +1,7 @@
 """Device repository for data access."""
 
+from uuid import UUID
+
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
@@ -15,11 +17,11 @@ class DeviceRepository(SQLRepository):
     def __init__(self, session: Session):
         self.session = session
 
-    def get_by_id(self, device_id: int) -> Device | None:
+    def get_by_id(self, device_id: UUID) -> Device | None:
         """Get device by ID."""
         return self.session.query(Device).filter(Device.id == device_id).first()
 
-    def find_by_id(self, device_id: int) -> Device:
+    def find_by_id(self, device_id: UUID) -> Device:
         """Find device by ID or raise NotFoundError."""
         device = self.get_by_id(device_id)
         if not device:
@@ -32,8 +34,8 @@ class DeviceRepository(SQLRepository):
 
     def list_all_with_org_filter(
         self,
-        organization_id: int | None = None,
-        water_object_id: int | None = None,
+        organization_id: UUID | None = None,
+        water_object_id: UUID | None = None,
         skip: int = 0,
         limit: int = 100,
     ) -> list[Device]:
@@ -52,8 +54,8 @@ class DeviceRepository(SQLRepository):
 
     def count_with_org_filter(
         self,
-        organization_id: int | None = None,
-        water_object_id: int | None = None,
+        organization_id: UUID | None = None,
+        water_object_id: UUID | None = None,
     ) -> int:
         """Count devices with org isolation."""
         query = self.session.query(func.count(Device.id))
@@ -70,7 +72,7 @@ class DeviceRepository(SQLRepository):
 
     def create(
         self,
-        water_object_id: int,
+        water_object_id: UUID,
         external_id: str,
         hashed_secret: str,
         firmware_version: str | None = None,

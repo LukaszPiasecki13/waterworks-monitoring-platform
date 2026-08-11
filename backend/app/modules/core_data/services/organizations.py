@@ -1,5 +1,7 @@
 """Organization management service."""
 
+from uuid import UUID
+
 from sqlalchemy.exc import IntegrityError
 
 from app.core.audit import AuditEntry, AuditPort, EntityType, calculate_delta
@@ -45,7 +47,7 @@ class OrganizationService:
             )
         )
 
-    def get_by_id(self, org_id: int, actor: User | None = None):
+    def get_by_id(self, org_id: UUID, actor: User | None = None):
         """Get organization by ID with org isolation for non-admins."""
         org = self.repo.find_by_id(org_id)
 
@@ -61,8 +63,8 @@ class OrganizationService:
             org = self.repo.get_by_id(actor.organization_id)
             return ([org] if org else [], 1 if org else 0)
 
-        orgs = self.repo.list_all(skip=query.skip, limit=query.limit)
-        count = self.repo.count()
+        orgs = self.repo.list_all(skip=query.skip, limit=query.limit, name=query.name)
+        count = self.repo.count(name=query.name)
         return orgs, count
 
     def create(self, request: OrganizationCreateRequest, *, actor: User):
@@ -80,7 +82,7 @@ class OrganizationService:
             self.repo.rollback()
             raise
 
-    def update(self, org_id: int, request: OrganizationUpdateRequest, actor: User):
+    def update(self, org_id: UUID, request: OrganizationUpdateRequest, actor: User):
         """Update organization."""
         try:
             org = self.get_by_id(org_id)
@@ -103,7 +105,7 @@ class OrganizationService:
             self.repo.rollback()
             raise
 
-    def delete(self, org_id: int, actor: User) -> None:
+    def delete(self, org_id: UUID, actor: User) -> None:
         """Delete organization."""
         try:
             org = self.get_by_id(org_id)

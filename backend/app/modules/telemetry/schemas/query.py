@@ -12,12 +12,14 @@ class LatestPointValue(BaseModel):
     """Latest value for a single measurement point."""
 
     point_id: str
+    point_name: str
     type: str
     unit: str
     value: float | int | bool | None = None
     quality: str
     measured_at: datetime
     device_id: str
+    device_name: str
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -26,9 +28,11 @@ class ObjectSummary(BaseModel):
     """Summary of an object with its latest readings."""
 
     org_id: str
+    org_name: str
     object_id: str
     name: str
     device_id: str
+    device_name: str
     status: ObjectStatus
     last_contact_at: datetime | None = None
     last_measurement_at: datetime | None = None
@@ -48,6 +52,7 @@ class MeasurementSeriesItem(BaseModel):
     """A single measurement in a time series."""
 
     point_id: str
+    point_name: str
     type: str
     unit: str
     measured_at: datetime
@@ -57,6 +62,7 @@ class MeasurementSeriesItem(BaseModel):
     max: float | None = None
     quality: str
     device_id: str
+    device_name: str
 
     model_config = ConfigDict(from_attributes=True)
 

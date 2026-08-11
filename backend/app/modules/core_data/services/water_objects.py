@@ -1,5 +1,7 @@
 """Water object management service."""
 
+from uuid import UUID
+
 from sqlalchemy.exc import IntegrityError
 
 from app.core.audit import AuditEntry, AuditPort, EntityType, calculate_delta
@@ -50,7 +52,7 @@ class WaterObjectService:
             )
         )
 
-    def get_by_id(self, obj_id: int, actor: User):
+    def get_by_id(self, obj_id: UUID, actor: User):
         """Get water object by ID with org isolation."""
         obj = self.repo.find_by_id(obj_id)
         assert_same_organization(actor, obj.organization_id)
@@ -58,7 +60,10 @@ class WaterObjectService:
 
     def list_all(self, query, *, actor: User = None):
         """List water objects with org isolation."""
-        org_id = actor.organization_id if actor else None
+        if actor and actor.organization_id is not None:
+            org_id = actor.organization_id  # non-admin: wymuszone, ignoruje query.organization_id
+        else:
+            org_id = getattr(query, "organization_id", None)  # admin: z klienta; None = bez filtra
         objs = self.repo.list_all(organization_id=org_id, skip=query.skip, limit=query.limit)
         count = self.repo.count(organization_id=org_id)
         return objs, count

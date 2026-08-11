@@ -35,11 +35,7 @@ def list_objects(
     limit: int = Query(50, ge=1, le=500, description="Number of items to return"),
 ) -> PaginatedResponse[ObjectSummary]:
     """List all monitored objects with their latest readings and status."""
-    # Platform admin (org_id=None) can see all; regular users see only their org
-    if org_id is None and user.organization_id is not None:
-        org_id = str(user.organization_id)
-
-    return service.list_objects(org_id=org_id, status=status, skip=skip, limit=limit)
+    return service.list_objects(user=user, org_id=org_id, status=status, skip=skip, limit=limit)
 
 
 @router.get(
@@ -52,7 +48,7 @@ def get_object_detail(
     service: TelemetryQueryService = Depends(get_telemetry_query_service),
 ) -> ObjectDetail:
     """Get detailed view of a single object with its latest readings and available measurement points."""
-    return service.get_object_detail(object_id)
+    return service.get_object_detail(user=user, object_id=object_id)
 
 
 @router.get(
@@ -71,6 +67,7 @@ def get_measurements(
 ) -> MeasurementsResponse:
     """Get time series measurements for an object."""
     return service.get_measurements(
+        user=user,
         object_id=object_id,
         point_id=point_id,
         type_=type_,

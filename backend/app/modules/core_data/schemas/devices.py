@@ -47,3 +47,4 @@ class ListDevicesRequest(BaseModel):
     skip: int = Field(0, ge=0)
     limit: int = Field(100, ge=1, le=1000)
     water_object_id: UUID | None = None
+    organization_id: UUID | None = None

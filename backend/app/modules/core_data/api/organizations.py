@@ -30,7 +30,7 @@ router = APIRouter(prefix="/organizations", tags=["organizations"])
 def list_organizations(
     query: ListOrganizationsRequest = Depends(),
     service: OrganizationService = Depends(get_organization_service),
-    user: User = Depends(require_permission(CAN_VIEW_ORGANIZATIONS)),
+    user: User = Depends(get_current_user),
 ):
     """List organizations."""
     orgs, total = service.list_all(query, actor=user)

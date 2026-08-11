@@ -1,4 +1,12 @@
-"""Security seed service — syncs permissions and system groups on startup."""
+"""Security seed service — syncs permissions and system groups on startup.
+
+Runs automatically when the application starts to ensure:
+1. All permissions from PERMISSION_CATALOG exist in database
+2. Admin group has all permissions (always synced)
+3. Staff group exists with read-only permissions (created only once)
+
+This provides production-like setup from first run.
+"""
 
 import logging
 
@@ -23,15 +31,25 @@ class SecuritySeedService:
         """Sync permissions from catalog and ensure system groups exist."""
         logger.info("Starting security seed...")
 
-        # Sync permissions
-        self._sync_permissions()
+        try:
+            # Sync permissions
+            self._sync_permissions()
 
-        # Seed system groups
-        self._seed_admin_group()
-        self._seed_staff_group()
+            # Seed system groups
+            self._seed_admin_group()
+            self._seed_staff_group()
 
-        self.repo.commit(skip_audit=True)
-        logger.info("Security seed completed successfully")
+            self.repo.commit(skip_audit=True)
+            logger.info("Security seed completed successfully")
+        except Exception as e:
+            # If tables don't exist (migration not applied yet), skip seeding
+            error_msg = str(e).lower()
+            if "relation" not in error_msg or "does not exist" not in error_msg:
+                raise
+            logger.warning(
+                "Security tables not yet created (migrations not applied). "
+                "Seeding will run on next startup after migrations."
+            )
 
     def _sync_permissions(self) -> None:
         """Sync permission catalog into database (upsert by code)."""
@@ -74,18 +92,17 @@ class SecuritySeedService:
         staff_group = self.repo.get_group_by_system_key(STAFF_GROUP_KEY)
 
         if not staff_group:
-            view_permissions = [
-                perm
-                for perm in self.repo.list_permissions()
-                if perm.code in VIEW_PERMISSIONS
-            ]
+            view_permissions = self.repo.get_permissions_by_codes(VIEW_PERMISSIONS)
             staff_group = self.repo.create_system_group(
                 name="Staff",
                 description="Read-only access",
                 system_key=STAFF_GROUP_KEY,
                 permissions=view_permissions,
             )
-            logger.info("Created system group 'staff' with CAN_VIEW_* permissions")
+            logger.info(
+                f"Created system group 'staff' with {len(view_permissions)} "
+                "CAN_VIEW_* permissions"
+            )
         else:
             # Staff group exists - do not modify its permissions (editable by admin)
             logger.debug("Staff group already exists, permissions left unchanged")
