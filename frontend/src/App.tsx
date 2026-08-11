@@ -65,7 +65,9 @@ const router = createBrowserRouter(
           <Route
             path="/admin/users"
             element={
-              <RequirePermission permission="CAN_MANAGE_USERS">
+              <RequirePermission
+                permissions={['CAN_VIEW_USERS', 'CAN_MANAGE_USERS', 'CAN_VIEW_SECURITY']}
+              >
                 <UsersPage />
               </RequirePermission>
             }

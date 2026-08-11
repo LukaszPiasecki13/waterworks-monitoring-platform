@@ -53,5 +53,15 @@ export const queryKeys = {
 
   security: {
     myPermissions: () => ['security', 'me', 'permissions'] as const,
+    permissions: {
+      all: ['security', 'permissions'] as const,
+      list: () => ['security', 'permissions', 'list'] as const,
+    },
+    groups: {
+      all: ['security', 'groups'] as const,
+      list: () => ['security', 'groups', 'list'] as const,
+      detail: (id: string) => ['security', 'groups', 'detail', id] as const,
+    },
+    userGroups: (userId: string) => ['security', 'users', userId, 'groups'] as const,
   },
 };
