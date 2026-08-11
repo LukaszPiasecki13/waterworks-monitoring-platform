@@ -3,10 +3,8 @@
 #include <time.h>
 #include "TelemetryPayload.h"
 
-TelemetryPayload::TelemetryPayload(const char* deviceId, const char* orgId, const char* objectId)
+TelemetryPayload::TelemetryPayload(const char* deviceId)
     : device_id_(deviceId),
-      org_id_(orgId),
-      object_id_(objectId),
       getUtcTime_(nullptr) {
 }
 
@@ -50,8 +48,6 @@ String TelemetryPayload::build(uint32_t seq, unsigned long timestampMs) {
 
   doc["v"] = 1;
   doc["device_id"] = device_id_;
-  doc["org_id"] = org_id_;
-  doc["object_id"] = object_id_;
   doc["seq"] = seq;
 
   String timestamp;

@@ -41,8 +41,6 @@ const char DEVICE_KEY[] = "Test1";
 // =========================
 
 const char DEVICE_ID[] = "esp32-a7670e-0001";
-const char ORG_ID[] = "b509d8c8-7e4f-4b7f-afc3-a2a6633abb7e";
-const char OBJECT_ID[] = "470f2665-81c8-4e59-81f0-73bdce91c7b3";
 
 // =========================
 // Timings

@@ -30,8 +30,6 @@ class TelemetryPacket(Base):
     )
 
     device_id: Mapped[str] = mapped_column(String(128), nullable=False)
-    org_id: Mapped[str] = mapped_column(String(128), nullable=False)
-    object_id: Mapped[str] = mapped_column(String(128), nullable=False)
     seq: Mapped[int] = mapped_column(
         Integer().with_variant(BigInteger(), "postgresql"), nullable=False
     )
@@ -56,7 +54,5 @@ class TelemetryPacket(Base):
     __table_args__ = (
         UniqueConstraint("device_id", "seq", name="uq_telemetry_packets_device_seq"),
         Index("ix_telemetry_packets_device_id", "device_id"),
-        Index("ix_telemetry_packets_org_id", "org_id"),
-        Index("ix_telemetry_packets_object_id", "object_id"),
         Index("ix_telemetry_packets_received_at", "received_at"),
     )

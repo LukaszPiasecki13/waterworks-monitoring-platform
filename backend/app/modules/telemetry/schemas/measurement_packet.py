@@ -43,8 +43,6 @@ class MeasurementPacketRequest(BaseModel):
 
     v: int = Field(ge=1)
     device_id: str = Field(min_length=1, max_length=128)
-    org_id: str = Field(min_length=1, max_length=128)
-    object_id: str = Field(min_length=1, max_length=128)
     seq: int = Field(ge=0)
     sent_at: datetime
     windows: list[MeasurementWindow] = Field(min_length=1)

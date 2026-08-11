@@ -4,7 +4,7 @@ from datetime import datetime, timedelta, timezone
 
 from app.core.config import Settings
 from app.core.errors import NotFoundError
-from app.modules.core_data.models import User
+from app.modules.core_data.models import User, WaterObject, Organization
 from app.modules.telemetry.repositories.queries import TelemetryQueryRepository
 from app.modules.telemetry.schemas.query import (
     LatestPointValue,
@@ -164,15 +164,15 @@ class TelemetryQueryService:
         Regular users: can only see objects in their organization.
         Platform admins: can see any object.
         """
-        packet = self.repo.get_latest_packet(object_id)
-        if not packet:
-            raise NotFoundError(f"Object {object_id} not found")
-
-        if user.organization_id is not None and packet.org_id != str(user.organization_id):
-            raise NotFoundError(f"Object {object_id} not found")
-
         water_object = self.repo.get_water_object(object_id)
         if not water_object:
+            raise NotFoundError(f"Object {object_id} not found")
+
+        if user.organization_id is not None and water_object.organization_id != user.organization_id:
+            raise NotFoundError(f"Object {object_id} not found")
+
+        packet = self.repo.get_latest_packet(object_id)
+        if not packet:
             raise NotFoundError(f"Object {object_id} not found")
 
         points = self._unpack_latest_points(packet)
@@ -189,13 +189,13 @@ class TelemetryQueryService:
                 for point in window.get("points", []):
                     available_points_set.add(point.get("point_id", "unknown"))
 
-        org_name = self.repo.get_organization_name(packet.org_id)
+        org_name = water_object.organization.name if water_object.organization else "Nieznana"
         device_name = self.repo.get_device_name(packet.device_id)
 
         return ObjectDetail(
-            org_id=packet.org_id,
+            org_id=str(water_object.organization_id),
             org_name=org_name,
-            object_id=packet.object_id,
+            object_id=object_id,
             name=water_object.name,
             device_id=packet.device_id,
             device_name=device_name,
@@ -227,11 +227,15 @@ class TelemetryQueryService:
         """
         limit = min(limit, 5000)
 
-        latest_packet = self.repo.get_latest_packet(object_id)
-        if not latest_packet:
+        water_object = self.repo.get_water_object(object_id)
+        if not water_object:
             raise NotFoundError(f"Object {object_id} not found")
 
-        if user.organization_id is not None and latest_packet.org_id != str(user.organization_id):
+        if user.organization_id is not None and water_object.organization_id != user.organization_id:
+            raise NotFoundError(f"Object {object_id} not found")
+
+        latest_packet = self.repo.get_latest_packet(object_id)
+        if not latest_packet:
             raise NotFoundError(f"Object {object_id} not found")
 
         if end is None:

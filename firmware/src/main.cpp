@@ -26,7 +26,7 @@ RTC_DATA_ATTR uint32_t rtcSyncMillis = 0;
 StatusLed led(LED_PIN);
 ModemPower modemPower(MODEM_PWRKEY_PIN, MODEM_RESET_PIN, MODEM_POWER_ENABLE_PIN);
 ModemLink modemLink(SerialAT, MODEM_BAUD);
-TelemetryPayload telemetryPayload(DEVICE_ID, ORG_ID, OBJECT_ID);
+TelemetryPayload telemetryPayload(DEVICE_ID);
 
 TelemetryHttpClient* httpClient = nullptr;
 TelemetrySender* telemetrySender = nullptr;
