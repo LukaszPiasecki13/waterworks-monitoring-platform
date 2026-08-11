@@ -104,6 +104,7 @@ export function useTelemetryObjectDetail(objectId: string) {
       return data
     },
     enabled: !!objectId && !!activeOrgId,
+    refetchInterval: 15000,
   })
 }
 
@@ -134,5 +135,6 @@ export function useTelemetryMeasurements(
       return data
     },
     enabled: !!objectId && !!activeOrgId,
+    refetchInterval: 15000,
   })
 }

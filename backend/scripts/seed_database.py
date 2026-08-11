@@ -31,6 +31,68 @@ from app.modules.security.models import Permission, UserGroup
 import json
 
 
+def _cleanup_duplicates(session: Session) -> None:
+    """Remove duplicate water objects and old telemetry data."""
+    from app.modules.core_data.models.device import Device
+    from app.modules.core_data.models.measurement_point import MeasurementPoint
+    from app.modules.telemetry.models.measurement_packet import TelemetryPacket
+
+    print("\n🧹 Cleaning up database...")
+
+    # Get all water objects grouped by name
+    all_objects = session.query(WaterObject).all()
+    seen_names = {}
+    to_delete = []
+
+    for obj in all_objects:
+        if obj.name not in seen_names:
+            seen_names[obj.name] = obj.id
+        else:
+            to_delete.append(obj.id)
+
+    deleted_water_objects = 0
+
+    if to_delete:
+        # Delete telemetry packets for devices in duplicate objects
+        devices_to_delete = session.query(Device).filter(
+            Device.water_object_id.in_(to_delete)
+        ).all()
+        device_ids = [str(d.id) for d in devices_to_delete]
+
+        if device_ids:
+            session.query(TelemetryPacket).filter(
+                TelemetryPacket.device_id.in_(device_ids)
+            ).delete()
+
+        # Delete measurement points for duplicate devices
+        session.query(MeasurementPoint).filter(
+            MeasurementPoint.device_id.in_(device_ids)
+        ).delete()
+
+        # Delete duplicate devices
+        session.query(Device).filter(
+            Device.water_object_id.in_(to_delete)
+        ).delete()
+
+        # Delete duplicate water objects
+        deleted_water_objects = session.query(WaterObject).filter(
+            WaterObject.id.in_(to_delete)
+        ).delete()
+
+    # Also clear all old telemetry packets to start fresh
+    deleted_all_packets = session.query(TelemetryPacket).delete()
+
+    session.commit()
+
+    if deleted_water_objects > 0:
+        print(f"  ✓ Deleted {deleted_water_objects} duplicate water "
+              f"objects")
+    if deleted_all_packets > 0:
+        print(f"  ✓ Cleared {deleted_all_packets} telemetry packets")
+    if deleted_water_objects == 0 and deleted_all_packets == 0:
+        print("  ✓ No cleanup needed")
+
+
 def _seed_security(session: Session) -> tuple[int, int, UserGroup, UserGroup]:
     """Seed security permissions and groups. Returns (permissions_count, groups_count, admin_group, staff_group)."""
     # Create permissions from catalog
@@ -97,6 +159,9 @@ def seed_database():
 
     with Session(engine) as session:
         print("🌱 Starting database seeding...")
+
+        # Clean up duplicates first
+        _cleanup_duplicates(session)
 
         # 0. Seed Security (Permissions & Groups)
         print("\n🔐 Seeding security permissions and groups...")
@@ -177,216 +242,209 @@ def seed_database():
         print("\n💧 Creating water objects...")
 
         # Gmina Frysztak
-        fr_intake = WaterObject(
-            id=uuid4(),
-            organization_id=org1.id,
-            name="Ujęcie wody - Jezioro Frysztak",
-            object_type="intake",
-            location_description="Główne ujęcie wody powierzchniowej z jeziora Frysztak",
-            latitude=50.1625,
-            longitude=21.2483,
-            is_active=True,
-        )
-        fr_treatment = WaterObject(
-            id=uuid4(),
-            organization_id=org1.id,
-            name="Stacja uzdatniania wody Frysztak",
-            object_type="water_treatment",
-            location_description="Główna stacja uzdatniania wody, ul. Wodna 5, Frysztak",
-            latitude=50.1630,
-            longitude=21.2490,
-            is_active=True,
-        )
+        fr_intake = session.query(WaterObject).filter_by(
+            name="Ujęcie wody - Jezioro Frysztak"
+        ).first()
+        if not fr_intake:
+            fr_intake = WaterObject(
+                id=uuid4(),
+                organization_id=org1.id,
+                name="Ujęcie wody - Jezioro Frysztak",
+                object_type="intake",
+                location_description=(
+                    "Główne ujęcie wody powierzchniowej z jeziora "
+                    "Frysztak"
+                ),
+                latitude=50.1625,
+                longitude=21.2483,
+                is_active=True,
+            )
+            session.add(fr_intake)
+
+        fr_treatment = session.query(WaterObject).filter_by(
+            name="Stacja uzdatniania wody Frysztak"
+        ).first()
+        if not fr_treatment:
+            fr_treatment = WaterObject(
+                id=uuid4(),
+                organization_id=org1.id,
+                name="Stacja uzdatniania wody Frysztak",
+                object_type="water_treatment",
+                location_description=(
+                    "Główna stacja uzdatniania wody, ul. Wodna 5, "
+                    "Frysztak"
+                ),
+                latitude=50.1630,
+                longitude=21.2490,
+                is_active=True,
+            )
+            session.add(fr_treatment)
 
         # Gmina Radziłów
-        rad_intake = WaterObject(
-            id=uuid4(),
-            organization_id=org2.id,
-            name="Ujęcie wody - Rzeka Narew",
-            object_type="intake",
-            location_description="Ujęcie wody z rzeki Narew w Radziłowie",
-            latitude=52.9167,
-            longitude=22.6833,
-            is_active=True,
-        )
-        rad_treatment = WaterObject(
-            id=uuid4(),
-            organization_id=org2.id,
-            name="Stacja uzdatniania wody Radziłów",
-            object_type="water_treatment",
-            location_description="Stacja uzdatniania wody, ul. Słoneczna 12, Radziłów",
-            latitude=52.9170,
-            longitude=22.6840,
-            is_active=True,
-        )
+        rad_intake = session.query(WaterObject).filter_by(
+            name="Ujęcie wody - Rzeka Narew"
+        ).first()
+        if not rad_intake:
+            rad_intake = WaterObject(
+                id=uuid4(),
+                organization_id=org2.id,
+                name="Ujęcie wody - Rzeka Narew",
+                object_type="intake",
+                location_description="Ujęcie wody z rzeki Narew w Radziłowie",
+                latitude=52.9167,
+                longitude=22.6833,
+                is_active=True,
+            )
+            session.add(rad_intake)
 
-        session.add_all([fr_intake, fr_treatment, rad_intake, rad_treatment])
+        rad_treatment = session.query(WaterObject).filter_by(
+            name="Stacja uzdatniania wody Radziłów"
+        ).first()
+        if not rad_treatment:
+            rad_treatment = WaterObject(
+                id=uuid4(),
+                organization_id=org2.id,
+                name="Stacja uzdatniania wody Radziłów",
+                object_type="water_treatment",
+                location_description=(
+                    "Stacja uzdatniania wody, ul. Słoneczna 12, "
+                    "Radziłów"
+                ),
+                latitude=52.9170,
+                longitude=22.6840,
+                is_active=True,
+            )
+            session.add(rad_treatment)
+
         session.commit()
-        print(f"  ✓ Created 4 water objects (2 per organization)")
+        print(f"  ✓ Created water objects (checked for existing)")
 
         # 4. Create Devices
         print("\n📱 Creating devices...")
 
-        # Clear old data in dependency order
-        session.query(TelemetryPacket).delete()
-        session.query(MeasurementPoint).delete()
-        session.query(Device).delete()
-        session.commit()
-        print("  ✓ Cleared old telemetry packets, measurement points and devices")
-
         # Gmina Frysztak devices
         # ESP32 device for telemetry
-        dev_esp32 = Device(
-            id=uuid4(),
-            water_object_id=fr_intake.id,
-            external_id="esp32-a7670e-0001",
-            hashed_secret=hash_password("Test1"),  # Matches Config.h DEVICE_KEY
-            firmware_version="1.0.0",
-            last_seen_at=datetime.now(timezone.utc),
-            is_active=True,
-        )
-        dev_fr_intake = Device(
-            id=uuid4(),
-            water_object_id=fr_intake.id,
-            external_id="FR-INTAKE-001",
-            hashed_secret=hash_password("device_secret_123"),
-            firmware_version="2.1.5",
-            last_seen_at=datetime.now(timezone.utc),
-            is_active=True,
-        )
-        dev_fr_treatment = Device(
-            id=uuid4(),
-            water_object_id=fr_treatment.id,
-            external_id="FR-TREATMENT-001",
-            hashed_secret=hash_password("device_secret_456"),
-            firmware_version="2.0.3",
-            last_seen_at=datetime.now(timezone.utc),
-            is_active=True,
-        )
+        dev_esp32 = session.query(Device).filter_by(
+            external_id="esp32-a7670e-0001"
+        ).first()
+        if not dev_esp32:
+            dev_esp32 = Device(
+                id=uuid4(),
+                water_object_id=fr_intake.id,
+                external_id="esp32-a7670e-0001",
+                hashed_secret=hash_password("Test1"),
+                firmware_version="1.0.0",
+                last_seen_at=datetime.now(timezone.utc),
+                is_active=True,
+            )
+            session.add(dev_esp32)
+
+        dev_fr_intake = session.query(Device).filter_by(
+            external_id="FR-INTAKE-001"
+        ).first()
+        if not dev_fr_intake:
+            dev_fr_intake = Device(
+                id=uuid4(),
+                water_object_id=fr_intake.id,
+                external_id="FR-INTAKE-001",
+                hashed_secret=hash_password("device_secret_123"),
+                firmware_version="2.1.5",
+                last_seen_at=datetime.now(timezone.utc),
+                is_active=True,
+            )
+            session.add(dev_fr_intake)
+
+        dev_fr_treatment = session.query(Device).filter_by(
+            external_id="FR-TREATMENT-001"
+        ).first()
+        if not dev_fr_treatment:
+            dev_fr_treatment = Device(
+                id=uuid4(),
+                water_object_id=fr_treatment.id,
+                external_id="FR-TREATMENT-001",
+                hashed_secret=hash_password("device_secret_456"),
+                firmware_version="2.0.3",
+                last_seen_at=datetime.now(timezone.utc),
+                is_active=True,
+            )
+            session.add(dev_fr_treatment)
 
         # Gmina Radziłów devices
-        dev_rad_intake = Device(
-            id=uuid4(),
-            water_object_id=rad_intake.id,
-            external_id="RAD-INTAKE-001",
-            hashed_secret=hash_password("device_secret_789"),
-            firmware_version="2.2.0",
-            last_seen_at=datetime.now(timezone.utc),
-            is_active=True,
-        )
-        dev_rad_treatment = Device(
-            id=uuid4(),
-            water_object_id=rad_treatment.id,
-            external_id="RAD-TREATMENT-001",
-            hashed_secret=hash_password("device_secret_012"),
-            firmware_version="1.9.8",
-            last_seen_at=datetime.now(timezone.utc),
-            is_active=True,
-        )
+        dev_rad_intake = session.query(Device).filter_by(
+            external_id="RAD-INTAKE-001"
+        ).first()
+        if not dev_rad_intake:
+            dev_rad_intake = Device(
+                id=uuid4(),
+                water_object_id=rad_intake.id,
+                external_id="RAD-INTAKE-001",
+                hashed_secret=hash_password("device_secret_789"),
+                firmware_version="2.2.0",
+                last_seen_at=datetime.now(timezone.utc),
+                is_active=True,
+            )
+            session.add(dev_rad_intake)
 
-        session.add_all([dev_esp32, dev_fr_intake, dev_fr_treatment, dev_rad_intake, dev_rad_treatment])
+        dev_rad_treatment = session.query(Device).filter_by(
+            external_id="RAD-TREATMENT-001"
+        ).first()
+        if not dev_rad_treatment:
+            dev_rad_treatment = Device(
+                id=uuid4(),
+                water_object_id=rad_treatment.id,
+                external_id="RAD-TREATMENT-001",
+                hashed_secret=hash_password("device_secret_012"),
+                firmware_version="1.9.8",
+                last_seen_at=datetime.now(timezone.utc),
+                is_active=True,
+            )
+            session.add(dev_rad_treatment)
+
         session.commit()
-        print(f"  ✓ Created 5 devices (ESP32 + 4 test devices)")
+        print("  ✓ Created devices (checked for existing)")
 
         # 5. Create Measurement Points
         print("\n📊 Creating measurement points...")
 
-        # Gmina Frysztak - Intake measurements
-        mp_fr_intake_flow = MeasurementPoint(
-            id=uuid4(),
-            device_id=dev_fr_intake.id,
-            external_id="FR-INTAKE-001-FLOW",
-            point_type="flow_rate",
-            unit="m³/h",
-            min_technical=0.0,
-            max_technical=300.0,
-            is_active=True,
-        )
-        mp_fr_intake_temp = MeasurementPoint(
-            id=uuid4(),
-            device_id=dev_fr_intake.id,
-            external_id="FR-INTAKE-001-TEMP",
-            point_type="temperature",
-            unit="°C",
-            min_technical=2.0,
-            max_technical=28.0,
-            is_active=True,
-        )
+        measurement_points_config = [
+            (dev_fr_intake.id, "FR-INTAKE-001-FLOW", "flow_rate",
+             "m³/h", 0.0, 300.0),
+            (dev_fr_intake.id, "FR-INTAKE-001-TEMP", "temperature",
+             "°C", 2.0, 28.0),
+            (dev_fr_treatment.id, "FR-TREATMENT-001-FLOW",
+             "flow_rate", "m³/h", 0.0, 300.0),
+            (dev_fr_treatment.id, "FR-TREATMENT-001-TURBIDITY",
+             "turbidity", "NTU", 0.0, 5.0),
+            (dev_rad_intake.id, "RAD-INTAKE-001-FLOW", "flow_rate",
+             "m³/h", 0.0, 350.0),
+            (dev_rad_intake.id, "RAD-INTAKE-001-TEMP", "temperature",
+             "°C", 1.0, 30.0),
+            (dev_rad_treatment.id, "RAD-TREATMENT-001-FLOW",
+             "flow_rate", "m³/h", 0.0, 350.0),
+            (dev_rad_treatment.id, "RAD-TREATMENT-001-TURBIDITY",
+             "turbidity", "NTU", 0.0, 5.0),
+        ]
 
-        # Gmina Frysztak - Water treatment measurements
-        mp_fr_treatment_flow = MeasurementPoint(
-            id=uuid4(),
-            device_id=dev_fr_treatment.id,
-            external_id="FR-TREATMENT-001-FLOW",
-            point_type="flow_rate",
-            unit="m³/h",
-            min_technical=0.0,
-            max_technical=300.0,
-            is_active=True,
-        )
-        mp_fr_treatment_turbidity = MeasurementPoint(
-            id=uuid4(),
-            device_id=dev_fr_treatment.id,
-            external_id="FR-TREATMENT-001-TURBIDITY",
-            point_type="turbidity",
-            unit="NTU",
-            min_technical=0.0,
-            max_technical=5.0,
-            is_active=True,
-        )
+        for (device_id, ext_id, point_type, unit,
+             min_val, max_val) in measurement_points_config:
+            existing = session.query(MeasurementPoint).filter_by(
+                device_id=device_id, external_id=ext_id
+            ).first()
+            if not existing:
+                mp = MeasurementPoint(
+                    id=uuid4(),
+                    device_id=device_id,
+                    external_id=ext_id,
+                    point_type=point_type,
+                    unit=unit,
+                    min_technical=min_val,
+                    max_technical=max_val,
+                    is_active=True,
+                )
+                session.add(mp)
 
-        # Gmina Radziłów - Intake measurements
-        mp_rad_intake_flow = MeasurementPoint(
-            id=uuid4(),
-            device_id=dev_rad_intake.id,
-            external_id="RAD-INTAKE-001-FLOW",
-            point_type="flow_rate",
-            unit="m³/h",
-            min_technical=0.0,
-            max_technical=350.0,
-            is_active=True,
-        )
-        mp_rad_intake_temp = MeasurementPoint(
-            id=uuid4(),
-            device_id=dev_rad_intake.id,
-            external_id="RAD-INTAKE-001-TEMP",
-            point_type="temperature",
-            unit="°C",
-            min_technical=1.0,
-            max_technical=30.0,
-            is_active=True,
-        )
-
-        # Gmina Radziłów - Water treatment measurements
-        mp_rad_treatment_flow = MeasurementPoint(
-            id=uuid4(),
-            device_id=dev_rad_treatment.id,
-            external_id="RAD-TREATMENT-001-FLOW",
-            point_type="flow_rate",
-            unit="m³/h",
-            min_technical=0.0,
-            max_technical=350.0,
-            is_active=True,
-        )
-        mp_rad_treatment_turbidity = MeasurementPoint(
-            id=uuid4(),
-            device_id=dev_rad_treatment.id,
-            external_id="RAD-TREATMENT-001-TURBIDITY",
-            point_type="turbidity",
-            unit="NTU",
-            min_technical=0.0,
-            max_technical=5.0,
-            is_active=True,
-        )
-
-        session.add_all([
-            mp_fr_intake_flow, mp_fr_intake_temp,
-            mp_fr_treatment_flow, mp_fr_treatment_turbidity,
-            mp_rad_intake_flow, mp_rad_intake_temp,
-            mp_rad_treatment_flow, mp_rad_treatment_turbidity
-        ])
         session.commit()
-        print(f"  ✓ Created 8 measurement points")
+        print("  ✓ Created measurement points (checked for existing)")
 
         # 6. Generate Telemetry Packets
         print("\n📡 Generating telemetry packets...")

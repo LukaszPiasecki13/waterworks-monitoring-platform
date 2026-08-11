@@ -189,7 +189,9 @@ class TelemetryQueryService:
                 for point in window.get("points", []):
                     available_points_set.add(point.get("point_id", "unknown"))
 
-        org_name = water_object.organization.name if water_object.organization else "Nieznana"
+        org_name = self.repo.get_organization_name(
+            str(water_object.organization_id)
+        )
         device_name = self.repo.get_device_name(packet.device_id)
 
         return ObjectDetail(

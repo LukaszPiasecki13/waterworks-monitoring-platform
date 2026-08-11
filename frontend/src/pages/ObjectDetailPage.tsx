@@ -134,6 +134,7 @@ export function ObjectDetailPage() {
                 </label>
                 <div className="flex gap-2">
                   {[
+                    { label: '2h', value: 2 },
                     { label: '24h', value: 24 },
                     { label: '7d', value: 168 },
                     { label: '30d', value: 720 },

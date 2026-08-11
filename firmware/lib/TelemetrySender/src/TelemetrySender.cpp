@@ -5,6 +5,7 @@
 #include <TelemetryHttpClient.h>
 #include <TelemetryPayload.h>
 #include <StatusLed.h>
+#include <TimeSync.h>
 
 #define SerialMon Serial
 
@@ -37,22 +38,22 @@ void TelemetrySender::update(unsigned long now) {
     return;
   }
 
-  String payloadStr = payload_.build(seq_, send_start_ms);
+  uint32_t seq = (uint32_t)(TimeSync::getUtcTimestamp() / 1000);
+  String payloadStr = payload_.build(seq, send_start_ms);
   SerialMon.print("[DATA] Payload: ");
   SerialMon.println(payloadStr);
 
   HttpResponse resp = http_.post(RESOURCE, payloadStr);
 
   if (resp.statusCode == 200 || resp.statusCode == 202) {
-    SerialMon.print("[LOOP] Send OK, next seq=");
-    SerialMon.println(seq_ + 1);
+    SerialMon.print("[LOOP] Send OK, seq=");
+    SerialMon.println(seq);
 
-    seq_++;
     led_.blinkSuccess();
     last_success_ms_ = now;
   } else {
-    SerialMon.print("[LOOP] Send failed, will retry same seq=");
-    SerialMon.println(seq_);
+    SerialMon.print("[LOOP] Send failed, seq=");
+    SerialMon.println(seq);
 
     led_.blinkError();
     next_allowed_send_ms_ = millis() + error_retry_ms_;
