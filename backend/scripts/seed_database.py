@@ -421,8 +421,6 @@ def seed_database():
                 packet = TelemetryPacket(
                     id=uuid4(),
                     device_id=str(device.external_id),
-                    org_id=str(org_id),
-                    object_id=str(obj_id),
                     seq=i + 1,
                     sent_at=timestamp,
                     received_at=timestamp + timedelta(seconds=2),
