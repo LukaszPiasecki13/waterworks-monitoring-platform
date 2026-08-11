@@ -51,7 +51,7 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
       section: 'config',
     },
     {
-      label: 'Użytkownicy i uprawnienia',
+      label: 'Ustawienia',
       path: '/admin/users',
       icon: <Users className="h-5 w-5" />,
       permissions: ['CAN_VIEW_USERS', 'CAN_MANAGE_USERS', 'CAN_VIEW_SECURITY'],
