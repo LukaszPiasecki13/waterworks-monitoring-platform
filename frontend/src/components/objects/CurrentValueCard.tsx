@@ -17,25 +17,25 @@ export function CurrentValueCard({ point }: CurrentValueCardProps) {
   })
 
   return (
-    <div className="bg-white border border-gray-200 rounded-lg p-4">
+    <div className="bg-white border border-neutral-200 rounded-lg p-4">
       <div className="flex items-start justify-between mb-3">
         <div>
-          <h4 className="text-sm font-semibold text-gray-900">{point.type}</h4>
-          <p className="text-xs text-gray-500 mt-0.5">
-            ID: <span className="font-mono">{point.point_id}</span>
+          <h4 className="text-sm font-semibold text-neutral-900">{point.point_name}</h4>
+          <p className="text-xs text-neutral-500 mt-0.5">
+            {point.type}
           </p>
         </div>
         <Popover>
           <PopoverTrigger asChild>
-            <button className="text-gray-400 hover:text-gray-600">
+            <button className="text-neutral-400 hover:text-neutral-600">
               <HelpCircle className="h-4 w-4" />
             </button>
           </PopoverTrigger>
           <PopoverContent className="w-64 text-sm">
-            <p className="text-gray-700">
-              Wartość z <span className="font-mono text-xs bg-gray-100 px-1 py-0.5 rounded">{point.device_id}</span>
+            <p className="text-neutral-700">
+              Wartość z <span className="font-medium text-neutral-900">{point.device_name}</span>
             </p>
-            <p className="text-gray-500 text-xs mt-2">
+            <p className="text-neutral-500 text-xs mt-2">
               Zmierzono {measuredTime}
             </p>
           </PopoverContent>
@@ -43,18 +43,18 @@ export function CurrentValueCard({ point }: CurrentValueCardProps) {
       </div>
 
       <div className="mb-3">
-        <p className="text-2xl font-bold text-gray-900 font-mono">
+        <p className="text-2xl font-bold text-neutral-900">
           {point.value.toFixed(2)}
         </p>
-        <p className="text-xs text-gray-600 mt-1">{point.unit}</p>
+        <p className="text-xs text-neutral-600 mt-1">{point.unit}</p>
       </div>
 
-      <div className="flex items-center justify-between pt-3 border-t border-gray-100">
-        <span className="text-xs text-gray-500">Jakość danych:</span>
+      <div className="flex items-center justify-between pt-3 border-t border-neutral-100">
+        <span className="text-xs text-neutral-500">Jakość danych:</span>
         <StatusPill kind="quality" value={point.quality as DataQuality} />
       </div>
 
-      <p className="text-xs text-gray-400 mt-2">
+      <p className="text-xs text-neutral-500 mt-2">
         Zmierzono {measuredTime}
       </p>
     </div>

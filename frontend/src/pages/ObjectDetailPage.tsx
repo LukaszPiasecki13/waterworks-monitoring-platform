@@ -28,7 +28,7 @@ export function ObjectDetailPage() {
   if (isLoading) {
     return (
       <div className="px-6 py-8">
-        <div className="text-gray-500">Ładowanie szczegółów obiektu...</div>
+        <div className="text-neutral-500">Ładowanie szczegółów obiektu...</div>
       </div>
     )
   }
@@ -56,9 +56,9 @@ export function ObjectDetailPage() {
 
         <div className="flex items-start justify-between">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">{detail.object_id}</h1>
-            <p className="text-gray-600 mt-2">
-              Urządzenie: <span className="font-mono text-sm">{detail.device_id}</span>
+            <h1 className="text-3xl font-bold text-neutral-900">{detail.name}</h1>
+            <p className="text-neutral-600 mt-2">
+              Urządzenie: <span className="font-medium text-neutral-900">{detail.device_name}</span>
             </p>
           </div>
           <StatusPill kind="objectStatus" value={detail.status} />
@@ -66,29 +66,37 @@ export function ObjectDetailPage() {
 
         {/* Info Grid */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-6">
-          <div className="bg-white border border-gray-200 rounded-lg p-4">
-            <p className="text-xs text-gray-600 uppercase font-semibold">Organizacja</p>
-            <p className="text-lg font-semibold text-gray-900 mt-1">{detail.org_id}</p>
-          </div>
-          <div className="bg-white border border-gray-200 rounded-lg p-4">
-            <p className="text-xs text-gray-600 uppercase font-semibold">Ostatni kontakt</p>
-            <p className="text-lg font-semibold text-gray-900 mt-1">
-              {detail.last_contact_at
-                ? formatDistanceToNow(new Date(detail.last_contact_at), {
-                    addSuffix: true,
-                    locale: pl,
-                  })
-                : 'Brak danych'}
-            </p>
-          </div>
-          <div className="bg-white border border-gray-200 rounded-lg p-4">
-            <p className="text-xs text-gray-600 uppercase font-semibold">Sekwencja</p>
-            <p className="text-lg font-semibold text-gray-900 mt-1">{detail.last_seq}</p>
-          </div>
-          <div className="bg-white border border-gray-200 rounded-lg p-4">
-            <p className="text-xs text-gray-600 uppercase font-semibold">Pomiary</p>
-            <p className="text-lg font-semibold text-gray-900 mt-1">{detail.points.length}</p>
-          </div>
+          <Card>
+            <CardContent className="p-4">
+              <p className="text-xs text-neutral-600 uppercase font-semibold">Organizacja</p>
+              <p className="text-lg font-semibold text-neutral-900 mt-1">{detail.org_name}</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-4">
+              <p className="text-xs text-neutral-600 uppercase font-semibold">Ostatni kontakt</p>
+              <p className="text-lg font-semibold text-neutral-900 mt-1">
+                {detail.last_contact_at
+                  ? formatDistanceToNow(new Date(detail.last_contact_at), {
+                      addSuffix: true,
+                      locale: pl,
+                    })
+                  : 'Brak danych'}
+              </p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-4">
+              <p className="text-xs text-neutral-600 uppercase font-semibold">Sekwencja</p>
+              <p className="text-lg font-semibold text-neutral-900 mt-1">{detail.last_seq}</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-4">
+              <p className="text-xs text-neutral-600 uppercase font-semibold">Pomiary</p>
+              <p className="text-lg font-semibold text-neutral-900 mt-1">{detail.points.length}</p>
+            </CardContent>
+          </Card>
         </div>
       </div>
 
@@ -110,7 +118,7 @@ export function ObjectDetailPage() {
           ) : (
             <Card>
               <CardContent className="pt-6">
-                <p className="text-center text-gray-500">Brak danych pomiarów</p>
+                <p className="text-center text-neutral-500">Brak danych pomiarów</p>
               </CardContent>
             </Card>
           )}
@@ -121,7 +129,7 @@ export function ObjectDetailPage() {
           <Card>
             <CardContent className="pt-6">
               <div className="mb-4">
-                <label className="text-sm font-medium text-gray-700 block mb-2">
+                <label className="text-sm font-medium text-neutral-700 block mb-2">
                   Okres czasu:
                 </label>
                 <div className="flex gap-2">
@@ -136,7 +144,7 @@ export function ObjectDetailPage() {
                       className={`px-3 py-2 text-sm font-medium rounded-md border transition-colors ${
                         hoursBack === opt.value
                           ? 'bg-teal-50 border-teal-300 text-teal-700'
-                          : 'border-gray-300 text-gray-700 hover:bg-gray-50'
+                          : 'border-neutral-300 text-neutral-700 hover:bg-neutral-50'
                       }`}
                     >
                       {opt.label}

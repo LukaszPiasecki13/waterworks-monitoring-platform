@@ -50,31 +50,33 @@ export interface WaterObjectUpdateRequest {
 export interface Device {
   id: string;
   water_object_id: string;
-  name: string;
-  device_type?: string;
-  created_at: string;
-  updated_at: string;
+  external_id: string;
+  firmware_version: string | null;
+  last_seen_at: string | null;
+  last_diagnostics_at: string | null;
+  is_active: boolean;
 }
 
 export interface DeviceCreateRequest {
   water_object_id: string;
-  name: string;
-  device_type?: string;
+  external_id: string;
+  firmware_version?: string;
 }
 
 export interface DeviceCreateResponse {
   id: string;
   water_object_id: string;
-  name: string;
-  device_type?: string;
-  plain_secret: string; /* jednorazowy odczyt */
-  created_at: string;
-  updated_at: string;
+  external_id: string;
+  firmware_version: string | null;
+  last_seen_at: string | null;
+  last_diagnostics_at: string | null;
+  is_active: boolean;
+  plain_secret: string;
 }
 
 export interface DeviceUpdateRequest {
-  name?: string;
-  device_type?: string;
+  firmware_version?: string;
+  is_active?: boolean;
 }
 
 /* Measurement Point */

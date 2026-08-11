@@ -23,7 +23,12 @@ export function DevicesPage() {
   const [revealSecret, setRevealSecret] = useState<string | null>(null);
 
   const handleCreate = (data: any) => {
-    createMutation.mutate(data, {
+    const createData = {
+      external_id: data.external_id,
+      water_object_id: data.water_object_id,
+      firmware_version: data.firmware_version || undefined,
+    };
+    createMutation.mutate(createData, {
       onSuccess: (response) => {
         setIsFormOpen(false);
         toast.success('Urządzenie utworzone');
@@ -40,8 +45,12 @@ export function DevicesPage() {
 
   const handleUpdate = (data: any) => {
     if (editingId) {
+      const updateData: any = {};
+      if (data.firmware_version) updateData.firmware_version = data.firmware_version;
+      if (data.is_active !== undefined) updateData.is_active = data.is_active;
+
       updateMutation.mutate(
-        { id: editingId, data },
+        { id: editingId, data: updateData },
         {
           onSuccess: () => {
             setIsFormOpen(false);
@@ -72,14 +81,14 @@ export function DevicesPage() {
 
   const columns = [
     {
-      key: 'name',
+      key: 'external_id',
       label: 'Nazwa',
-      render: (row: Device) => row.name,
+      render: (row: Device) => row.external_id,
     },
     {
-      key: 'device_type',
-      label: 'Typ',
-      render: (row: Device) => row.device_type || '—',
+      key: 'firmware_version',
+      label: 'Wersja',
+      render: (row: Device) => row.firmware_version || '—',
     },
     {
       key: 'actions',

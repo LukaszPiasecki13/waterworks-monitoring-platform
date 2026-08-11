@@ -43,8 +43,8 @@ export function OrganizationSwitcher() {
   if (!isPlatformAdmin) {
     // Regular user: show static badge
     return (
-      <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-neutral-100">
-        <div className="text-sm font-medium text-neutral-900">{activeOrgName || 'Organization'}</div>
+      <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-neutral-100">
+        <div className="text-base font-medium text-neutral-900">{activeOrgName || 'Organization'}</div>
       </div>
     )
   }
@@ -53,8 +53,8 @@ export function OrganizationSwitcher() {
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <Button variant="outline" className="gap-2 w-auto">
-          <span className="truncate max-w-xs">{activeOrgName || 'Select Organization'}</span>
+        <Button variant="outline" className="gap-2 w-auto h-11 text-base px-4">
+          <span className="truncate max-w-md">{activeOrgName || 'Select Organization'}</span>
           <ChevronDown className="h-4 w-4 flex-shrink-0" />
         </Button>
       </PopoverTrigger>
@@ -66,7 +66,7 @@ export function OrganizationSwitcher() {
               placeholder="Szukaj organizacji..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="h-8 text-sm"
+              className="h-10 text-base"
               autoFocus
             />
           </div>

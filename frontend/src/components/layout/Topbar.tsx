@@ -1,8 +1,4 @@
-import { useNavigate } from 'react-router-dom';
-import { useAuthStore } from '@/stores/authStore';
-import { Button } from '@/components/ui/Button';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/DropdownMenu';
-import { ChevronDown, LogOut, User, Menu } from 'lucide-react';
+import { Menu } from 'lucide-react';
 import { OrganizationSwitcher } from './OrganizationSwitcher';
 
 interface TopbarProps {
@@ -10,15 +6,6 @@ interface TopbarProps {
 }
 
 export function Topbar({ onMenuClick }: TopbarProps) {
-  const navigate = useNavigate();
-  const { user, logout } = useAuthStore();
-
-  const handleLogout = () => {
-    logout();
-    navigate('/login', { replace: true });
-  };
-
-  const displayName = user ? `${user.first_name} ${user.last_name}`.trim() || user.username : 'User';
 
   return (
     <header className="sticky top-0 z-40 bg-surface border-b border-neutral-200 shadow-sm">
@@ -39,30 +26,6 @@ export function Topbar({ onMenuClick }: TopbarProps) {
 
         <div className="flex items-center gap-4">
           <OrganizationSwitcher />
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" className="gap-2">
-                {displayName}
-                <ChevronDown className="h-4 w-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-48">
-              <div className="px-2 py-1.5">
-                <p className="text-sm font-medium text-neutral-900">{displayName}</p>
-                <p className="text-xs text-neutral-500">{user?.email}</p>
-              </div>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => navigate('/account')}>
-                <User className="mr-2 h-4 w-4" />
-                Mój profil
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={handleLogout} className="text-red-600 focus:text-red-600 focus:bg-red-50">
-                <LogOut className="mr-2 h-4 w-4" />
-                Wyloguj się
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
         </div>
       </div>
     </header>

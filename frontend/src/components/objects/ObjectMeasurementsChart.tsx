@@ -58,11 +58,13 @@ export function ObjectMeasurementsChart({
 
   // Merge measurements into one row per timestamp
   const chartDataByTimestamp = new Map<number, Record<string, number>>()
+  const pointNameMap = new Map<string, string>()
   for (const m of measurements?.items || []) {
     const timestamp = new Date(m.measured_at).getTime()
     const row = chartDataByTimestamp.get(timestamp) ?? { timestamp }
     row[`${m.point_id}_value`] = m.value
     chartDataByTimestamp.set(timestamp, row)
+    pointNameMap.set(m.point_id, m.point_name)
   }
   const chartData = [...chartDataByTimestamp.values()].sort(
     (a, b) => a.timestamp - b.timestamp,
@@ -90,7 +92,7 @@ export function ObjectMeasurementsChart({
 
   if (isLoading) {
     return (
-      <div className="bg-gray-50 border border-gray-200 rounded-lg p-8 text-center text-gray-500">
+      <div className="bg-neutral-50 border border-neutral-200 rounded-lg p-8 text-center text-neutral-500">
         Ładowanie danych wykresu...
       </div>
     )
@@ -98,7 +100,7 @@ export function ObjectMeasurementsChart({
 
   if (!measurements || measurements.items.length === 0) {
     return (
-      <div className="bg-gray-50 border border-gray-200 rounded-lg p-8 text-center text-gray-500">
+      <div className="bg-neutral-50 border border-neutral-200 rounded-lg p-8 text-center text-neutral-500">
         Brak danych pomiarów dla tego okresu
       </div>
     )
@@ -108,7 +110,7 @@ export function ObjectMeasurementsChart({
     <div className="space-y-4">
       {uniquePoints.length > 0 && (
         <div>
-          <h4 className="text-sm font-semibold text-gray-900 mb-2">
+          <h4 className="text-sm font-semibold text-neutral-900 mb-2">
             Pomiary do wykreślenia (max 3):
           </h4>
           <div className="flex flex-wrap gap-2">
@@ -119,7 +121,7 @@ export function ObjectMeasurementsChart({
                 className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors border ${
                   selectedPointIds.includes(pointId)
                     ? 'border-transparent text-white'
-                    : 'border-gray-300 text-gray-700 bg-white hover:bg-gray-50'
+                    : 'border-neutral-300 text-neutral-700 bg-white hover:bg-neutral-50'
                 }`}
                 style={
                   selectedPointIds.includes(pointId)
@@ -127,7 +129,7 @@ export function ObjectMeasurementsChart({
                     : undefined
                 }
               >
-                {pointId}
+                {pointNameMap.get(pointId) || pointId}
               </button>
             ))}
           </div>
@@ -135,7 +137,7 @@ export function ObjectMeasurementsChart({
       )}
 
       {chartData.length > 0 && selectedPointIds.length > 0 ? (
-        <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 h-96">
+        <div className="bg-neutral-50 border border-neutral-200 rounded-lg p-4 h-96">
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={chartData} margin={{ top: 5, right: 30, left: 0, bottom: 5 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
@@ -173,14 +175,14 @@ export function ObjectMeasurementsChart({
                   dot={false}
                   strokeWidth={2}
                   isAnimationActive={false}
-                  name={pointId}
+                  name={pointNameMap.get(pointId) || pointId}
                 />
               ))}
             </LineChart>
           </ResponsiveContainer>
         </div>
       ) : (
-        <div className="bg-gray-50 border border-gray-200 rounded-lg p-6 text-center text-gray-500">
+        <div className="bg-neutral-50 border border-neutral-200 rounded-lg p-6 text-center text-neutral-500">
           Wybierz pomiar aby wyświetlić wykres
         </div>
       )}

@@ -11,9 +11,10 @@ import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
 
 const deviceSchema = z.object({
-  name: z.string().min(1, 'Nazwa jest wymagana').min(2, 'Minimum 2 znaki'),
-  device_type: z.string().optional(),
-  water_object_id: z.string().min(1, 'Obiekt wodny jest wymagany'),
+  external_id: z.string().optional(),
+  firmware_version: z.string().optional(),
+  water_object_id: z.string().optional(),
+  is_active: z.boolean().optional(),
 });
 
 type DeviceFormData = z.infer<typeof deviceSchema>;
@@ -47,9 +48,10 @@ export function DeviceFormDialog({
   useEffect(() => {
     if (deviceId && device) {
       reset({
-        name: device.name,
-        device_type: device.device_type || '',
+        external_id: device.external_id,
+        firmware_version: device.firmware_version || '',
         water_object_id: device.water_object_id,
+        is_active: device.is_active,
       });
     } else {
       reset();
@@ -68,30 +70,54 @@ export function DeviceFormDialog({
         </DialogHeader>
         <DialogBody>
           <form onSubmit={handleSubmit(handleFormSubmit)} className="space-y-4">
-            <FormField label="Nazwa" error={errors.name?.message} required>
+            {!deviceId && (
+              <FormField
+                label="Identyfikator urządzenia"
+                error={errors.external_id?.message}
+                required
+              >
+                <Input
+                  {...register('external_id', {
+                    required: 'Identyfikator jest wymagany',
+                    minLength: { value: 2, message: 'Minimum 2 znaki' }
+                  })}
+                  placeholder="np. PUMP-DT-001"
+                />
+              </FormField>
+            )}
+
+            <FormField label="Wersja firmware" error={errors.firmware_version?.message}>
               <Input
-                {...register('name')}
-                placeholder="Nazwa urządzenia"
+                {...register('firmware_version')}
+                placeholder="np. 1.0.0"
               />
             </FormField>
 
-            <FormField label="Typ urządzenia" error={errors.device_type?.message}>
-              <Input
-                {...register('device_type')}
-                placeholder="np. Czujnik temperatury"
-              />
-            </FormField>
+            {!deviceId && (
+              <FormField label="Obiekt wodny" error={errors.water_object_id?.message} required>
+                <Select
+                  {...register('water_object_id', {
+                    required: 'Obiekt wodny jest wymagany'
+                  })}
+                >
+                  <option value="">Wybierz obiekt wodny</option>
+                  {waterObjects.map((wo) => (
+                    <option key={wo.id} value={wo.id}>
+                      {wo.name}
+                    </option>
+                  ))}
+                </Select>
+              </FormField>
+            )}
 
-            <FormField label="Obiekt wodny" error={errors.water_object_id?.message} required>
-              <Select {...register('water_object_id')}>
-                <option value="">Wybierz obiekt wodny</option>
-                {waterObjects.map((wo) => (
-                  <option key={wo.id} value={wo.id}>
-                    {wo.name}
-                  </option>
-                ))}
-              </Select>
-            </FormField>
+            {deviceId && (
+              <FormField label="Status">
+                <label className="flex items-center gap-2">
+                  <input type="checkbox" {...register('is_active')} />
+                  <span className="text-sm">Aktywne</span>
+                </label>
+              </FormField>
+            )}
           </form>
         </DialogBody>
         <DialogFooter>

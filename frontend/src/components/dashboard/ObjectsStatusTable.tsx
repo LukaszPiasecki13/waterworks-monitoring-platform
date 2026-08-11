@@ -23,8 +23,8 @@ export function ObjectsStatusTable({ onSelectObject }: ObjectsStatusTableProps) 
     return (
       <div className="space-y-4">
         <div>
-          <h3 className="text-lg font-semibold text-gray-900">Obiekty monitorowania</h3>
-          <p className="text-sm text-gray-600">Błąd ładowania danych</p>
+          <h3 className="text-lg font-semibold text-neutral-900">Obiekty monitorowania</h3>
+          <p className="text-sm text-neutral-600">Błąd ładowania danych</p>
         </div>
         <div className="text-red-600">{String(error)}</div>
       </div>
@@ -35,8 +35,8 @@ export function ObjectsStatusTable({ onSelectObject }: ObjectsStatusTableProps) 
     return (
       <div className="space-y-4">
         <div>
-          <h3 className="text-lg font-semibold text-gray-900">Obiekty monitorowania</h3>
-          <p className="text-sm text-gray-600">Błąd struktury danych</p>
+          <h3 className="text-lg font-semibold text-neutral-900">Obiekty monitorowania</h3>
+          <p className="text-sm text-neutral-600">Błąd struktury danych</p>
         </div>
         <div className="text-red-600">Nieoczekiwany format odpowiedzi: {typeof data}</div>
       </div>
@@ -89,21 +89,21 @@ export function ObjectsStatusTable({ onSelectObject }: ObjectsStatusTableProps) 
       label: 'Ostatni Kontakt',
       render: (row: ObjectSummary) =>
         row.last_contact_at ? (
-          <span className="text-sm text-gray-600">
+          <span className="text-sm text-neutral-600">
             {formatDistanceToNow(new Date(row.last_contact_at), {
               addSuffix: true,
               locale: pl,
             })}
           </span>
         ) : (
-          <span className="text-sm text-gray-400">—</span>
+          <span className="text-sm text-neutral-400">—</span>
         ),
     },
     {
       key: 'points_count',
       label: 'Pomiary',
       render: (row: ObjectSummary) => (
-        <span className="text-sm text-gray-600">{row.points.length}</span>
+        <span className="text-sm text-neutral-600">{row.points.length}</span>
       ),
     },
   ]
@@ -112,8 +112,8 @@ export function ObjectsStatusTable({ onSelectObject }: ObjectsStatusTableProps) 
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="text-lg font-semibold text-gray-900">Obiekty monitorowania</h3>
-          <p className="text-sm text-gray-600">
+          <h3 className="text-lg font-semibold text-neutral-900">Obiekty monitorowania</h3>
+          <p className="text-sm text-neutral-600">
             {filteredObjects.length > 0
               ? `Wyświetlanie ${filteredObjects.length} z ${objects.length} obiektów`
               : 'Brak obiektów'}
@@ -130,7 +130,7 @@ export function ObjectsStatusTable({ onSelectObject }: ObjectsStatusTableProps) 
           <PopoverContent align="end" className="w-56">
             <div className="space-y-3">
               <div>
-                <p className="text-sm font-medium text-gray-900 mb-2">Status</p>
+                <p className="text-sm font-medium text-neutral-900 mb-2">Status</p>
                 <div className="space-y-2">
                   {uniqueStatuses.map((status) => (
                     <label key={status} className="flex items-center gap-2 cursor-pointer">
@@ -143,7 +143,7 @@ export function ObjectsStatusTable({ onSelectObject }: ObjectsStatusTableProps) 
                         }}
                         className="rounded"
                       />
-                      <span className="text-sm text-gray-700">{statusLabels[status] || status}</span>
+                      <span className="text-sm text-neutral-700">{statusLabels[status] || status}</span>
                     </label>
                   ))}
                 </div>
@@ -174,7 +174,7 @@ export function ObjectsStatusTable({ onSelectObject }: ObjectsStatusTableProps) 
 
       {filteredObjects.length > limit && (
         <div className="flex items-center justify-between pt-4 border-t border-gray-200">
-          <div className="text-sm text-gray-600">
+          <div className="text-sm text-neutral-600">
             Wyświetlanie {Math.min(skip + 1, filteredObjects.length)}–{Math.min(skip + limit, filteredObjects.length)} z {filteredObjects.length}
           </div>
           <div className="flex gap-2">

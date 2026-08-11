@@ -1,7 +1,15 @@
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '@/stores/authStore';
 import { cn } from '@/lib/cn';
-import { BarChart3, Settings, Users, Droplets, GaugeCircle } from 'lucide-react';
+import { BarChart3, Settings, Users, Droplets, GaugeCircle, LogOut, User, ChevronUp } from 'lucide-react';
+import { Button } from '@/components/ui/Button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/DropdownMenu';
 import type { PermissionCode } from '@/types/permissions';
 
 interface NavItem {
@@ -10,7 +18,7 @@ interface NavItem {
   icon: React.ReactNode;
   permissions?: PermissionCode[];
   requireAll?: boolean;
-  section?: 'monitoring' | 'config';
+  section?: 'monitoring' | 'config' | 'admin';
 }
 
 interface SidebarProps {
@@ -20,7 +28,15 @@ interface SidebarProps {
 
 export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
   const location = useLocation();
-  const { hasPermission, hasAnyPermission } = useAuthStore();
+  const navigate = useNavigate();
+  const { user, logout, hasPermission, hasAnyPermission } = useAuthStore();
+
+  const handleLogout = () => {
+    logout();
+    navigate('/login', { replace: true });
+  };
+
+  const displayName = user ? `${user.first_name} ${user.last_name}`.trim() || user.username : 'User';
 
   const navItems: NavItem[] = [
     {
@@ -48,14 +64,14 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
       path: '/admin/organizations',
       icon: <Settings className="h-5 w-5" />,
       permissions: ['CAN_VIEW_ORGANIZATIONS'],
-      section: 'config',
+      section: 'admin',
     },
     {
       label: 'Ustawienia',
       path: '/admin/users',
       icon: <Users className="h-5 w-5" />,
       permissions: ['CAN_VIEW_USERS', 'CAN_MANAGE_USERS', 'CAN_VIEW_SECURITY'],
-      section: 'config',
+      section: 'admin',
     },
   ];
 
@@ -72,6 +88,7 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
   const groupedItems = {
     monitoring: navItems.filter((i) => i.section === 'monitoring' && canAccessItem(i)),
     config: navItems.filter((i) => i.section === 'config' && canAccessItem(i)),
+    admin: navItems.filter((i) => i.section === 'admin' && canAccessItem(i)),
   };
 
   const handleLinkClick = () => {
@@ -83,16 +100,17 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
   const sections = [
     { key: 'monitoring', label: 'Monitorowanie', items: groupedItems.monitoring },
     { key: 'config', label: 'Konfiguracja', items: groupedItems.config },
+    { key: 'admin', label: 'Administracja', items: groupedItems.admin },
   ];
 
   return (
     <aside
       className={cn(
-        'fixed inset-y-16 left-0 z-40 w-64 bg-surface border-r border-neutral-200 overflow-y-auto transition-transform duration-300 lg:static lg:inset-auto',
+        'fixed inset-y-16 left-0 z-40 w-64 bg-surface border-r border-neutral-200 overflow-y-auto transition-transform duration-300 lg:static lg:inset-auto flex flex-col',
         isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
       )}
     >
-      <nav className="space-y-6 px-2 py-4">
+      <nav className="space-y-6 px-2 py-4 flex-1">
         {sections.map((section) => {
           if (section.items.length === 0) return null;
 
@@ -134,6 +152,46 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
           );
         })}
       </nav>
+
+      <div className="border-t border-neutral-200 px-2 py-4">
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="ghost"
+              className="w-full justify-between px-3 py-2 text-left"
+            >
+              <div className="flex-1">
+                <p className="text-sm font-medium text-neutral-900 truncate">{displayName}</p>
+                <p className="text-xs text-neutral-500 truncate">{user?.email}</p>
+              </div>
+              <ChevronUp className="h-4 w-4 text-neutral-400 flex-shrink-0" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start" side="top" className="w-56">
+            <DropdownMenuItem asChild>
+              <Link
+                to="/account"
+                onClick={handleLinkClick}
+                className="flex items-center gap-2 cursor-pointer"
+              >
+                <User className="h-4 w-4" />
+                Mój profil
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              onClick={() => {
+                handleLinkClick();
+                handleLogout();
+              }}
+              className="text-red-600 focus:text-red-600 focus:bg-red-50"
+            >
+              <LogOut className="h-4 w-4 mr-2" />
+              Wyloguj się
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
     </aside>
   );
 }
