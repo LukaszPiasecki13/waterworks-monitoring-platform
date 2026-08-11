@@ -166,18 +166,21 @@ export function ObjectMeasurementsChart({
                 labelStyle={{ color: '#000' }}
               />
               <Legend wrapperStyle={{ paddingTop: '1rem' }} iconType="line" />
-              {selectedPointIds.map((pointId, idx) => (
-                <Line
-                  key={pointId}
-                  type="monotone"
-                  dataKey={`${pointId}_value`}
-                  stroke={CHART_COLORS[idx % CHART_COLORS.length]}
-                  dot={false}
-                  strokeWidth={2}
-                  isAnimationActive={false}
-                  name={pointNameMap.get(pointId) || pointId}
-                />
-              ))}
+              {selectedPointIds.map((pointId) => {
+                const colorIdx = uniquePoints.indexOf(pointId)
+                return (
+                  <Line
+                    key={pointId}
+                    type="monotone"
+                    dataKey={`${pointId}_value`}
+                    stroke={CHART_COLORS[colorIdx % CHART_COLORS.length]}
+                    dot={false}
+                    strokeWidth={2}
+                    isAnimationActive={false}
+                    name={pointNameMap.get(pointId) || pointId}
+                  />
+                )
+              })}
             </LineChart>
           </ResponsiveContainer>
         </div>

@@ -19,6 +19,20 @@ export function ObjectsStatusTable({ onSelectObject }: ObjectsStatusTableProps) 
   const [statusFilter, setStatusFilter] = useState<string | null>(null)
   const limit = 20
 
+  if (isLoading) {
+    return (
+      <div className="space-y-4">
+        <div>
+          <h3 className="text-lg font-semibold text-neutral-900">Obiekty monitorowania</h3>
+          <p className="text-sm text-neutral-600">Ładowanie danych...</p>
+        </div>
+        <div className="flex justify-center py-8">
+          <div className="animate-spin h-8 w-8 border-2 border-brand-500 border-t-transparent rounded-full" />
+        </div>
+      </div>
+    )
+  }
+
   if (error) {
     return (
       <div className="space-y-4">
