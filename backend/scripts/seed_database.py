@@ -123,47 +123,55 @@ def seed_database():
         print("\n👥 Creating users...")
 
         # Global admin (can see all organizations)
-        admin_global = User(
-            id=uuid4(),
-            organization_id=None,
-            username="admin",
-            email="admin@waterworks.local",
-            first_name="Adam",
-            last_name="Administrator",
-            hashed_password=hash_password("password123"),
-            status="admin",
-            is_active=True,
-        )
+        admin_global = session.query(User).filter_by(username="admin").first()
+        if not admin_global:
+            admin_global = User(
+                id=uuid4(),
+                organization_id=None,
+                username="admin",
+                email="admin@waterworks.local",
+                first_name="Adam",
+                last_name="Administrator",
+                hashed_password=hash_password("password123"),
+                status="admin",
+                is_active=True,
+            )
+            session.add(admin_global)
 
         # Gmina Frysztak - viewer
-        viewer_frysztak = User(
-            id=uuid4(),
-            organization_id=org1.id,
-            username="viewer_frysztak",
-            email="viewer@gmina-frysztak.pl",
-            first_name="Stanisław",
-            last_name="Obserwator",
-            hashed_password=hash_password("password123"),
-            status="regular",
-            is_active=True,
-        )
+        viewer_frysztak = session.query(User).filter_by(username="viewer_frysztak").first()
+        if not viewer_frysztak:
+            viewer_frysztak = User(
+                id=uuid4(),
+                organization_id=org1.id,
+                username="viewer_frysztak",
+                email="viewer@gmina-frysztak.pl",
+                first_name="Stanisław",
+                last_name="Obserwator",
+                hashed_password=hash_password("password123"),
+                status="regular",
+                is_active=True,
+            )
+            session.add(viewer_frysztak)
 
         # Gmina Radziłów - viewer
-        viewer_radzilow = User(
-            id=uuid4(),
-            organization_id=org2.id,
-            username="viewer_radzilow",
-            email="viewer@gmina-radzilow.pl",
-            first_name="Stefan",
-            last_name="Obserwator",
-            hashed_password=hash_password("password123"),
-            status="regular",
-            is_active=True,
-        )
+        viewer_radzilow = session.query(User).filter_by(username="viewer_radzilow").first()
+        if not viewer_radzilow:
+            viewer_radzilow = User(
+                id=uuid4(),
+                organization_id=org2.id,
+                username="viewer_radzilow",
+                email="viewer@gmina-radzilow.pl",
+                first_name="Stefan",
+                last_name="Obserwator",
+                hashed_password=hash_password("password123"),
+                status="regular",
+                is_active=True,
+            )
+            session.add(viewer_radzilow)
 
-        session.add_all([admin_global, viewer_frysztak, viewer_radzilow])
         session.commit()
-        print(f"  ✓ Created 3 users (1 admin + 2 viewers)")
+        print(f"  ✓ Created users (checked for existing)")
 
         # 3. Create Water Objects
         print("\n💧 Creating water objects...")
@@ -219,7 +227,24 @@ def seed_database():
         # 4. Create Devices
         print("\n📱 Creating devices...")
 
+        # Clear old data in dependency order
+        session.query(TelemetryPacket).delete()
+        session.query(MeasurementPoint).delete()
+        session.query(Device).delete()
+        session.commit()
+        print("  ✓ Cleared old telemetry packets, measurement points and devices")
+
         # Gmina Frysztak devices
+        # ESP32 device for telemetry
+        dev_esp32 = Device(
+            id=uuid4(),
+            water_object_id=fr_intake.id,
+            external_id="esp32-a7670e-0001",
+            hashed_secret=hash_password("Test1"),  # Matches Config.h DEVICE_KEY
+            firmware_version="1.0.0",
+            last_seen_at=datetime.now(timezone.utc),
+            is_active=True,
+        )
         dev_fr_intake = Device(
             id=uuid4(),
             water_object_id=fr_intake.id,
@@ -259,9 +284,9 @@ def seed_database():
             is_active=True,
         )
 
-        session.add_all([dev_fr_intake, dev_fr_treatment, dev_rad_intake, dev_rad_treatment])
+        session.add_all([dev_esp32, dev_fr_intake, dev_fr_treatment, dev_rad_intake, dev_rad_treatment])
         session.commit()
-        print(f"  ✓ Created 4 devices (2 per organization)")
+        print(f"  ✓ Created 5 devices (ESP32 + 4 test devices)")
 
         # 5. Create Measurement Points
         print("\n📊 Creating measurement points...")
