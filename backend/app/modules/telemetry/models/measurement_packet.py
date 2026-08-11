@@ -1,6 +1,7 @@
 """Telemetry packet persistence model."""
 
 from datetime import datetime
+from uuid import uuid4
 
 from sqlalchemy import (
     JSON,
@@ -25,6 +26,7 @@ class TelemetryPacket(Base):
     id: Mapped[UUID] = mapped_column(
         UUID(),
         primary_key=True,
+        default=uuid4,
     )
 
     device_id: Mapped[str] = mapped_column(String(128), nullable=False)
