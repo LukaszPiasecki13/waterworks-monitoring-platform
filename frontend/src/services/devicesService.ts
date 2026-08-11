@@ -6,9 +6,16 @@ import type {
   DeviceUpdateRequest,
 } from '@/types/coreData';
 
+interface ListParams {
+  skip?: number
+  limit?: number
+  organization_id?: string
+  water_object_id?: string
+}
+
 export const devicesService = {
-  async list(): Promise<Device[]> {
-    const response = await apiClient.get('/api/v1/devices');
+  async list(params?: ListParams): Promise<Device[]> {
+    const response = await apiClient.get('/api/v1/devices', { params });
     // Backend returns PaginatedResponse, extract items
     if (response.data && Array.isArray(response.data.items)) {
       return response.data.items;

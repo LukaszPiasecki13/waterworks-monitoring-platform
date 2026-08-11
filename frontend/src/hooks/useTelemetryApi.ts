@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { apiClient } from '@/lib/api'
+import { useActiveOrganizationStore } from '@/stores/activeOrganizationStore'
 
 export interface LatestPointValue {
   point_id: string
@@ -56,12 +57,14 @@ export interface PaginatedResponse<T> {
 }
 
 export function useTelemetryObjects(limit = 50) {
+  const activeOrgId = useActiveOrganizationStore((state) => state.activeOrganizationId)
+
   return useQuery<PaginatedResponse<ObjectSummary>>({
-    queryKey: ['telemetry', 'objects'],
+    queryKey: ['telemetry', 'objects', activeOrgId, limit],
     queryFn: async () => {
       try {
         const response = await apiClient.get('/api/v1/telemetry/objects', {
-          params: { limit },
+          params: { limit, org_id: activeOrgId ?? undefined },
         })
         console.log('Telemetry API response:', response.data)
 
@@ -81,17 +84,20 @@ export function useTelemetryObjects(limit = 50) {
         throw error
       }
     },
+    enabled: !!activeOrgId,
   })
 }
 
 export function useTelemetryObjectDetail(objectId: string) {
+  const activeOrgId = useActiveOrganizationStore((state) => state.activeOrganizationId)
+
   return useQuery<ObjectDetail>({
-    queryKey: ['telemetry', 'object', objectId],
+    queryKey: ['telemetry', 'object', objectId, activeOrgId],
     queryFn: async () => {
       const { data } = await apiClient.get(`/api/v1/telemetry/objects/${objectId}`)
       return data
     },
-    enabled: !!objectId,
+    enabled: !!objectId && !!activeOrgId,
   })
 }
 
@@ -100,8 +106,10 @@ export function useTelemetryMeasurements(
   pointId?: string,
   hoursBack = 24,
 ) {
+  const activeOrgId = useActiveOrganizationStore((state) => state.activeOrganizationId)
+
   return useQuery<MeasurementsResponse>({
-    queryKey: ['telemetry', 'measurements', objectId, pointId, hoursBack],
+    queryKey: ['telemetry', 'measurements', objectId, pointId, hoursBack, activeOrgId],
     queryFn: async () => {
       const now = new Date()
       const startTime = new Date(now.getTime() - hoursBack * 60 * 60 * 1000)
@@ -119,6 +127,6 @@ export function useTelemetryMeasurements(
       )
       return data
     },
-    enabled: !!objectId,
+    enabled: !!objectId && !!activeOrgId,
   })
 }

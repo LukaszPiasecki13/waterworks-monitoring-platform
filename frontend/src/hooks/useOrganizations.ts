@@ -3,10 +3,21 @@ import { organizationsService } from '@/services/organizationsService';
 import { queryKeys } from './queryKeys';
 import type { OrganizationCreateRequest, OrganizationUpdateRequest } from '@/types/coreData';
 
-export function useOrganizations() {
+interface ListParams {
+  skip?: number
+  limit?: number
+  name?: string
+}
+
+interface QueryOptions {
+  enabled?: boolean
+}
+
+export function useOrganizations(params?: ListParams, options?: QueryOptions) {
   return useQuery({
-    queryKey: queryKeys.organizations.list(),
-    queryFn: () => organizationsService.list(),
+    queryKey: queryKeys.organizations.list(params),
+    queryFn: () => organizationsService.list(params),
+    enabled: options?.enabled !== false,
   });
 }
 

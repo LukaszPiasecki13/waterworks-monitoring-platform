@@ -3,6 +3,7 @@ import { useAuthStore } from '@/stores/authStore';
 import { Button } from '@/components/ui/Button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/DropdownMenu';
 import { ChevronDown, LogOut, User, Menu } from 'lucide-react';
+import { OrganizationSwitcher } from './OrganizationSwitcher';
 
 interface TopbarProps {
   onMenuClick?: () => void;
@@ -37,6 +38,7 @@ export function Topbar({ onMenuClick }: TopbarProps) {
         </div>
 
         <div className="flex items-center gap-4">
+          <OrganizationSwitcher />
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" className="gap-2">

@@ -1,12 +1,28 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { devicesService } from '@/services/devicesService';
 import { queryKeys } from './queryKeys';
+import { useActiveOrganizationStore } from '@/stores/activeOrganizationStore';
 import type { DeviceCreateRequest, DeviceUpdateRequest } from '@/types/coreData';
 
-export function useDevices() {
+interface ListParams {
+  skip?: number
+  limit?: number
+  organization_id?: string
+  water_object_id?: string
+}
+
+export function useDevices(params?: ListParams) {
+  const activeOrgId = useActiveOrganizationStore((state) => state.activeOrganizationId)
+
+  const queryParams = {
+    ...params,
+    organization_id: activeOrgId ?? undefined,
+  }
+
   return useQuery({
-    queryKey: queryKeys.devices.list(),
-    queryFn: () => devicesService.list(),
+    queryKey: queryKeys.devices.list(queryParams),
+    queryFn: () => devicesService.list(queryParams),
+    enabled: !!activeOrgId,
   });
 }
 

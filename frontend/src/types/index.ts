@@ -6,6 +6,7 @@ export interface AuthUser {
   first_name: string;
   last_name: string;
   status: string;
+  organization_id: string | null;
 }
 
 export interface LoginResponse {

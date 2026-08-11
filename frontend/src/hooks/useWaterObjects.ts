@@ -1,12 +1,27 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { waterObjectsService } from '@/services/waterObjectsService';
 import { queryKeys } from './queryKeys';
+import { useActiveOrganizationStore } from '@/stores/activeOrganizationStore';
 import type { WaterObjectCreateRequest, WaterObjectUpdateRequest } from '@/types/coreData';
 
-export function useWaterObjects() {
+interface ListParams {
+  skip?: number
+  limit?: number
+  organization_id?: string
+}
+
+export function useWaterObjects(params?: ListParams) {
+  const activeOrgId = useActiveOrganizationStore((state) => state.activeOrganizationId)
+
+  const queryParams = {
+    ...params,
+    organization_id: activeOrgId ?? undefined,
+  }
+
   return useQuery({
-    queryKey: queryKeys.waterObjects.list(),
-    queryFn: () => waterObjectsService.list(),
+    queryKey: queryKeys.waterObjects.list(queryParams),
+    queryFn: () => waterObjectsService.list(queryParams),
+    enabled: !!activeOrgId,
   });
 }
 

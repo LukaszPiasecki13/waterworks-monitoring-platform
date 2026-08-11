@@ -5,9 +5,16 @@ import type {
   MeasurementPointUpdateRequest,
 } from '@/types/coreData';
 
+interface ListParams {
+  skip?: number
+  limit?: number
+  organization_id?: string
+  device_id?: string
+}
+
 export const measurementPointsService = {
-  async list(): Promise<MeasurementPoint[]> {
-    const response = await apiClient.get('/api/v1/measurement-points');
+  async list(params?: ListParams): Promise<MeasurementPoint[]> {
+    const response = await apiClient.get('/api/v1/measurement-points', { params });
     // Backend returns PaginatedResponse, extract items
     if (response.data && Array.isArray(response.data.items)) {
       return response.data.items;

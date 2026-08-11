@@ -1,9 +1,15 @@
 import { apiClient } from '@/lib/api';
 import type { Organization, OrganizationCreateRequest, OrganizationUpdateRequest } from '@/types/coreData';
 
+interface ListParams {
+  skip?: number
+  limit?: number
+  name?: string
+}
+
 export const organizationsService = {
-  async list(): Promise<Organization[]> {
-    const response = await apiClient.get('/api/v1/organizations');
+  async list(params?: ListParams): Promise<Organization[]> {
+    const response = await apiClient.get('/api/v1/organizations', { params });
     // Backend returns PaginatedResponse, extract items
     if (response.data && Array.isArray(response.data.items)) {
       return response.data.items;

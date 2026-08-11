@@ -5,6 +5,7 @@ import { persist } from 'zustand/middleware'
 import { markSessionChanged } from '@/lib/sessionLifecycle'
 import { queryClient } from '@/lib/queryClient'
 import { resetBackendWakeupNotice } from '@/lib/backendWakeup'
+import { useActiveOrganizationStore } from './activeOrganizationStore'
 
 interface AuthState {
   user: AuthUser | null
@@ -58,6 +59,7 @@ export const useAuthStore = create<AuthState>()(
         localStorage.removeItem('refresh_token')
         queryClient.clear()
         resetBackendWakeupNotice()
+        useActiveOrganizationStore.getState().clear()
       },
 
       updateUser: (user) => {

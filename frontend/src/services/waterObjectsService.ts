@@ -5,9 +5,15 @@ import type {
   WaterObjectUpdateRequest,
 } from '@/types/coreData';
 
+interface ListParams {
+  skip?: number
+  limit?: number
+  organization_id?: string
+}
+
 export const waterObjectsService = {
-  async list(): Promise<WaterObject[]> {
-    const response = await apiClient.get('/api/v1/objects');
+  async list(params?: ListParams): Promise<WaterObject[]> {
+    const response = await apiClient.get('/api/v1/objects', { params });
     // Backend returns PaginatedResponse, extract items
     if (response.data && Array.isArray(response.data.items)) {
       return response.data.items;

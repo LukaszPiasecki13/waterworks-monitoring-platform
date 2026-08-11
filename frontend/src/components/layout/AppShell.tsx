@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Topbar } from './Topbar';
 import { Sidebar } from './Sidebar';
+import { useInitActiveOrganization } from '@/hooks/useInitActiveOrganization';
 
 interface AppShellProps {
   children: React.ReactNode;
@@ -8,6 +9,7 @@ interface AppShellProps {
 
 export function AppShell({ children }: AppShellProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  useInitActiveOrganization();
 
   return (
     <div className="flex h-screen bg-neutral-50">

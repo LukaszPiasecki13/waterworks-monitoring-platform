@@ -20,7 +20,7 @@ describe('RequirePermission', () => {
   })
 
   it('does not render children when user lacks permission', () => {
-    const { container } = render(
+    render(
       <RequirePermission permission="CAN_MANAGE_ORGANIZATIONS">
         <div>Protected content</div>
       </RequirePermission>

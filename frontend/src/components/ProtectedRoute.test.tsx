@@ -11,6 +11,7 @@ const mockUser = {
   first_name: 'Test',
   last_name: 'User',
   status: 'active',
+  organization_id: null,
 }
 
 function renderWithRouter(initialEntry = '/') {
