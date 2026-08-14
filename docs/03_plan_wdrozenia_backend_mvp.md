@@ -1,6 +1,6 @@
 # Plan wdrożenia backendu — MVP krok po kroku
 
-**Dokument towarzyszący:** `01_analiza_biznesowa.md`, `02_analiza_konkurencji_i_kosztów.md`, `backend-architecture.md`
+**Dokument towarzyszący:** `01_plan_biznesowy.md`, `backend-architecture.md`
 **Data:** 2026-08-09
 **Zakres:** wyłącznie backend (`backend/`). Frontend jest osobnym torem prac i nie jest tu opisany.
 
@@ -151,7 +151,7 @@ Cel: ingest przestaje ufać wolnemu tekstowi i blobowi JSON; dane trafiają do z
 
 ### 2.2. Model diagnostyki
 
-`app/modules/telemetry/models/device_diagnostic.py` — `DeviceDiagnostic`: `id`, `device_id` (FK), `received_at`, `firmware_version`, `config_version`, `uptime_seconds`, `last_restart_at`, `restart_reason`, `rssi_dbm`, `cellular_technology`, `cellular_operator`, `buffer_records_pending`, `buffer_usage_percent`, `power_source`, `voltage_v`, `temperature_c`, `raw_payload` (JSON — pełny blob na przyszłość). Pola dokładnie wg formatu z `02_analiza_konkurencji_i_kosztów.md` sekcja 1.3.
+`app/modules/telemetry/models/device_diagnostic.py` — `DeviceDiagnostic`: `id`, `device_id` (FK), `received_at`, `firmware_version`, `config_version`, `uptime_seconds`, `last_restart_at`, `restart_reason`, `rssi_dbm`, `cellular_technology`, `cellular_operator`, `buffer_records_pending`, `buffer_usage_percent`, `power_source`, `voltage_v`, `temperature_c`, `raw_payload` (JSON — pełny blob na przyszłość). Pola dokładnie wg formatu z `01_plan_biznesowy.md`, rozdział 3.4.3 (Wiadomość diagnostyczna).
 
 Rejestracja obu modeli w `models_registry.py`, `alembic revision --autogenerate -m "Add measurements and device diagnostics"`, review, `upgrade head`.
 
