@@ -5,7 +5,7 @@ from uuid import UUID
 from sqlalchemy.exc import IntegrityError
 
 from app.core.audit import AuditEntry, AuditPort, EntityType, calculate_delta
-from app.core.errors import ConflictError, NotFoundError
+from app.core.errors import ConflictError
 from app.modules.core_data.models.user import User
 from app.modules.core_data.repositories.organizations import OrganizationRepository
 from app.modules.core_data.repositories.water_objects import WaterObjectRepository
@@ -40,7 +40,9 @@ class WaterObjectService:
             "is_active": obj.is_active,
         }
 
-    def _record_audit(self, action: str, obj, actor: User, old_state: dict, new_state: dict) -> None:
+    def _record_audit(
+        self, action: str, obj, actor: User, old_state: dict, new_state: dict
+    ) -> None:
         self.audit.record(
             AuditEntry(
                 entity_type=EntityType.CORE_DATA_WATER_OBJECT.value,
@@ -61,10 +63,16 @@ class WaterObjectService:
     def list_all(self, query, *, actor: User = None):
         """List water objects with org isolation."""
         if actor and actor.organization_id is not None:
-            org_id = actor.organization_id  # non-admin: wymuszone, ignoruje query.organization_id
+            org_id = (
+                actor.organization_id
+            )  # non-admin: wymuszone, ignoruje query.organization_id
         else:
-            org_id = getattr(query, "organization_id", None)  # admin: z klienta; None = bez filtra
-        objs = self.repo.list_all(organization_id=org_id, skip=query.skip, limit=query.limit)
+            org_id = getattr(
+                query, "organization_id", None
+            )  # admin: z klienta; None = bez filtra
+        objs = self.repo.list_all(
+            organization_id=org_id, skip=query.skip, limit=query.limit
+        )
         count = self.repo.count(organization_id=org_id)
         return objs, count
 
@@ -117,9 +125,11 @@ class WaterObjectService:
             self.repo.delete(obj)
             self._record_audit("DELETE", obj, actor, old_state, {})
             self.repo.commit()
-        except IntegrityError:
+        except IntegrityError as err:
             self.repo.rollback()
-            raise ConflictError("Cannot delete water object with related devices")
+            raise ConflictError(
+                "Cannot delete water object with related devices"
+            ) from err
         except Exception:
             self.repo.rollback()
             raise

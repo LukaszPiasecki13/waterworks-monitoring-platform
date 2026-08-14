@@ -85,9 +85,7 @@ def register_error_handlers(app: FastAPI) -> None:
 
     @app.exception_handler(ValidationError)
     async def validation_exception_handler(request: Request, exc: ValidationError):
-        logger.info(
-            "Validation error on %s %s", request.method, request.url.path
-        )
+        logger.info("Validation error on %s %s", request.method, request.url.path)
         return _error_response(
             status.HTTP_422_UNPROCESSABLE_CONTENT,
             exc.errors(),
@@ -96,9 +94,7 @@ def register_error_handlers(app: FastAPI) -> None:
     @app.exception_handler(Exception)
     async def general_exception_handler(request: Request, exc: Exception):
         # Never leak internals to the client, but always keep the traceback.
-        logger.exception(
-            "Unhandled error on %s %s", request.method, request.url.path
-        )
+        logger.exception("Unhandled error on %s %s", request.method, request.url.path)
         return _error_response(
             status.HTTP_500_INTERNAL_SERVER_ERROR,
             "Internal server error",

@@ -1,10 +1,10 @@
 """Service layer for telemetry queries."""
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from app.core.config import Settings
 from app.core.errors import NotFoundError
-from app.modules.core_data.models import User, WaterObject, Organization
+from app.modules.core_data.models import User
 from app.modules.telemetry.repositories.queries import TelemetryQueryRepository
 from app.modules.telemetry.schemas.query import (
     LatestPointValue,
@@ -92,8 +92,10 @@ class TelemetryQueryService:
         if last_contact_at is None:
             return "no_data"
 
-        now = datetime.now(timezone.utc)
-        stale_threshold = now - timedelta(seconds=self.settings.telemetry_stale_after_seconds)
+        now = datetime.now(UTC)
+        stale_threshold = now - timedelta(
+            seconds=self.settings.telemetry_stale_after_seconds
+        )
 
         if last_contact_at < stale_threshold:
             return "no_comm"
@@ -123,7 +125,9 @@ class TelemetryQueryService:
         candidates_limit = 500 if status else limit
 
         total = self.repo.count_objects(org_id=org_id)
-        object_rows = self.repo.list_object_ids(org_id=org_id, skip=skip, limit=candidates_limit)
+        object_rows = self.repo.list_object_ids(
+            org_id=org_id, skip=skip, limit=candidates_limit
+        )
 
         summaries = []
         for row in object_rows:
@@ -143,7 +147,9 @@ class TelemetryQueryService:
                 device_name=row["device_name"],
                 status=obj_status,
                 last_contact_at=row["last_contact_at"],
-                last_measurement_at=points[0].measured_at if points else row["last_contact_at"],
+                last_measurement_at=points[0].measured_at
+                if points
+                else row["last_contact_at"],
                 points=points,
             )
             summaries.append(summary)
@@ -168,7 +174,10 @@ class TelemetryQueryService:
         if not water_object:
             raise NotFoundError(f"Object {object_id} not found")
 
-        if user.organization_id is not None and water_object.organization_id != user.organization_id:
+        if (
+            user.organization_id is not None
+            and water_object.organization_id != user.organization_id
+        ):
             raise NotFoundError(f"Object {object_id} not found")
 
         packet = self.repo.get_latest_packet(object_id)
@@ -189,9 +198,7 @@ class TelemetryQueryService:
                 for point in window.get("points", []):
                     available_points_set.add(point.get("point_id", "unknown"))
 
-        org_name = self.repo.get_organization_name(
-            str(water_object.organization_id)
-        )
+        org_name = self.repo.get_organization_name(str(water_object.organization_id))
         device_name = self.repo.get_device_name(packet.device_id)
 
         return ObjectDetail(
@@ -233,7 +240,10 @@ class TelemetryQueryService:
         if not water_object:
             raise NotFoundError(f"Object {object_id} not found")
 
-        if user.organization_id is not None and water_object.organization_id != user.organization_id:
+        if (
+            user.organization_id is not None
+            and water_object.organization_id != user.organization_id
+        ):
             raise NotFoundError(f"Object {object_id} not found")
 
         latest_packet = self.repo.get_latest_packet(object_id)
@@ -254,7 +264,9 @@ class TelemetryQueryService:
                 window_start = window.get("window_start")
                 if isinstance(window_start, str):
                     try:
-                        window_start = datetime.fromisoformat(window_start.replace("Z", "+00:00"))
+                        window_start = datetime.fromisoformat(
+                            window_start.replace("Z", "+00:00")
+                        )
                     except (ValueError, AttributeError):
                         window_start = packet.received_at
                 else:

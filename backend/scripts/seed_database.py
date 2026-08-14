@@ -4,31 +4,32 @@ Usage: python scripts/seed_database.py
 """
 
 import sys
-from datetime import datetime, timedelta, timezone
-from uuid import UUID, uuid4
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from uuid import uuid4
 
 # Add the backend directory to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+
 from sqlalchemy.orm import Session
+
 from app.core.config import get_settings
 from app.infrastructure.sql.factory import SQLConnectionFactory
+from app.modules.core_data.models.device import Device
+from app.modules.core_data.models.measurement_point import MeasurementPoint
 from app.modules.core_data.models.organization import Organization
 from app.modules.core_data.models.user import User
 from app.modules.core_data.models.water_object import WaterObject
-from app.modules.core_data.models.device import Device
-from app.modules.core_data.models.measurement_point import MeasurementPoint
-from app.modules.telemetry.models.measurement_packet import TelemetryPacket
-from app.modules.security.services.password import hash_password
+from app.modules.security.models import Permission, UserGroup
 from app.modules.security.permission_catalog import (
     ADMIN_GROUP_KEY,
+    PERMISSION_CATALOG,
     STAFF_GROUP_KEY,
     VIEW_PERMISSIONS,
-    PERMISSION_CATALOG,
 )
-from app.modules.security.models import Permission, UserGroup
-import json
+from app.modules.security.services.password import hash_password
+from app.modules.telemetry.models.measurement_packet import TelemetryPacket
 
 
 def _cleanup_duplicates(session: Session) -> None:
@@ -54,9 +55,9 @@ def _cleanup_duplicates(session: Session) -> None:
 
     if to_delete:
         # Delete telemetry packets for devices in duplicate objects
-        devices_to_delete = session.query(Device).filter(
-            Device.water_object_id.in_(to_delete)
-        ).all()
+        devices_to_delete = (
+            session.query(Device).filter(Device.water_object_id.in_(to_delete)).all()
+        )
         device_ids = [str(d.id) for d in devices_to_delete]
 
         if device_ids:
@@ -70,14 +71,12 @@ def _cleanup_duplicates(session: Session) -> None:
         ).delete()
 
         # Delete duplicate devices
-        session.query(Device).filter(
-            Device.water_object_id.in_(to_delete)
-        ).delete()
+        session.query(Device).filter(Device.water_object_id.in_(to_delete)).delete()
 
         # Delete duplicate water objects
-        deleted_water_objects = session.query(WaterObject).filter(
-            WaterObject.id.in_(to_delete)
-        ).delete()
+        deleted_water_objects = (
+            session.query(WaterObject).filter(WaterObject.id.in_(to_delete)).delete()
+        )
 
     # Also clear all old telemetry packets to start fresh
     deleted_all_packets = session.query(TelemetryPacket).delete()
@@ -85,8 +84,7 @@ def _cleanup_duplicates(session: Session) -> None:
     session.commit()
 
     if deleted_water_objects > 0:
-        print(f"  ✓ Deleted {deleted_water_objects} duplicate water "
-              f"objects")
+        print(f"  ✓ Deleted {deleted_water_objects} duplicate water objects")
     if deleted_all_packets > 0:
         print(f"  ✓ Cleared {deleted_all_packets} telemetry packets")
     if deleted_water_objects == 0 and deleted_all_packets == 0:
@@ -94,7 +92,10 @@ def _cleanup_duplicates(session: Session) -> None:
 
 
 def _seed_security(session: Session) -> tuple[int, int, UserGroup, UserGroup]:
-    """Seed security permissions and groups. Returns (permissions_count, groups_count, admin_group, staff_group)."""
+    """Seed security permissions and groups.
+
+    Returns (permissions_count, groups_count, admin_group, staff_group).
+    """
     # Create permissions from catalog
     permissions_created = 0
     for perm_def in PERMISSION_CATALOG:
@@ -130,9 +131,11 @@ def _seed_security(session: Session) -> tuple[int, int, UserGroup, UserGroup]:
     # Create staff group
     staff_group = session.query(UserGroup).filter_by(system_key=STAFF_GROUP_KEY).first()
     if not staff_group:
-        view_permissions = session.query(Permission).filter(
-            Permission.code.in_(VIEW_PERMISSIONS)
-        ).all()
+        view_permissions = (
+            session.query(Permission)
+            .filter(Permission.code.in_(VIEW_PERMISSIONS))
+            .all()
+        )
         staff_group = UserGroup(
             name="Staff",
             description="Read-only access",
@@ -153,8 +156,7 @@ def seed_database():
     settings = get_settings()
     sql_factory = SQLConnectionFactory()
     engine = sql_factory.get_or_create_engine(
-        settings.database_url,
-        settings.database_schema
+        settings.database_url, settings.database_schema
     )
 
     with Session(engine) as session:
@@ -182,7 +184,7 @@ def seed_database():
             session.add(org2)
 
         session.commit()
-        print(f"  ✓ Created 2 organizations")
+        print("  ✓ Created 2 organizations")
 
         # 2. Create Users
         print("\n👥 Creating users...")
@@ -204,7 +206,9 @@ def seed_database():
             session.add(admin_global)
 
         # Gmina Frysztak - viewer
-        viewer_frysztak = session.query(User).filter_by(username="viewer_frysztak").first()
+        viewer_frysztak = (
+            session.query(User).filter_by(username="viewer_frysztak").first()
+        )
         if not viewer_frysztak:
             viewer_frysztak = User(
                 id=uuid4(),
@@ -220,7 +224,9 @@ def seed_database():
             session.add(viewer_frysztak)
 
         # Gmina Radziłów - viewer
-        viewer_radzilow = session.query(User).filter_by(username="viewer_radzilow").first()
+        viewer_radzilow = (
+            session.query(User).filter_by(username="viewer_radzilow").first()
+        )
         if not viewer_radzilow:
             viewer_radzilow = User(
                 id=uuid4(),
@@ -236,15 +242,17 @@ def seed_database():
             session.add(viewer_radzilow)
 
         session.commit()
-        print(f"  ✓ Created users (checked for existing)")
+        print("  ✓ Created users (checked for existing)")
 
         # 3. Create Water Objects
         print("\n💧 Creating water objects...")
 
         # Gmina Frysztak
-        fr_intake = session.query(WaterObject).filter_by(
-            name="Ujęcie wody - Jezioro Frysztak"
-        ).first()
+        fr_intake = (
+            session.query(WaterObject)
+            .filter_by(name="Ujęcie wody - Jezioro Frysztak")
+            .first()
+        )
         if not fr_intake:
             fr_intake = WaterObject(
                 id=uuid4(),
@@ -252,8 +260,7 @@ def seed_database():
                 name="Ujęcie wody - Jezioro Frysztak",
                 object_type="intake",
                 location_description=(
-                    "Główne ujęcie wody powierzchniowej z jeziora "
-                    "Frysztak"
+                    "Główne ujęcie wody powierzchniowej z jeziora Frysztak"
                 ),
                 latitude=50.1625,
                 longitude=21.2483,
@@ -261,9 +268,11 @@ def seed_database():
             )
             session.add(fr_intake)
 
-        fr_treatment = session.query(WaterObject).filter_by(
-            name="Stacja uzdatniania wody Frysztak"
-        ).first()
+        fr_treatment = (
+            session.query(WaterObject)
+            .filter_by(name="Stacja uzdatniania wody Frysztak")
+            .first()
+        )
         if not fr_treatment:
             fr_treatment = WaterObject(
                 id=uuid4(),
@@ -271,8 +280,7 @@ def seed_database():
                 name="Stacja uzdatniania wody Frysztak",
                 object_type="water_treatment",
                 location_description=(
-                    "Główna stacja uzdatniania wody, ul. Wodna 5, "
-                    "Frysztak"
+                    "Główna stacja uzdatniania wody, ul. Wodna 5, Frysztak"
                 ),
                 latitude=50.1630,
                 longitude=21.2490,
@@ -281,9 +289,11 @@ def seed_database():
             session.add(fr_treatment)
 
         # Gmina Radziłów
-        rad_intake = session.query(WaterObject).filter_by(
-            name="Ujęcie wody - Rzeka Narew"
-        ).first()
+        rad_intake = (
+            session.query(WaterObject)
+            .filter_by(name="Ujęcie wody - Rzeka Narew")
+            .first()
+        )
         if not rad_intake:
             rad_intake = WaterObject(
                 id=uuid4(),
@@ -297,9 +307,11 @@ def seed_database():
             )
             session.add(rad_intake)
 
-        rad_treatment = session.query(WaterObject).filter_by(
-            name="Stacja uzdatniania wody Radziłów"
-        ).first()
+        rad_treatment = (
+            session.query(WaterObject)
+            .filter_by(name="Stacja uzdatniania wody Radziłów")
+            .first()
+        )
         if not rad_treatment:
             rad_treatment = WaterObject(
                 id=uuid4(),
@@ -307,8 +319,7 @@ def seed_database():
                 name="Stacja uzdatniania wody Radziłów",
                 object_type="water_treatment",
                 location_description=(
-                    "Stacja uzdatniania wody, ul. Słoneczna 12, "
-                    "Radziłów"
+                    "Stacja uzdatniania wody, ul. Słoneczna 12, Radziłów"
                 ),
                 latitude=52.9170,
                 longitude=22.6840,
@@ -317,16 +328,16 @@ def seed_database():
             session.add(rad_treatment)
 
         session.commit()
-        print(f"  ✓ Created water objects (checked for existing)")
+        print("  ✓ Created water objects (checked for existing)")
 
         # 4. Create Devices
         print("\n📱 Creating devices...")
 
         # Gmina Frysztak devices
         # ESP32 device for telemetry
-        dev_esp32 = session.query(Device).filter_by(
-            external_id="esp32-a7670e-0001"
-        ).first()
+        dev_esp32 = (
+            session.query(Device).filter_by(external_id="esp32-a7670e-0001").first()
+        )
         if not dev_esp32:
             dev_esp32 = Device(
                 id=uuid4(),
@@ -334,14 +345,14 @@ def seed_database():
                 external_id="esp32-a7670e-0001",
                 hashed_secret=hash_password("Test1"),
                 firmware_version="1.0.0",
-                last_seen_at=datetime.now(timezone.utc),
+                last_seen_at=datetime.now(UTC),
                 is_active=True,
             )
             session.add(dev_esp32)
 
-        dev_fr_intake = session.query(Device).filter_by(
-            external_id="FR-INTAKE-001"
-        ).first()
+        dev_fr_intake = (
+            session.query(Device).filter_by(external_id="FR-INTAKE-001").first()
+        )
         if not dev_fr_intake:
             dev_fr_intake = Device(
                 id=uuid4(),
@@ -349,14 +360,14 @@ def seed_database():
                 external_id="FR-INTAKE-001",
                 hashed_secret=hash_password("device_secret_123"),
                 firmware_version="2.1.5",
-                last_seen_at=datetime.now(timezone.utc),
+                last_seen_at=datetime.now(UTC),
                 is_active=True,
             )
             session.add(dev_fr_intake)
 
-        dev_fr_treatment = session.query(Device).filter_by(
-            external_id="FR-TREATMENT-001"
-        ).first()
+        dev_fr_treatment = (
+            session.query(Device).filter_by(external_id="FR-TREATMENT-001").first()
+        )
         if not dev_fr_treatment:
             dev_fr_treatment = Device(
                 id=uuid4(),
@@ -364,15 +375,15 @@ def seed_database():
                 external_id="FR-TREATMENT-001",
                 hashed_secret=hash_password("device_secret_456"),
                 firmware_version="2.0.3",
-                last_seen_at=datetime.now(timezone.utc),
+                last_seen_at=datetime.now(UTC),
                 is_active=True,
             )
             session.add(dev_fr_treatment)
 
         # Gmina Radziłów devices
-        dev_rad_intake = session.query(Device).filter_by(
-            external_id="RAD-INTAKE-001"
-        ).first()
+        dev_rad_intake = (
+            session.query(Device).filter_by(external_id="RAD-INTAKE-001").first()
+        )
         if not dev_rad_intake:
             dev_rad_intake = Device(
                 id=uuid4(),
@@ -380,14 +391,14 @@ def seed_database():
                 external_id="RAD-INTAKE-001",
                 hashed_secret=hash_password("device_secret_789"),
                 firmware_version="2.2.0",
-                last_seen_at=datetime.now(timezone.utc),
+                last_seen_at=datetime.now(UTC),
                 is_active=True,
             )
             session.add(dev_rad_intake)
 
-        dev_rad_treatment = session.query(Device).filter_by(
-            external_id="RAD-TREATMENT-001"
-        ).first()
+        dev_rad_treatment = (
+            session.query(Device).filter_by(external_id="RAD-TREATMENT-001").first()
+        )
         if not dev_rad_treatment:
             dev_rad_treatment = Device(
                 id=uuid4(),
@@ -395,7 +406,7 @@ def seed_database():
                 external_id="RAD-TREATMENT-001",
                 hashed_secret=hash_password("device_secret_012"),
                 firmware_version="1.9.8",
-                last_seen_at=datetime.now(timezone.utc),
+                last_seen_at=datetime.now(UTC),
                 is_active=True,
             )
             session.add(dev_rad_treatment)
@@ -407,29 +418,57 @@ def seed_database():
         print("\n📊 Creating measurement points...")
 
         measurement_points_config = [
-            (dev_fr_intake.id, "FR-INTAKE-001-FLOW", "flow_rate",
-             "m³/h", 0.0, 300.0),
-            (dev_fr_intake.id, "FR-INTAKE-001-TEMP", "temperature",
-             "°C", 2.0, 28.0),
-            (dev_fr_treatment.id, "FR-TREATMENT-001-FLOW",
-             "flow_rate", "m³/h", 0.0, 300.0),
-            (dev_fr_treatment.id, "FR-TREATMENT-001-TURBIDITY",
-             "turbidity", "NTU", 0.0, 5.0),
-            (dev_rad_intake.id, "RAD-INTAKE-001-FLOW", "flow_rate",
-             "m³/h", 0.0, 350.0),
-            (dev_rad_intake.id, "RAD-INTAKE-001-TEMP", "temperature",
-             "°C", 1.0, 30.0),
-            (dev_rad_treatment.id, "RAD-TREATMENT-001-FLOW",
-             "flow_rate", "m³/h", 0.0, 350.0),
-            (dev_rad_treatment.id, "RAD-TREATMENT-001-TURBIDITY",
-             "turbidity", "NTU", 0.0, 5.0),
+            (dev_fr_intake.id, "FR-INTAKE-001-FLOW", "flow_rate", "m³/h", 0.0, 300.0),
+            (dev_fr_intake.id, "FR-INTAKE-001-TEMP", "temperature", "°C", 2.0, 28.0),
+            (
+                dev_fr_treatment.id,
+                "FR-TREATMENT-001-FLOW",
+                "flow_rate",
+                "m³/h",
+                0.0,
+                300.0,
+            ),
+            (
+                dev_fr_treatment.id,
+                "FR-TREATMENT-001-TURBIDITY",
+                "turbidity",
+                "NTU",
+                0.0,
+                5.0,
+            ),
+            (dev_rad_intake.id, "RAD-INTAKE-001-FLOW", "flow_rate", "m³/h", 0.0, 350.0),
+            (dev_rad_intake.id, "RAD-INTAKE-001-TEMP", "temperature", "°C", 1.0, 30.0),
+            (
+                dev_rad_treatment.id,
+                "RAD-TREATMENT-001-FLOW",
+                "flow_rate",
+                "m³/h",
+                0.0,
+                350.0,
+            ),
+            (
+                dev_rad_treatment.id,
+                "RAD-TREATMENT-001-TURBIDITY",
+                "turbidity",
+                "NTU",
+                0.0,
+                5.0,
+            ),
         ]
 
-        for (device_id, ext_id, point_type, unit,
-             min_val, max_val) in measurement_points_config:
-            existing = session.query(MeasurementPoint).filter_by(
-                device_id=device_id, external_id=ext_id
-            ).first()
+        for (
+            device_id,
+            ext_id,
+            point_type,
+            unit,
+            min_val,
+            max_val,
+        ) in measurement_points_config:
+            existing = (
+                session.query(MeasurementPoint)
+                .filter_by(device_id=device_id, external_id=ext_id)
+                .first()
+            )
             if not existing:
                 mp = MeasurementPoint(
                     id=uuid4(),
@@ -449,7 +488,7 @@ def seed_database():
         # 6. Generate Telemetry Packets
         print("\n📡 Generating telemetry packets...")
 
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         packets_created = 0
 
         # Map measurement point external_ids to database IDs and their types/units
@@ -464,25 +503,69 @@ def seed_database():
 
         # Generate realistic telemetry data for the past 7 days
         devices = [
-            (dev_fr_intake, org1.id, fr_intake.id, [
-                ("FR-INTAKE-001-FLOW", lambda i: 180 + 60 * ((now.hour + i) % 24) / 24),
-                ("FR-INTAKE-001-TEMP", lambda i: 12 + 8 * ((now.hour + i) % 24) / 24),
-            ]),
-            (dev_fr_treatment, org1.id, fr_treatment.id, [
-                ("FR-TREATMENT-001-FLOW", lambda i: 175 + 60 * ((now.hour + i) % 24) / 24),
-                ("FR-TREATMENT-001-TURBIDITY", lambda i: 0.3 + 0.2 * ((now.hour + i) % 24) / 24),
-            ]),
-            (dev_rad_intake, org2.id, rad_intake.id, [
-                ("RAD-INTAKE-001-FLOW", lambda i: 200 + 70 * ((now.hour + i) % 24) / 24),
-                ("RAD-INTAKE-001-TEMP", lambda i: 10 + 12 * ((now.hour + i) % 24) / 24),
-            ]),
-            (dev_rad_treatment, org2.id, rad_treatment.id, [
-                ("RAD-TREATMENT-001-FLOW", lambda i: 195 + 70 * ((now.hour + i) % 24) / 24),
-                ("RAD-TREATMENT-001-TURBIDITY", lambda i: 0.4 + 0.25 * ((now.hour + i) % 24) / 24),
-            ]),
+            (
+                dev_fr_intake,
+                org1.id,
+                fr_intake.id,
+                [
+                    (
+                        "FR-INTAKE-001-FLOW",
+                        lambda i: 180 + 60 * ((now.hour + i) % 24) / 24,
+                    ),
+                    (
+                        "FR-INTAKE-001-TEMP",
+                        lambda i: 12 + 8 * ((now.hour + i) % 24) / 24,
+                    ),
+                ],
+            ),
+            (
+                dev_fr_treatment,
+                org1.id,
+                fr_treatment.id,
+                [
+                    (
+                        "FR-TREATMENT-001-FLOW",
+                        lambda i: 175 + 60 * ((now.hour + i) % 24) / 24,
+                    ),
+                    (
+                        "FR-TREATMENT-001-TURBIDITY",
+                        lambda i: 0.3 + 0.2 * ((now.hour + i) % 24) / 24,
+                    ),
+                ],
+            ),
+            (
+                dev_rad_intake,
+                org2.id,
+                rad_intake.id,
+                [
+                    (
+                        "RAD-INTAKE-001-FLOW",
+                        lambda i: 200 + 70 * ((now.hour + i) % 24) / 24,
+                    ),
+                    (
+                        "RAD-INTAKE-001-TEMP",
+                        lambda i: 10 + 12 * ((now.hour + i) % 24) / 24,
+                    ),
+                ],
+            ),
+            (
+                dev_rad_treatment,
+                org2.id,
+                rad_treatment.id,
+                [
+                    (
+                        "RAD-TREATMENT-001-FLOW",
+                        lambda i: 195 + 70 * ((now.hour + i) % 24) / 24,
+                    ),
+                    (
+                        "RAD-TREATMENT-001-TURBIDITY",
+                        lambda i: 0.4 + 0.25 * ((now.hour + i) % 24) / 24,
+                    ),
+                ],
+            ),
         ]
 
-        for device, org_id, obj_id, measurements in devices:
+        for device, _org_id, _obj_id, measurements in devices:
             # Generate 100 packets per device over the past 7 days
             for i in range(100):
                 timestamp = now - timedelta(hours=i)
@@ -492,13 +575,15 @@ def seed_database():
                 for mpoint_id, measurement_func in measurements:
                     if mpoint_id in measurement_point_map:
                         mp_info = measurement_point_map[mpoint_id]
-                        points.append({
-                            "point_id": mp_info["id"],
-                            "type": mp_info["type"],
-                            "unit": mp_info["unit"],
-                            "value": measurement_func(i),
-                            "quality": "good" if i % 10 != 0 else "warning",
-                        })
+                        points.append(
+                            {
+                                "point_id": mp_info["id"],
+                                "type": mp_info["type"],
+                                "unit": mp_info["unit"],
+                                "value": measurement_func(i),
+                                "quality": "good" if i % 10 != 0 else "warning",
+                            }
+                        )
 
                 # Create payload with windows format (expected by TelemetryQueryService)
                 packet = TelemetryPacket(
@@ -518,8 +603,8 @@ def seed_database():
                             "battery": 85 - (i % 50),
                             "signal_strength": -60 - (i % 30),
                             "uptime_seconds": 864000 - (i * 3600),
-                        }
-                    }
+                        },
+                    },
                 )
                 session.add(packet)
                 packets_created += 1
@@ -531,19 +616,24 @@ def seed_database():
         # Assign users to groups
         print("\n👥 Assigning users to security groups...")
         admin_user = session.query(User).filter_by(username="admin").first()
-        viewer_frysztak_user = session.query(User).filter_by(username="viewer_frysztak").first()
-        viewer_radzilow_user = session.query(User).filter_by(username="viewer_radzilow").first()
+        viewer_frysztak_user = (
+            session.query(User).filter_by(username="viewer_frysztak").first()
+        )
+        viewer_radzilow_user = (
+            session.query(User).filter_by(username="viewer_radzilow").first()
+        )
 
         if admin_user and viewer_frysztak_user and viewer_radzilow_user:
-            admin_group = session.query(UserGroup).filter_by(
-                system_key=ADMIN_GROUP_KEY
-            ).first()
-            staff_group = session.query(UserGroup).filter_by(
-                system_key=STAFF_GROUP_KEY
-            ).first()
+            admin_group = (
+                session.query(UserGroup).filter_by(system_key=ADMIN_GROUP_KEY).first()
+            )
+            staff_group = (
+                session.query(UserGroup).filter_by(system_key=STAFF_GROUP_KEY).first()
+            )
 
             if admin_group and staff_group:
                 from app.modules.security.repositories import PermissionRepository
+
                 repo = PermissionRepository(session)
 
                 # Assign global admin to admin group
@@ -553,31 +643,31 @@ def seed_database():
                 repo.replace_user_groups(viewer_radzilow_user.id, {staff_group.id})
 
                 session.commit()
-                print(f"  ✓ Users assigned to groups")
+                print("  ✓ Users assigned to groups")
 
         # Summary
-        print("\n" + "="*60)
+        print("\n" + "=" * 60)
         print("✅ Database seeding completed successfully!")
-        print("="*60)
+        print("=" * 60)
         print("\n📊 Core Data:")
-        print(f"  Organizations:      2")
-        print(f"    - Gmina Frysztak")
-        print(f"    - Gmina Radziłów")
-        print(f"  Users:              3 (1 admin + 2 viewers)")
-        print(f"  Water Objects:      4 (2 per organization)")
-        print(f"    Gmina Frysztak:")
-        print(f"      - Ujęcie wody - Jezioro Frysztak")
-        print(f"      - Stacja uzdatniania wody Frysztak")
-        print(f"    Gmina Radziłów:")
-        print(f"      - Ujęcie wody - Rzeka Narew")
-        print(f"      - Stacja uzdatniania wody Radziłów")
-        print(f"  Devices:            4 (2 per organization)")
-        print(f"  Measurement Points: 8")
+        print("  Organizations:      2")
+        print("    - Gmina Frysztak")
+        print("    - Gmina Radziłów")
+        print("  Users:              3 (1 admin + 2 viewers)")
+        print("  Water Objects:      4 (2 per organization)")
+        print("    Gmina Frysztak:")
+        print("      - Ujęcie wody - Jezioro Frysztak")
+        print("      - Stacja uzdatniania wody Frysztak")
+        print("    Gmina Radziłów:")
+        print("      - Ujęcie wody - Rzeka Narew")
+        print("      - Stacja uzdatniania wody Radziłów")
+        print("  Devices:            4 (2 per organization)")
+        print("  Measurement Points: 8")
         print(f"  Telemetry Packets:  {packets_created}")
         print("\n🔐 Security:")
         print(f"  Permissions:        {len(PERMISSION_CATALOG)}")
-        print(f"  Groups:             2 (Admin + Staff)")
-        print(f"  User Assignments:   3 users assigned to groups")
+        print("  Groups:             2 (Admin + Staff)")
+        print("  User Assignments:   3 users assigned to groups")
         print("\n🧑‍💻 Test Credentials:")
         print("\n  Global Admin (views all organizations):")
         print("    Username:         admin / password123")
@@ -589,11 +679,13 @@ def seed_database():
         print("    Gmina Radziłów:   viewer_radzilow / password123")
         print("      → Read-only access to Gmina Radziłów data")
 
+
 if __name__ == "__main__":
     try:
         seed_database()
     except Exception as e:
         print(f"\n❌ Error during seeding: {e}")
         import traceback
+
         traceback.print_exc()
         sys.exit(1)

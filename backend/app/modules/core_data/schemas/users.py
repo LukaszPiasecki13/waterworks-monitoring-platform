@@ -1,16 +1,14 @@
 """Pydantic schemas for users."""
 
-from typing import Generic, Literal, TypeVar
+from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
 UserStatus = Literal["regular", "admin"]
 
-T = TypeVar("T")
 
-
-class PaginatedResponse(BaseModel, Generic[T]):
+class PaginatedResponse[T](BaseModel):
     """Paginated response wrapper."""
 
     items: list[T]

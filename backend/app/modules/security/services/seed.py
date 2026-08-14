@@ -57,7 +57,10 @@ class SecuritySeedService:
             existing = self.repo.get_permission_by_code(perm_def.code)
             if existing:
                 # Update name/category if they differ
-                if existing.name != perm_def.name or existing.category != perm_def.category:
+                if (
+                    existing.name != perm_def.name
+                    or existing.category != perm_def.category
+                ):
                     existing.name = perm_def.name
                     existing.category = perm_def.category
                     logger.debug(f"Updated permission {perm_def.code}")

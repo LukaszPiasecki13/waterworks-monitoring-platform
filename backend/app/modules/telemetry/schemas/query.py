@@ -1,7 +1,7 @@
 """Pydantic schemas for telemetry query/read endpoints."""
 
 from datetime import datetime
-from typing import Generic, Literal, TypeVar
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -79,10 +79,7 @@ class MeasurementsResponse(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
 
-T = TypeVar("T")
-
-
-class PaginatedResponse(BaseModel, Generic[T]):
+class PaginatedResponse[T](BaseModel):
     """Paginated response wrapper."""
 
     items: list[T]

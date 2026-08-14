@@ -3,18 +3,18 @@
 import os
 from collections.abc import Generator
 from datetime import datetime
-from uuid import UUID, uuid4
+from uuid import uuid4
 
 import pytest
+
+# Configure test environment via .env file
+from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, event
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session, sessionmaker
-from sqlalchemy.pool import StaticPool
 
-# Configure test environment via .env file
-from dotenv import load_dotenv
 load_dotenv()
 
 # Use Settings defaults for test environment
@@ -26,7 +26,6 @@ from app.core.config import get_settings
 from app.core.dependencies import get_db
 from app.core.errors import register_error_handlers
 from app.infrastructure.sql import models_registry  # noqa: F401
-from app.infrastructure.sql.base import Base
 from app.modules.core_data.api.users import router as users_router
 from app.modules.core_data.models import User
 from app.modules.security.api import router as security_router
@@ -34,43 +33,65 @@ from app.modules.security.dependencies import (
     get_current_user,
     require_admin,
 )
-from app.modules.security.models import (
-    Permission,
-    UserGroup,
-    security_user_groups,
-)
-from app.modules.security.permission_catalog import (
-    CAN_MANAGE_ATTACHMENTS,
-    CAN_MANAGE_SECURITY,
-    CAN_MANAGE_USERS,
-    CAN_VIEW_ATTACHMENTS,
-    CAN_VIEW_SECURITY,
-    CAN_VIEW_USERS,
-)
+from app.modules.security.models import security_user_groups
+from app.modules.security.permission_catalog import ADMIN_GROUP_KEY
+from app.modules.security.repositories import PermissionRepository
+from app.modules.security.services.seed import SecuritySeedService
 
 
 @pytest.fixture
 def db_engine() -> Generator[Engine, None, None]:
-    # Use production database for tests
+    """Engine for the configured database.
+
+    Schema is owned by Alembic migrations, not by tests. DATABASE_URL may
+    point at a shared/dev database, so this fixture must never create or
+    drop tables — see db_session for how tests stay isolated instead.
+    """
     settings = get_settings()
     engine = create_engine(settings.database_url, echo=False)
-
-    Base.metadata.create_all(engine)
     try:
         yield engine
     finally:
-        Base.metadata.drop_all(engine)
         engine.dispose()
 
 
 @pytest.fixture
 def db_session(db_engine: Engine) -> Generator[Session, None, None]:
-    session_factory = sessionmaker(bind=db_engine, expire_on_commit=False)
-    session = session_factory()
+    """Session bound to a connection whose outer transaction is rolled back
+    after the test. A SAVEPOINT is restarted after every commit/rollback so
+    test code can call session.commit() freely without ending the outer
+    transaction — every test leaves the database exactly as it found it.
+    """
+    connection = db_engine.connect()
+    outer_transaction = connection.begin()
+
+    settings = get_settings()
+    if db_engine.dialect.name == "postgresql" and settings.database_schema:
+        # Supabase's transaction-mode pooler can hand out a different physical
+        # connection per transaction, so the schema must be (re)applied here
+        # rather than relying on the role's default search_path. SET LOCAL
+        # scopes it to this transaction, matching SQLConnectionFactory.
+        schema_sql = db_engine.dialect.identifier_preparer.quote(
+            settings.database_schema
+        )
+        connection.exec_driver_sql(f"SET LOCAL search_path TO {schema_sql}")
+
+    session = sessionmaker(bind=connection, expire_on_commit=False)()
+
+    nested = connection.begin_nested()
+
+    @event.listens_for(session, "after_transaction_end")
+    def _restart_savepoint(sess: Session, transaction: object) -> None:
+        nonlocal nested
+        if not nested.is_active:
+            nested = connection.begin_nested()
+
     try:
         yield session
     finally:
         session.close()
+        outer_transaction.rollback()
+        connection.close()
 
 
 @pytest.fixture(autouse=True)
@@ -95,12 +116,24 @@ def settings_override(monkeypatch):
 
 @pytest.fixture
 def admin_user(db_session: Session) -> User:
-    db_session.flush()
-    admin_uuid = uuid4()
+    """A user with full permissions.
+
+    The permission catalog and the "admin" system group are reference data
+    owned by SecuritySeedService (synced at app startup), so this fixture
+    reuses/get-or-creates them via the same service instead of inserting
+    duplicate rows — DATABASE_URL may point at a database where that
+    reference data already exists.
+    """
+    SecuritySeedService(PermissionRepository(db_session)).seed()
+    admin_group = PermissionRepository(db_session).get_group_by_system_key(
+        ADMIN_GROUP_KEY
+    )
+
+    unique = uuid4().hex[:8]
     user = User(
-        id=admin_uuid,
-        username="admin",
-        email="admin@example.com",
+        id=uuid4(),
+        username=f"admin-{unique}",
+        email=f"admin-{unique}@example.com",
         first_name="Admin",
         last_name="User",
         hashed_password="not-used",
@@ -110,25 +143,6 @@ def admin_user(db_session: Session) -> User:
         created_at=datetime(2026, 1, 1),
         updated_at=datetime(2026, 1, 1),
     )
-    all_permissions = [
-        Permission(code=code, name=code, category="test")
-        for code in (
-            CAN_VIEW_USERS,
-            CAN_MANAGE_USERS,
-            CAN_VIEW_SECURITY,
-            CAN_MANAGE_SECURITY,
-            CAN_VIEW_ATTACHMENTS,
-            CAN_MANAGE_ATTACHMENTS,
-        )
-    ]
-    admin_group = UserGroup(
-        name="Admin",
-        description="Full system access",
-        is_system=True,
-        system_key="admin",
-        permissions=all_permissions,
-    )
-    db_session.add(admin_group)
     db_session.add(user)
     db_session.flush()
     db_session.execute(

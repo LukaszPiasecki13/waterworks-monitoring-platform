@@ -10,7 +10,7 @@ from app.core.dependencies import get_db
 from app.core.errors import register_error_handlers
 from app.modules.core_data.repositories import UserRepository
 from app.modules.security.api import router
-from app.modules.security.models import UserGroup
+from app.modules.security.permission_catalog import STAFF_GROUP_KEY
 from app.modules.security.repositories import PermissionRepository
 from app.modules.security.services.permissions import PermissionService
 
@@ -23,14 +23,16 @@ def permission_service(session: Session) -> PermissionService:
 
 @pytest.fixture
 def auth_client(db_session: Session) -> Generator[TestClient, None, None]:
-    db_session.add(
-        UserGroup(
+    repo = PermissionRepository(db_session)
+    if not repo.get_group_by_system_key(STAFF_GROUP_KEY):
+        # "Staff" is reference data normally synced by SecuritySeedService at
+        # startup; DATABASE_URL may point at a database where it already
+        # exists, so only create it if missing.
+        repo.create_system_group(
             name="Staff",
             description="Default application access",
-            is_system=True,
-            system_key="staff",
+            system_key=STAFF_GROUP_KEY,
         )
-    )
     db_session.commit()
     app = FastAPI()
     register_error_handlers(app)
@@ -95,7 +97,6 @@ def test_register_login_refresh_and_current_user(
     assert user_data["email"] == "newuser@example.com"
     assert "organization_id" in user_data
     assert user_data["organization_id"] is None  # New user has no organization
-
 
 
 def test_login_rejects_wrong_password(auth_client: TestClient) -> None:

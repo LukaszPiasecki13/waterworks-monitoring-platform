@@ -3,11 +3,12 @@
 from datetime import datetime
 from uuid import UUID
 
-from sqlalchemy import UUID as SA_UUID, func, select
+from sqlalchemy import UUID as SA_UUID
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.infrastructure.sql.repository import SQLRepository
-from app.modules.core_data.models import Device, WaterObject, Organization
+from app.modules.core_data.models import Device, Organization, WaterObject
 from app.modules.telemetry.models.measurement_packet import TelemetryPacket
 
 
@@ -23,10 +24,12 @@ class TelemetryQueryRepository(SQLRepository):
         skip: int = 0,
         limit: int = 50,
     ) -> list[dict]:
-        """List unique objects, grouped by water_object_id with their latest contact time.
+        """List unique objects, grouped by water_object_id with their latest
+        contact time.
 
         Joins: TelemetryPacket -> Device -> WaterObject -> Organization
-        Returns list of dicts with keys: object_id, org_id, name, last_contact_at, last_device_id.
+        Returns list of dicts with keys: object_id, org_id, name,
+        last_contact_at, last_device_id.
         Sorted by last_contact_at DESC (most recent first).
         """
         stmt = (
@@ -50,7 +53,9 @@ class TelemetryQueryRepository(SQLRepository):
                 Organization,
                 WaterObject.organization_id == Organization.id,
             )
-            .group_by(WaterObject.id, Organization.id, WaterObject.name, Organization.name)
+            .group_by(
+                WaterObject.id, Organization.id, WaterObject.name, Organization.name
+            )
         )
 
         if org_id is not None:
@@ -60,7 +65,11 @@ class TelemetryQueryRepository(SQLRepository):
             except ValueError:
                 return []
 
-        stmt = stmt.order_by(func.max(TelemetryPacket.received_at).desc()).offset(skip).limit(limit)
+        stmt = (
+            stmt.order_by(func.max(TelemetryPacket.received_at).desc())
+            .offset(skip)
+            .limit(limit)
+        )
 
         rows = self.session.execute(stmt).fetchall()
         return [
@@ -71,7 +80,8 @@ class TelemetryQueryRepository(SQLRepository):
                 "org_name": row.org_name,
                 "last_contact_at": row.last_contact_at,
                 "last_device_id": row.last_device_id,
-                "device_name": row.last_device_id,  # Use device_id as name since it's a string identifier
+                # device_id doubles as name since it's a string identifier
+                "device_name": row.last_device_id,
             }
             for row in rows
         ]
@@ -136,7 +146,9 @@ class TelemetryQueryRepository(SQLRepository):
         end: datetime,
         limit: int = 1000,
     ) -> list[TelemetryPacket]:
-        """Get packets for a water object within a time range, ordered by received_at ASC."""
+        """Get packets for a water object within a time range, ordered by
+        received_at ASC.
+        """
         try:
             water_object_uuid = UUID(object_id)
         except ValueError:
@@ -174,12 +186,16 @@ class TelemetryQueryRepository(SQLRepository):
             return None
 
     def get_device_name(self, device_id: str) -> str:
-        """Get device name. Since device_id is a string identifier (not UUID), return it as-is."""
+        """Get device name.
+
+        Since device_id is a string identifier (not UUID), return it as-is.
+        """
         return device_id
 
     def get_organization_name(self, org_id: str) -> str:
         """Get organization name by ID, or return 'Nieznana' if not found."""
         from uuid import UUID
+
         try:
             org_uuid = UUID(org_id)
             stmt = select(Organization.name).where(Organization.id == org_uuid)
@@ -187,4 +203,3 @@ class TelemetryQueryRepository(SQLRepository):
             return result or "Nieznana"
         except ValueError:
             return "Nieznana"
-

@@ -1,5 +1,4 @@
 from collections.abc import Generator
-from types import SimpleNamespace
 from datetime import datetime
 from uuid import uuid4
 
@@ -15,11 +14,13 @@ from app.modules.core_data.repositories.organizations import OrganizationReposit
 from app.modules.security.dependencies import get_current_user
 
 
-def test_organization_repository_filters_and_counts_by_name(db_session: Session) -> None:
+def test_organization_repository_filters_and_counts_by_name(
+    db_session: Session,
+) -> None:
     repo = OrganizationRepository(db_session)
-    org1 = repo.create(name="TestAcme Water Corp")
-    org2 = repo.create(name="TestBlue Waters LLC")
-    org3 = repo.create(name="TestAqua Solutions")
+    repo.create(name="TestAcme Water Corp")
+    repo.create(name="TestBlue Waters LLC")
+    repo.create(name="TestAqua Solutions")
     db_session.commit()
 
     # Filter by name fragment (case-insensitive ILIKE)

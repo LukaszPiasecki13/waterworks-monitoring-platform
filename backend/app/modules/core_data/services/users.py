@@ -3,7 +3,7 @@
 from uuid import UUID
 
 from app.core.audit import AuditEntry, AuditPort, EntityType, calculate_delta
-from app.core.errors import BadRequestError, ConflictError, NotFoundError
+from app.core.errors import BadRequestError, ConflictError
 from app.modules.core_data.audit_state import user_audit_state
 from app.modules.core_data.models.user import User
 from app.modules.core_data.repositories.users import UserRepository
@@ -144,8 +144,13 @@ class UserService:
             password = request.password
 
             if request.organization_id is not None:
-                if actor.organization_id is not None and actor.organization_id != request.organization_id:
-                    raise ConflictError("Non-admin cannot change user to another organization")
+                if (
+                    actor.organization_id is not None
+                    and actor.organization_id != request.organization_id
+                ):
+                    raise ConflictError(
+                        "Non-admin cannot change user to another organization"
+                    )
                 new_org_id = request.organization_id
             else:
                 new_org_id = None

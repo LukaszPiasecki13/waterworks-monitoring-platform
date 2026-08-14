@@ -66,7 +66,12 @@ class PermissionRepository(SQLRepository):
         return self.session.query(UserGroup).filter_by(id=group_id).first()
 
     def get_group_for_update(self, group_id: UUID) -> UserGroup | None:
-        return self.session.query(UserGroup).filter_by(id=group_id).with_for_update().first()
+        return (
+            self.session.query(UserGroup)
+            .filter_by(id=group_id)
+            .with_for_update()
+            .first()
+        )
 
     def get_group_by_system_key(self, system_key: str) -> UserGroup | None:
         return self.session.query(UserGroup).filter_by(system_key=system_key).first()

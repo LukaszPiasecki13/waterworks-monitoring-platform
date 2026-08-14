@@ -51,9 +51,12 @@ class OrganizationService:
         """Get organization by ID with org isolation for non-admins."""
         org = self.repo.find_by_id(org_id)
 
-        if actor and actor.organization_id is not None:
-            if actor.organization_id != org.id:
-                raise NotFoundError(f"Organization with ID {org_id} not found")
+        if (
+            actor
+            and actor.organization_id is not None
+            and actor.organization_id != org.id
+        ):
+            raise NotFoundError(f"Organization with ID {org_id} not found")
 
         return org
 
@@ -90,7 +93,7 @@ class OrganizationService:
             if request.name is not None:
                 existing = self.repo.get_by_name(request.name)
                 if existing and existing.id != org.id:
-                    raise ConflictError(f"Organization name already exists")
+                    raise ConflictError("Organization name already exists")
             self.repo.update(org, name=request.name)
             self.repo.flush()
             self.repo.refresh(org)
@@ -113,9 +116,11 @@ class OrganizationService:
             self.repo.delete(org)
             self._record_audit("DELETE", org, actor, old_state, {})
             self.repo.commit()
-        except IntegrityError as e:
+        except IntegrityError as err:
             self.repo.rollback()
-            raise ConflictError("Cannot delete organization with related objects")
+            raise ConflictError(
+                "Cannot delete organization with related objects"
+            ) from err
         except Exception:
             self.repo.rollback()
             raise

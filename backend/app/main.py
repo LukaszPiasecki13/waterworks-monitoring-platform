@@ -14,7 +14,8 @@ from app.modules.core_data.api import router as core_data_router
 from app.modules.security.api import router as security_router
 from app.modules.security.dependencies import get_permission_repo
 from app.modules.security.services.seed import SecuritySeedService
-from app.modules.telemetry.api import router as telemetry_router, query_router as telemetry_query_router
+from app.modules.telemetry.api import query_router as telemetry_query_router
+from app.modules.telemetry.api import router as telemetry_router
 
 API_V1_PREFIX = "/api/v1"
 

@@ -7,10 +7,10 @@ from fastapi import APIRouter, Depends
 from app.modules.core_data.dependencies import get_measurement_point_service
 from app.modules.core_data.models import User
 from app.modules.core_data.schemas.measurement_points import (
+    ListMeasurementPointsRequest,
     MeasurementPointCreateRequest,
     MeasurementPointResponse,
     MeasurementPointUpdateRequest,
-    ListMeasurementPointsRequest,
 )
 from app.modules.core_data.schemas.users import PaginatedResponse
 from app.modules.core_data.services.measurement_points import (

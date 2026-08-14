@@ -41,7 +41,9 @@ class MeasurementPointService:
             "is_active": point.is_active,
         }
 
-    def _record_audit(self, action: str, point, actor: User, old_state: dict, new_state: dict) -> None:
+    def _record_audit(
+        self, action: str, point, actor: User, old_state: dict, new_state: dict
+    ) -> None:
         self.audit.record(
             AuditEntry(
                 entity_type=EntityType.CORE_DATA_MEASUREMENT_POINT.value,
@@ -66,9 +68,13 @@ class MeasurementPointService:
     def list_all(self, query, *, actor: User | None = None):
         """List measurement points with org isolation."""
         if actor and actor.organization_id is not None:
-            org_id = actor.organization_id  # non-admin: wymuszone, ignoruje query.organization_id
+            org_id = (
+                actor.organization_id
+            )  # non-admin: wymuszone, ignoruje query.organization_id
         else:
-            org_id = getattr(query, "organization_id", None)  # admin: z klienta; None = bez filtra
+            org_id = getattr(
+                query, "organization_id", None
+            )  # admin: z klienta; None = bez filtra
 
         if query.device_id is not None and org_id is not None:
             device = self.device_repo.get_by_id(query.device_id)
@@ -100,7 +106,9 @@ class MeasurementPointService:
                 request.device_id, request.external_id
             )
             if existing:
-                raise ConflictError("Measurement point with this external_id already exists")
+                raise ConflictError(
+                    "Measurement point with this external_id already exists"
+                )
             point = self.repo.create(
                 device_id=request.device_id,
                 external_id=request.external_id,
@@ -118,7 +126,9 @@ class MeasurementPointService:
             self.repo.rollback()
             raise
 
-    def update(self, point_id: int, request: MeasurementPointUpdateRequest, actor: User):
+    def update(
+        self, point_id: int, request: MeasurementPointUpdateRequest, actor: User
+    ):
         """Update measurement point."""
         try:
             point = self.get_by_id(point_id, actor)

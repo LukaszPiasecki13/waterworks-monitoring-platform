@@ -1,7 +1,7 @@
 """Tests for telemetry query/read endpoints."""
 
 from collections.abc import Generator
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from fastapi import FastAPI
@@ -16,8 +16,8 @@ from app.modules.security.dependencies import get_current_user
 from app.modules.telemetry.api.query import router as query_router
 from app.modules.telemetry.models.measurement_packet import TelemetryPacket
 from app.modules.telemetry.repositories.queries import TelemetryQueryRepository
-from app.modules.telemetry.services.query import TelemetryQueryService
 from app.modules.telemetry.schemas.query import LatestPointValue
+from app.modules.telemetry.services.query import TelemetryQueryService
 
 
 @pytest.fixture
@@ -71,10 +71,10 @@ def sample_packet_data() -> dict:
         "org_id": "test-org",
         "object_id": "pump-station-01",
         "seq": 1,
-        "sent_at": datetime.now(timezone.utc).isoformat(),
+        "sent_at": datetime.now(UTC).isoformat(),
         "windows": [
             {
-                "window_start": datetime.now(timezone.utc).isoformat(),
+                "window_start": datetime.now(UTC).isoformat(),
                 "window_seconds": 30,
                 "points": [
                     {
@@ -104,8 +104,8 @@ def test_query_service_unpacks_latest_points(sample_packet_data, db_session: Ses
         org_id="test-org",
         object_id="pump-station-01",
         seq=1,
-        sent_at=datetime.now(timezone.utc),
-        received_at=datetime.now(timezone.utc),
+        sent_at=datetime.now(UTC),
+        received_at=datetime.now(UTC),
         payload=sample_packet_data,
     )
 
@@ -136,7 +136,7 @@ def test_query_service_compute_status_no_comm(db_session: Session):
     repo = TelemetryQueryRepository(session=db_session)
     service = TelemetryQueryService(repo, settings)
 
-    stale_time = datetime.now(timezone.utc) - timedelta(hours=2)
+    stale_time = datetime.now(UTC) - timedelta(hours=2)
 
     status = service._compute_status(stale_time, [])
     assert status == "no_comm"
@@ -155,12 +155,12 @@ def test_query_service_compute_status_warning(db_session: Session):
             unit="bar",
             value=2.1,
             quality="sensor_error",
-            measured_at=datetime.now(timezone.utc),
+            measured_at=datetime.now(UTC),
             device_id="esp32-test-002",
         )
     ]
 
-    status = service._compute_status(datetime.now(timezone.utc), points)
+    status = service._compute_status(datetime.now(UTC), points)
     assert status == "warning"
 
 
@@ -177,12 +177,12 @@ def test_query_service_compute_status_ok(db_session: Session):
             unit="bar",
             value=3.5,
             quality="good",
-            measured_at=datetime.now(timezone.utc),
+            measured_at=datetime.now(UTC),
             device_id="esp32-test-001",
         )
     ]
 
-    status = service._compute_status(datetime.now(timezone.utc), points)
+    status = service._compute_status(datetime.now(UTC), points)
     assert status == "ok"
 
 

@@ -10,11 +10,11 @@ from app.modules.audit.schemas import AuditEventResponse
 from app.modules.core_data.dependencies import get_user_service
 from app.modules.core_data.models import User
 from app.modules.core_data.schemas.users import (
+    ListUsersRequest,
     PaginatedResponse,
     UserCreateRequest,
     UserResponse,
     UserUpdateRequest,
-    ListUsersRequest,
 )
 from app.modules.core_data.services.users import UserService
 from app.modules.security.dependencies import require_any_permission, require_permission

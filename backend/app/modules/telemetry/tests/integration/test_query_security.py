@@ -1,6 +1,7 @@
 """Security tests for telemetry query endpoints."""
 
-from datetime import datetime, timezone
+import contextlib
+from datetime import datetime
 from unittest.mock import MagicMock
 from uuid import uuid4
 
@@ -16,7 +17,7 @@ from app.modules.telemetry.services.query import TelemetryQueryService
 def test_regular_user_cannot_see_other_organization_objects(
     db_session: Session,
 ) -> None:
-    """Regular user should get ForbiddenError when requesting object from another org."""
+    """Regular user should get ForbiddenError for an object in another org."""
     user_org = Organization(id=uuid4(), name="UserOrg_QuerySec")
     other_org = Organization(id=uuid4(), name="OtherOrg_QuerySec")
     db_session.add_all([user_org, other_org])
@@ -81,13 +82,14 @@ def test_admin_can_see_any_organization_objects(
     mock_packet = MagicMock()
     mock_packet.org_id = other_org_id
     service.repo.get_latest_packet = MagicMock(return_value=mock_packet)
-    service.repo.get_water_object = MagicMock(return_value=None)  # Will raise NotFoundError, not ForbiddenError
+    service.repo.get_water_object = MagicMock(
+        return_value=None
+    )  # Will raise NotFoundError, not ForbiddenError
 
     # Admin accessing other org should fail on water_object, not org check
-    try:
+    # (NotFoundError expected - org check passes for admin)
+    with contextlib.suppress(NotFoundError):
         service.get_object_detail(user=admin, object_id="test-object")
-    except NotFoundError:
-        pass  # Expected - water object not found (org check passes for admin)
 
 
 def test_list_objects_forces_regular_user_to_own_organization(

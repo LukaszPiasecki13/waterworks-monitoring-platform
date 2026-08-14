@@ -25,7 +25,7 @@ def register(data: RegisterRequest, svc: AuthService = Depends(get_auth_service)
         email=data.email,
         password=data.password,
         first_name=data.first_name,
-        last_name=data.last_name
+        last_name=data.last_name,
     )
 
 

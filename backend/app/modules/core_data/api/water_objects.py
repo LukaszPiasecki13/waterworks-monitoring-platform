@@ -8,14 +8,13 @@ from app.modules.core_data.dependencies import get_water_object_service
 from app.modules.core_data.models import User
 from app.modules.core_data.schemas.users import PaginatedResponse
 from app.modules.core_data.schemas.water_objects import (
+    ListWaterObjectsRequest,
     WaterObjectCreateRequest,
     WaterObjectResponse,
     WaterObjectUpdateRequest,
-    ListWaterObjectsRequest,
 )
 from app.modules.core_data.services.water_objects import WaterObjectService
 from app.modules.security.dependencies import (
-    get_current_user,
     require_permission,
 )
 from app.modules.security.permission_catalog import (

@@ -28,6 +28,7 @@ dev = [
     "pytest>=7.4.0",
     "pytest-asyncio>=0.21.0",
     "httpx>=0.24.0",
+    "pre-commit>=4.0.0",
 ]
 
 [tool.setuptools.packages.find]
@@ -69,6 +70,11 @@ select = [
 ignore = [
     "B008",
 ]
+
+[tool.ruff.lint.per-file-ignores]
+# load_dotenv()/os.environ.setdefault() must run before importing app.core.config,
+# since Settings reads env vars at import time.
+"conftest.py" = ["E402"]
 
 [tool.ruff.lint.mccabe]
 max-complexity = 10

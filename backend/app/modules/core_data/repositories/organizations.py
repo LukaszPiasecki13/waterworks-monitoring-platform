@@ -2,7 +2,7 @@
 
 from uuid import UUID
 
-from sqlalchemy import func, select
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.core.errors import NotFoundError
@@ -18,7 +18,9 @@ class OrganizationRepository(SQLRepository):
 
     def get_by_id(self, org_id: UUID) -> Organization | None:
         """Get organization by ID."""
-        return self.session.query(Organization).filter(Organization.id == org_id).first()
+        return (
+            self.session.query(Organization).filter(Organization.id == org_id).first()
+        )
 
     def find_by_id(self, org_id: UUID) -> Organization:
         """Find organization by ID or raise NotFoundError."""
@@ -29,20 +31,18 @@ class OrganizationRepository(SQLRepository):
 
     def get_by_name(self, name: str) -> Organization | None:
         """Get organization by name."""
-        return self.session.query(Organization).filter(Organization.name == name).first()
+        return (
+            self.session.query(Organization).filter(Organization.name == name).first()
+        )
 
-    def list_all(self, skip: int = 0, limit: int = 100, name: str | None = None) -> list[Organization]:
+    def list_all(
+        self, skip: int = 0, limit: int = 100, name: str | None = None
+    ) -> list[Organization]:
         """List all organizations."""
         query = self.session.query(Organization)
         if name:
             query = query.filter(Organization.name.ilike(f"%{name}%"))
-        return (
-            query
-            .order_by(Organization.name)
-            .offset(skip)
-            .limit(limit)
-            .all()
-        )
+        return query.order_by(Organization.name).offset(skip).limit(limit).all()
 
     def count(self, name: str | None = None) -> int:
         """Count all organizations."""

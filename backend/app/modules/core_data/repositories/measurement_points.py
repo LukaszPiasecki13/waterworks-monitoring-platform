@@ -20,7 +20,11 @@ class MeasurementPointRepository(SQLRepository):
 
     def get_by_id(self, point_id: UUID) -> MeasurementPoint | None:
         """Get measurement point by ID."""
-        return self.session.query(MeasurementPoint).filter(MeasurementPoint.id == point_id).first()
+        return (
+            self.session.query(MeasurementPoint)
+            .filter(MeasurementPoint.id == point_id)
+            .first()
+        )
 
     def find_by_id(self, point_id: UUID) -> MeasurementPoint:
         """Find measurement point by ID or raise NotFoundError."""
@@ -62,7 +66,9 @@ class MeasurementPointRepository(SQLRepository):
                 .filter(WaterObject.organization_id == organization_id)
             )
 
-        return query.order_by(MeasurementPoint.external_id).offset(skip).limit(limit).all()
+        return (
+            query.order_by(MeasurementPoint.external_id).offset(skip).limit(limit).all()
+        )
 
     def count_with_org_filter(
         self,

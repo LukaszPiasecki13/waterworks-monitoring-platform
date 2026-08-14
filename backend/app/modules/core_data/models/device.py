@@ -4,8 +4,8 @@ from datetime import datetime
 from uuid import UUID, uuid4
 
 from sqlalchemy import DateTime, ForeignKey, String, func
-from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
+from sqlalchemy.orm import Mapped, mapped_column
 
 from app.infrastructure.sql.base import Base
 
@@ -35,7 +35,9 @@ class Device(Base):
     hashed_secret: Mapped[str] = mapped_column(String(255), nullable=False)
     firmware_version: Mapped[str | None] = mapped_column(String(50))
     last_seen_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    last_diagnostics_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_diagnostics_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True)
+    )
     is_active: Mapped[bool] = mapped_column(default=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),

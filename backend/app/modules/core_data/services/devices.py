@@ -81,9 +81,13 @@ class DeviceService:
     def list_all(self, query, *, actor: User | None = None):
         """List devices with org isolation."""
         if actor and actor.organization_id is not None:
-            org_id = actor.organization_id  # non-admin: wymuszone, ignoruje query.organization_id
+            org_id = (
+                actor.organization_id
+            )  # non-admin: wymuszone, ignoruje query.organization_id
         else:
-            org_id = getattr(query, "organization_id", None)  # admin: z klienta; None = bez filtra
+            org_id = getattr(
+                query, "organization_id", None
+            )  # admin: z klienta; None = bez filtra
 
         if query.water_object_id is not None and org_id is not None:
             water_obj = self.water_object_repo.get_by_id(query.water_object_id)
@@ -158,9 +162,11 @@ class DeviceService:
             self.repo.delete(device)
             self._record_audit("DELETE", device, actor, old_state, {})
             self.repo.commit()
-        except IntegrityError:
+        except IntegrityError as err:
             self.repo.rollback()
-            raise ConflictError("Cannot delete device with related measurement points")
+            raise ConflictError(
+                "Cannot delete device with related measurement points"
+            ) from err
         except Exception:
             self.repo.rollback()
             raise

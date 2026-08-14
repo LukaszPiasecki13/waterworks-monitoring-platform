@@ -5,10 +5,10 @@ from uuid import uuid4
 from sqlalchemy.orm import Session
 
 from app.modules.core_data.models import Organization, User, WaterObject
-from app.modules.core_data.repositories.water_objects import WaterObjectRepository
-from app.modules.core_data.services.water_objects import WaterObjectService
-from app.modules.core_data.schemas.water_objects import ListWaterObjectsRequest
 from app.modules.core_data.repositories.organizations import OrganizationRepository
+from app.modules.core_data.repositories.water_objects import WaterObjectRepository
+from app.modules.core_data.schemas.water_objects import ListWaterObjectsRequest
+from app.modules.core_data.services.water_objects import WaterObjectService
 
 
 def test_admin_filtering_by_organization_id_returns_only_that_org_objects(

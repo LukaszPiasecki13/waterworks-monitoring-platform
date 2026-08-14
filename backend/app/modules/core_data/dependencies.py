@@ -79,7 +79,9 @@ def get_device_service(
     return DeviceService(repo, water_object_repo, audit)
 
 
-def get_measurement_point_repo(session: Session = Depends(get_db)) -> MeasurementPointRepository:
+def get_measurement_point_repo(
+    session: Session = Depends(get_db),
+) -> MeasurementPointRepository:
     """Get measurement point repository dependency."""
     return MeasurementPointRepository(session)
 

@@ -194,8 +194,8 @@ class AuthService:
             raise AuthenticationError("Invalid refresh token")
         try:
             user_id = UUID(user_id)
-        except (ValueError, TypeError):
-            raise AuthenticationError("Invalid refresh token")
+        except (ValueError, TypeError) as err:
+            raise AuthenticationError("Invalid refresh token") from err
         user = self.repo.get_by_id(user_id)
         if not user or not user.is_active:
             raise AuthenticationError("User not found")

@@ -7,8 +7,8 @@ from sqlalchemy.orm import Session
 from app.modules.core_data.models import Device, Organization, User, WaterObject
 from app.modules.core_data.repositories.devices import DeviceRepository
 from app.modules.core_data.repositories.water_objects import WaterObjectRepository
-from app.modules.core_data.services.devices import DeviceService
 from app.modules.core_data.schemas.devices import ListDevicesRequest
+from app.modules.core_data.services.devices import DeviceService
 
 
 def test_admin_filtering_devices_by_organization_id_returns_only_that_org_devices(

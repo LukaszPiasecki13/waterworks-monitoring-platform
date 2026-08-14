@@ -30,7 +30,9 @@ class DeviceRepository(SQLRepository):
 
     def get_by_external_id(self, external_id: str) -> Device | None:
         """Get device by external ID."""
-        return self.session.query(Device).filter(Device.external_id == external_id).first()
+        return (
+            self.session.query(Device).filter(Device.external_id == external_id).first()
+        )
 
     def list_all_with_org_filter(
         self,
@@ -46,9 +48,9 @@ class DeviceRepository(SQLRepository):
             query = query.filter(Device.water_object_id == water_object_id)
 
         if organization_id is not None:
-            query = query.join(WaterObject, Device.water_object_id == WaterObject.id).filter(
-                WaterObject.organization_id == organization_id
-            )
+            query = query.join(
+                WaterObject, Device.water_object_id == WaterObject.id
+            ).filter(WaterObject.organization_id == organization_id)
 
         return query.order_by(Device.external_id).offset(skip).limit(limit).all()
 
@@ -64,9 +66,9 @@ class DeviceRepository(SQLRepository):
             query = query.filter(Device.water_object_id == water_object_id)
 
         if organization_id is not None:
-            query = query.join(WaterObject, Device.water_object_id == WaterObject.id).filter(
-                WaterObject.organization_id == organization_id
-            )
+            query = query.join(
+                WaterObject, Device.water_object_id == WaterObject.id
+            ).filter(WaterObject.organization_id == organization_id)
 
         return query.scalar() or 0
 

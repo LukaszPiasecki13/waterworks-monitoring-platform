@@ -4,12 +4,22 @@ from uuid import uuid4
 
 from sqlalchemy.orm import Session
 
-from app.modules.core_data.models import Device, MeasurementPoint, Organization, User, WaterObject
-from app.modules.core_data.repositories.measurement_points import MeasurementPointRepository
+from app.modules.core_data.models import (
+    Device,
+    MeasurementPoint,
+    Organization,
+    User,
+    WaterObject,
+)
 from app.modules.core_data.repositories.devices import DeviceRepository
+from app.modules.core_data.repositories.measurement_points import (
+    MeasurementPointRepository,
+)
 from app.modules.core_data.repositories.water_objects import WaterObjectRepository
+from app.modules.core_data.schemas.measurement_points import (
+    ListMeasurementPointsRequest,
+)
 from app.modules.core_data.services.measurement_points import MeasurementPointService
-from app.modules.core_data.schemas.measurement_points import ListMeasurementPointsRequest
 
 
 def test_admin_filtering_measurement_points_by_organization_id(

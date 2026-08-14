@@ -1,7 +1,6 @@
 """Telemetry packet repository."""
 
 from datetime import datetime
-from uuid import UUID
 
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
@@ -33,16 +32,22 @@ class TelemetryPacketRepository(SQLRepository):
         packet: MeasurementPacketRequest,
         received_at: datetime,
     ) -> TelemetryPacket:
-        device = self.session.query(Device).filter(
-            Device.external_id == packet.device_id
-        ).first()
+        device = (
+            self.session.query(Device)
+            .filter(Device.external_id == packet.device_id)
+            .first()
+        )
 
         if not device:
-            raise NotFoundError(f"Device with external_id '{packet.device_id}' not found")
+            raise NotFoundError(
+                f"Device with external_id '{packet.device_id}' not found"
+            )
 
-        water_object = self.session.query(WaterObject).filter(
-            WaterObject.id == device.water_object_id
-        ).first()
+        water_object = (
+            self.session.query(WaterObject)
+            .filter(WaterObject.id == device.water_object_id)
+            .first()
+        )
 
         if not water_object:
             raise NotFoundError(
@@ -64,9 +69,7 @@ class TelemetryPacketRepository(SQLRepository):
         except IntegrityError as exc:
             self.rollback()
             message = (
-                str(exc.orig).lower()
-                if exc.orig is not None
-                else str(exc).lower()
+                str(exc.orig).lower() if exc.orig is not None else str(exc).lower()
             )
             is_unique_device_seq = (
                 "uq_telemetry_packets_device_seq" in message

@@ -1,6 +1,6 @@
 from collections.abc import Generator
 from types import SimpleNamespace
-from uuid import UUID, uuid4
+from uuid import uuid4
 
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
@@ -11,8 +11,9 @@ from app.core.errors import register_error_handlers
 from app.modules.core_data.api.users import router as users_router
 from app.modules.core_data.repositories.users import UserRepository
 from app.modules.security.dependencies import get_current_user
-from app.modules.security.models import Permission, UserGroup, security_user_groups
+from app.modules.security.models import UserGroup, security_user_groups
 from app.modules.security.permission_catalog import CAN_VIEW_SECURITY
+from app.modules.security.repositories import PermissionRepository
 
 
 def test_user_repository_filters_and_counts_users(db_session: Session) -> None:
@@ -65,7 +66,9 @@ def test_users_api_supports_admin_crud_flow(api_client) -> None:
 
     list_response = api_client.get("/api/v1/users", params={"search": "panel"})
     assert list_response.status_code == 200
-    assert [user["email"] for user in list_response.json()["items"]] == ["panel@example.com"]
+    assert [user["email"] for user in list_response.json()["items"]] == [
+        "panel@example.com"
+    ]
 
     update_response = api_client.patch(
         f"/api/v1/users/{created['id']}",
@@ -117,11 +120,14 @@ def test_security_group_viewer_can_list_users_for_membership_management(
         status="regular",
         is_active=True,
     )
-    permission = Permission(
-        code=CAN_VIEW_SECURITY,
-        name="View security",
-        category="Security",
-    )
+    repo = PermissionRepository(db_session)
+    permission = repo.get_permission_by_code(CAN_VIEW_SECURITY)
+    if not permission:
+        permission = repo.create_permission(
+            code=CAN_VIEW_SECURITY,
+            name="View security",
+            category="Security",
+        )
     group = UserGroup(name="Security viewers", permissions=[permission])
     db_session.add(group)
     db_session.flush()

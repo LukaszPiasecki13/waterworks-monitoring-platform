@@ -33,11 +33,46 @@ def _user(session: Session, username: str, status: str = "regular") -> User:
     return user
 
 
+def _permission(session: Session, code: str, name: str, category: str) -> Permission:
+    """Permission codes are reference data (see permission_catalog.py) that may
+    already exist in the target database, so reuse rather than duplicate."""
+    existing = PermissionRepository(session).get_permission_by_code(code)
+    if existing:
+        return existing
+    permission = Permission(code=code, name=name, category=category)
+    session.add(permission)
+    session.flush()
+    return permission
+
+
+def _system_group(
+    session: Session,
+    system_key: str,
+    name: str,
+    permissions: list[Permission] | None = None,
+) -> UserGroup:
+    """System groups (system_key) are singletons synced by SecuritySeedService,
+    so reuse the existing row rather than inserting a duplicate."""
+    existing = PermissionRepository(session).get_group_by_system_key(system_key)
+    if existing:
+        return existing
+    group = UserGroup(
+        name=name,
+        description="Protected",
+        is_system=True,
+        system_key=system_key,
+        permissions=permissions or [],
+    )
+    session.add(group)
+    session.flush()
+    return group
+
+
 def test_user_inherits_union_of_permissions_from_multiple_groups(
     db_session: Session,
 ) -> None:
-    view = Permission(code="CAN_VIEW_USERS", name="View", category="Users")
-    manage = Permission(code="CAN_MANAGE_USERS", name="Manage", category="Users")
+    view = _permission(db_session, "CAN_VIEW_USERS", "View", "Users")
+    manage = _permission(db_session, "CAN_MANAGE_USERS", "Manage", "Users")
     first = UserGroup(name="Data provider", permissions=[view])
     second = UserGroup(name="Reviewer", permissions=[manage])
     user = _user(db_session, "ala")
@@ -54,13 +89,7 @@ def test_user_inherits_union_of_permissions_from_multiple_groups(
 
 
 def test_system_group_definition_cannot_be_modified(db_session: Session) -> None:
-    group = UserGroup(
-        name="Admin",
-        description="Protected",
-        is_system=True,
-        system_key="admin",
-    )
-    db_session.add(group)
+    group = _system_group(db_session, "admin", "Admin")
     db_session.commit()
 
     with pytest.raises(BadRequestError) as error:
@@ -76,13 +105,7 @@ def test_system_group_definition_cannot_be_modified(db_session: Session) -> None
 def test_system_group_permission_matrix_cannot_be_modified(
     db_session: Session,
 ) -> None:
-    group = UserGroup(
-        name="Admin",
-        description="Protected",
-        is_system=True,
-        system_key="admin",
-    )
-    db_session.add(group)
+    group = _system_group(db_session, "admin", "Admin")
     db_session.commit()
 
     with pytest.raises(BadRequestError) as error:
@@ -95,17 +118,10 @@ def test_staff_group_permissions_are_editable_but_metadata_stays_locked(
     db_session: Session,
 ) -> None:
     """Admins can tune STAFF permissions; name/description stay locked."""
-    view = Permission(code="CAN_VIEW_USERS", name="View", category="Users")
-    manage = Permission(code="CAN_MANAGE_USERS", name="Manage", category="Users")
-    group = UserGroup(
-        name="Staff",
-        description="Protected",
-        is_system=True,
-        system_key="staff",
-        permissions=[view, manage],
-    )
+    _permission(db_session, "CAN_VIEW_USERS", "View", "Users")
+    _permission(db_session, "CAN_MANAGE_USERS", "Manage", "Users")
+    group = _system_group(db_session, "staff", "Staff")
     actor = _user(db_session, "staff-admin", status="admin")
-    db_session.add(group)
     db_session.commit()
 
     service = _service(db_session)
@@ -159,18 +175,9 @@ def test_admin_status_without_group_does_not_grant_permissions(
 def test_default_group_assignment_preserves_explicit_memberships(
     db_session: Session,
 ) -> None:
-    admin_group = UserGroup(
-        name="Admin",
-        is_system=True,
-        system_key="admin",
-    )
-    staff_group = UserGroup(
-        name="Staff",
-        is_system=True,
-        system_key="staff",
-    )
+    admin_group = _system_group(db_session, "admin", "Admin")
+    staff_group = _system_group(db_session, "staff", "Staff")
     user = _user(db_session, "regular-with-admin", status="regular")
-    db_session.add_all([admin_group, staff_group])
     db_session.flush()
     service = _service(db_session)
     service.replace_user_groups(user.id, [admin_group.id], actor=user)
@@ -188,11 +195,11 @@ def test_default_group_assignment_preserves_explicit_memberships(
 
 def test_permission_only_group_change_is_persisted(db_session: Session) -> None:
     """Permission codes are included in the group snapshot."""
-    view = Permission(code="CAN_VIEW_USERS", name="View", category="Users")
-    manage = Permission(code="CAN_MANAGE_USERS", name="Manage", category="Users")
+    view = _permission(db_session, "CAN_VIEW_USERS", "View", "Users")
+    _permission(db_session, "CAN_MANAGE_USERS", "Manage", "Users")
     group = UserGroup(name="Zespol", permissions=[view])
     actor = _user(db_session, "aktor", status="admin")
-    db_session.add_all([view, manage, group])
+    db_session.add(group)
     db_session.commit()
 
     service = _service(db_session)

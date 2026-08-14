@@ -5,12 +5,12 @@ from uuid import uuid4
 
 from sqlalchemy import (
     JSON,
+    UUID,
     BigInteger,
     DateTime,
     Index,
     Integer,
     String,
-    UUID,
     UniqueConstraint,
     func,
 )
@@ -34,9 +34,7 @@ class TelemetryPacket(Base):
         Integer().with_variant(BigInteger(), "postgresql"), nullable=False
     )
 
-    sent_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False
-    )
+    sent_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     received_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False
     )

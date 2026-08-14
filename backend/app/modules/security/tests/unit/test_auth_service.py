@@ -60,7 +60,6 @@ def test_register_rolls_back_when_username_exists(
     session.rollback.assert_called_once()
 
 
-
 def test_login_uses_username_then_email_and_issues_tokens(
     service: AuthService,
     repo: MagicMock,
