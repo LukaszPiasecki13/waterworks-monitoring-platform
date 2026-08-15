@@ -1,25 +1,109 @@
-# Architektura Frontendu
+# Architektura Frontendu — Dokumentacja Techniczna
 
-## Stan serwerowy i cache
+> Odpowiednik frontendowy dokumentu [`01_backend-architecture.md`](./01_backend-architecture.md).
+
+## Spis treści
+
+1. [Stack technologiczny](#1-stack-technologiczny)
+2. [Struktura katalogów](#2-struktura-katalogów)
+3. [Routing i ochrona dostępu](#3-routing-i-ochrona-dostępu)
+4. [Zarządzanie stanem klienta](#4-zarządzanie-stanem-klienta)
+5. [Warstwa danych: services → hooks → React Query](#5-warstwa-danych-services--hooks--react-query)
+6. [Wspólny stan formularzy CRUD — `useCrudPageState`](#6-wspólny-stan-formularzy-crud--usecrudpagestate)
+7. [Stan serwerowy i cache](#7-stan-serwerowy-i-cache)
+8. [Cykl sesji użytkownika](#8-cykl-sesji-użytkownika)
+9. [Obsługa zimnego startu backendu](#9-obsługa-zimnego-startu-backendu)
+10. [Responsywność i dostępność](#10-responsywność-i-dostępność)
+11. [Testowanie](#11-testowanie)
+
+---
+
+## 1. Stack technologiczny
+
+| Warstwa | Technologia |
+|---|---|
+| Framework UI | React + TypeScript, build przez Vite |
+| Routing | `react-router-dom` (v7), `createBrowserRouter` |
+| Stan serwerowy / cache | TanStack React Query |
+| Stan klienta | Zustand + middleware `persist` (localStorage) |
+| HTTP | Axios (dwa dedykowane klienty, patrz sekcja 5) |
+| Stylowanie | Tailwind CSS |
+
+## 2. Struktura katalogów
+
+```text
+frontend/src/
+├─ App.tsx                # drzewo tras (createBrowserRouter) + providery (QueryClientProvider)
+├─ pages/                  # widoki tras — jeden plik na stronę
+├─ components/
+│  ├─ ui/                  # prymitywy design systemu: Button, Dialog, DataTable, Toast...
+│  ├─ layout/              # AppShell, Sidebar, Topbar, OrganizationSwitcher
+│  ├─ dialogs/              # formularze create/edit per encja (DeviceFormDialog, UserFormDialog...)
+│  ├─ dashboard/, objects/, security/   # komponenty domenowe per obszar
+│  ├─ ProtectedRoute.tsx, RequirePermission.tsx   # guardy tras
+│  └─ BackendWakeupPopup.tsx
+├─ hooks/                   # useQuery/useMutation per zasób (useDevices, useUsers, ...)
+│  ├─ queryKeys.ts           # centralna fabryka kluczy React Query
+│  └─ useCrudPageState.ts     # wspólny stan formularzy CRUD (sekcja 6)
+├─ services/                  # cienkie wrappery Axios per zasób REST
+├─ stores/                     # Zustand: authStore, activeOrganizationStore
+├─ lib/                         # api.ts, queryClient.ts, sessionLifecycle.ts, backendWakeup.ts, errors.ts
+├─ types/                        # typy DTO (coreData, telemetry, security, permissions)
+└─ styles/                        # tokens.css
+```
+
+Konwencja warstw danych: `pages/` konsumują `hooks/`, `hooks/` opakowują `services/` w React Query, `services/` jako jedyna warstwa woła `apiClient`/`authClient` z `lib/api.ts`. Wyjątek: `LoginPage` i `AccountPage` wołają `authService` bezpośrednio — logowanie i edycja profilu to akcje sesyjne, nie dane cache'owane przez React Query.
+
+## 3. Routing i ochrona dostępu
+
+`App.tsx` definiuje drzewo tras przez `createBrowserRouter`/`createRoutesFromElements`:
+
+- `/login`, `/forbidden` — publiczne, poza ochroną.
+- Wszystkie pozostałe trasy owinięte w `<ProtectedRoute>`: gdy `authStore.isAuthenticated` jest `false`, przekierowuje na `/login`. Chronione trasy renderują się wewnątrz layoutu `AppShell`.
+- Trasy administracyjne (`/admin/organizations`, `/admin/objects`, `/admin/devices`, `/admin/devices/:deviceId`, `/admin/users`) dodatkowo owinięte w `<RequirePermission>`: przyjmuje pojedyncze `permission` albo listę `permissions` (z opcjonalnym `requireAll`), sprawdza `authStore.hasPermission`/`hasAnyPermission`, przy braku dostępu przekierowuje na `/forbidden`.
+- Nieznane ścieżki (`*`) renderują `NotFoundPage`.
+
+## 4. Zarządzanie stanem klienta
+
+Dwa store'y Zustand, oba z middleware `persist`:
+
+- **`authStore`** — `user`, `permissions`, `groupIds`, `accessToken`/`refreshToken`, `isAuthenticated`. `logout()` jest jedynym poprawnym punktem czyszczenia sesji (patrz sekcja 8).
+- **`activeOrganizationStore`** — wybrana organizacja w kontekście widoków admina (`activeOrganizationId`/`activeOrganizationName`); hooki listujące zasoby (np. `useDevices`) filtrują po niej automatycznie i są `enabled` tylko, gdy organizacja jest wybrana. Czyszczony przez `authStore.logout()`.
+
+## 5. Warstwa danych: services → hooks → React Query
+
+- **`services/<resource>Service.ts`** — cienkie wrappery `apiClient` per zasób REST (`devicesService`, `usersService`, `organizationsService`, `waterObjectsService`, `measurementPointsService`, `securityService`, `telemetryService`, `authService`). Zwracają już rozpakowane dane — np. wyciągają `items` z paginowanej odpowiedzi backendu, nie surowy obiekt odpowiedzi Axios.
+- **`hooks/use<Resource>.ts`** — opakowują `services/` w `useQuery`/`useMutation`. Klucze zapytań scentralizowane w `hooks/queryKeys.ts`, żeby inwalidacja po mutacji trafiała we właściwe zapytania (np. `useCreateDevice` inwaliduje zarówno `devices.all`, jak i `waterObjects.all`, bo nowe urządzenie zmienia też widok obiektu wodociągowego, do którego należy).
+- `lib/api.ts` eksportuje dwa klienty Axios: `authClient` (bez interceptora autoryzacji — używany do logowania i odświeżania tokenu) i `apiClient` (z interceptorami: śledzenie zimnego startu backendu — sekcja 9, wstrzykiwanie nagłówka `Authorization`, automatyczny refresh tokenu przy `401` — sekcja 8).
+
+## 6. Wspólny stan formularzy CRUD — `useCrudPageState`
+
+Strony administracyjne (organizacje, obiekty wodociągowe, urządzenia, punkty pomiarowe, użytkownicy) współdzielą jeden generyczny hook, `hooks/useCrudPageState.ts`, zamiast każda pisać własny stan formularza od zera.
+
+Hook przyjmuje trzy mutacje React Query (`createMutation`/`updateMutation`/`deleteMutation`) i zestaw komunikatów (`CrudMessages`), a zwraca kompletny stan UI strony CRUD: otwarcie/zamknięcie formularza, tryb create/edit (`editingId`), potwierdzenie usunięcia (`deleteId` + `requestDelete`/`cancelDelete`/`confirmDelete`), błędy pól zwrócone przez backend (`serverFieldErrors`, sparsowane przez `parseApiError`) oraz toasty sukcesu/błędu po każdej operacji.
+
+Nowa strona administracyjna CRUD powinna korzystać z tego hooka zamiast duplikować jego logikę.
+
+## 7. Stan serwerowy i cache
 
 - React Query obsługuje dane pobierane z backendu.
 - Aplikacja używa jednej instancji `QueryClient` z
   `frontend/src/lib/queryClient.ts`.
 - Komponenty i store nie powinny tworzyć dodatkowych globalnych klientów.
 
-## Cykl sesji użytkownika
+## 8. Cykl sesji użytkownika
 
 - `useAuthStore.logout()` jest wspólnym punktem ręcznego i automatycznego
   wylogowania.
 - Logout usuwa tokeny, profil użytkownika, cały Query Cache i aktywne komunikaty
   o uruchamianiu backendu.
-- Każde rozpoczęcie lub zakończenie sesji zwiększa rewizję sesji. Odpowiedź z
+- Każde rozpoczęcie lub zakończenie sesji zwiększa rewizję sesji (`lib/sessionLifecycle.ts`). Odpowiedź z
   rozpoczętego wcześniej odświeżania tokenu nie może zapisać tokenów do nowej
-  lub zakończonej sesji.
+  lub zakończonej sesji — `assertSessionUnchanged` porównuje rewizję przechwyconą przed wywołaniem `/auth/token/refresh` z aktualną i rzuca `SessionChangedError`, jeśli sesja zmieniła się w międzyczasie.
 - Nowe ścieżki wylogowania muszą wywoływać akcję store zamiast samodzielnie
   usuwać wybrane klucze z `localStorage`.
 
-## Obsługa zimnego startu backendu
+## 9. Obsługa zimnego startu backendu
 
 - Wszystkie klienty Axios komunikujące się z backendem używają interceptorów z
   `frontend/src/lib/backendWakeup.ts`.
@@ -33,27 +117,14 @@
 - Przy wielu równoległych wolnych requestach popup znika dopiero po odpowiedzi
   ostatniego z nich.
 
-## Responsywność i dostępność
+## 10. Responsywność i dostępność
 
-- Globalny popup musi mieścić się na małych ekranach bez poziomego przewijania.
+- Stylowanie odpowiada za responsywność Tailwind CSS (klasy `sm:`/`md:`/`lg:`) — nie ma osobnego, scentralizowanego dokumentu reguł układu; konwencje żyją w komponentach `components/ui/`.
+- Globalny popup zimnego startu musi mieścić się na małych ekranach bez poziomego przewijania.
 - Komunikat korzysta z `role="status"` i `aria-live="polite"`, aby był ogłaszany
   przez technologie asystujące bez przejmowania fokusu.
-- Pozostałe zasady układu opisuje `frontend-responsive-layout.md`.
 
-## Moduł ankiet
-
-- Wspólne elementy ankiet znajdują się w `frontend/src/features/surveys` i nie
-  zależą od API rekrutacji ani odejść.
-- `SurveyFieldBuilder` odpowiada za roboczą edycję, kolejność i aktywność pól,
-  a `SurveyFieldModal` za konfigurację jednego pytania.
-- `SurveyResponses` zapewnia jednolitą listę, wyszukiwanie i podgląd pełnych
-  odpowiedzi. Moduły biznesowe mapują swoje dane do jego neutralnego kontraktu.
-- Nowe ankiety powinny składać te komponenty z własnymi hookami i serwisami,
-  zamiast kopiować ekrany rekrutacji.
-- Nawigacja rekrutacji rozdziela proces (`Ankiety`, `Wdrażanie`), rodzaj ankiety
-  oraz widok (`Edycja`, `Odpowiedzi`). Stare adresy pozostają przekierowaniami.
-
-## Testowanie
+## 11. Testowanie
 
 - Logout należy testować zarówno bezpośrednio w store, jak i przez automatyczną
   ścieżkę błędu autoryzacji.
