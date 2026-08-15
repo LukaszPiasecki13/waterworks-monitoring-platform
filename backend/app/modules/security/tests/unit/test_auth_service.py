@@ -1,9 +1,11 @@
+from functools import partial
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import pytest
 
 from app.core.errors import AuthenticationError, BadRequestError, ConflictError
+from app.infrastructure.sql.repository import SQLRepository
 from app.modules.security.schemas import LoginRequest, ProfileUpdateRequest
 from app.modules.security.services.auth import AuthService
 
@@ -35,6 +37,9 @@ def service(
     repo.refresh = session.refresh
     repo.commit = session.commit
     repo.rollback = session.rollback
+    # Real transaction boundary over the mocked repo, so commit/rollback
+    # assertions still exercise the production control flow.
+    repo.transaction = partial(SQLRepository.transaction, repo)
     permissions = MagicMock()
     permissions.group_ids_for_user.return_value = []
     return AuthService(repo, token_service, permissions, MagicMock())

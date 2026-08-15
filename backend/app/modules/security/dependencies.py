@@ -90,7 +90,7 @@ def get_current_user(
 
     try:
         user_id = UUID(user_id)
-    except (ValueError, TypeError):
+    except ValueError, TypeError:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid token",

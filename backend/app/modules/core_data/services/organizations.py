@@ -47,22 +47,18 @@ class OrganizationService:
             )
         )
 
-    def get_by_id(self, org_id: UUID, actor: User | None = None):
+    def get_by_id(self, org_id: UUID, actor: User):
         """Get organization by ID with org isolation for non-admins."""
         org = self.repo.find_by_id(org_id)
 
-        if (
-            actor
-            and actor.organization_id is not None
-            and actor.organization_id != org.id
-        ):
+        if actor.organization_id is not None and actor.organization_id != org.id:
             raise NotFoundError(f"Organization with ID {org_id} not found")
 
         return org
 
-    def list_all(self, query, *, actor: User | None = None):
+    def list_all(self, query, *, actor: User):
         """List organizations. Non-admin sees only own org."""
-        if actor and actor.organization_id is not None:
+        if actor.organization_id is not None:
             org = self.repo.get_by_id(actor.organization_id)
             return ([org] if org else [], 1 if org else 0)
 
@@ -72,23 +68,19 @@ class OrganizationService:
 
     def create(self, request: OrganizationCreateRequest, *, actor: User):
         """Create organization."""
-        try:
+        with self.repo.transaction():
             if self.repo.get_by_name(request.name):
                 raise ConflictError(f"Organization '{request.name}' already exists")
             org = self.repo.create(name=request.name)
             self.repo.flush()
             self.repo.refresh(org)
             self._record_audit("CREATE", org, actor, {}, self._state(org))
-            self.repo.commit()
             return org
-        except Exception:
-            self.repo.rollback()
-            raise
 
     def update(self, org_id: UUID, request: OrganizationUpdateRequest, actor: User):
         """Update organization."""
-        try:
-            org = self.get_by_id(org_id)
+        with self.repo.transaction() as tx:
+            org = self.get_by_id(org_id, actor)
             old_state = self._state(org)
             if request.name is not None:
                 existing = self.repo.get_by_name(request.name)
@@ -99,28 +91,20 @@ class OrganizationService:
             self.repo.refresh(org)
             new_state = self._state(org)
             if not calculate_delta(old_state, new_state):
-                self.repo.commit(skip_audit=True)
+                tx.skip_audit()
                 return org
             self._record_audit("UPDATE", org, actor, old_state, new_state)
-            self.repo.commit()
             return org
-        except Exception:
-            self.repo.rollback()
-            raise
 
     def delete(self, org_id: UUID, actor: User) -> None:
         """Delete organization."""
         try:
-            org = self.get_by_id(org_id)
-            old_state = self._state(org)
-            self.repo.delete(org)
-            self._record_audit("DELETE", org, actor, old_state, {})
-            self.repo.commit()
+            with self.repo.transaction():
+                org = self.get_by_id(org_id, actor)
+                old_state = self._state(org)
+                self.repo.delete(org)
+                self._record_audit("DELETE", org, actor, old_state, {})
         except IntegrityError as err:
-            self.repo.rollback()
             raise ConflictError(
                 "Cannot delete organization with related objects"
             ) from err
-        except Exception:
-            self.repo.rollback()
-            raise

@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.core.dependencies import get_db
 from app.core.errors import register_error_handlers
+from app.core.rate_limit import register_rate_limiting
 from app.modules.core_data.repositories import UserRepository
 from app.modules.security.api import router
 from app.modules.security.permission_catalog import STAFF_GROUP_KEY
@@ -22,7 +23,7 @@ def permission_service(session: Session) -> PermissionService:
 
 
 @pytest.fixture
-def auth_client(db_session: Session) -> Generator[TestClient, None, None]:
+def auth_client(db_session: Session) -> Generator[TestClient]:
     repo = PermissionRepository(db_session)
     if not repo.get_group_by_system_key(STAFF_GROUP_KEY):
         # "Staff" is reference data normally synced by SecuritySeedService at
@@ -36,9 +37,10 @@ def auth_client(db_session: Session) -> Generator[TestClient, None, None]:
     db_session.commit()
     app = FastAPI()
     register_error_handlers(app)
+    register_rate_limiting(app)
     app.include_router(router)
 
-    def override_get_db() -> Generator[Session, None, None]:
+    def override_get_db() -> Generator[Session]:
         yield db_session
 
     app.dependency_overrides[get_db] = override_get_db
@@ -116,3 +118,22 @@ def test_login_rejects_wrong_password(auth_client: TestClient) -> None:
 
     assert response.status_code == 401
     assert response.json()["detail"] == "Invalid credentials"
+
+
+def test_login_rate_limited_after_repeated_attempts(auth_client: TestClient) -> None:
+    """The 6th login attempt within a minute is rejected before it reaches
+    AuthService, regardless of whether the credentials are valid."""
+    for _ in range(5):
+        response = auth_client.post(
+            "/auth/token",
+            json={"username": "nobody@example.com", "password": "wrong-password"},
+        )
+        assert response.status_code == 401
+
+    limited_response = auth_client.post(
+        "/auth/token",
+        json={"username": "nobody@example.com", "password": "wrong-password"},
+    )
+
+    assert limited_response.status_code == 429
+    assert limited_response.json() == {"detail": "Too many requests"}

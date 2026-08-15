@@ -1,6 +1,7 @@
 import base64
 import hashlib
 import hmac
+import secrets
 
 import bcrypt
 
@@ -37,3 +38,13 @@ def verify_password(plain: str, hashed: str) -> bool:
     if hashed.startswith("pbkdf2_sha256$"):
         return _verify_pbkdf2_sha256(plain, hashed)
     return _verify_bcrypt(plain, hashed)
+
+
+# Hash of a value no user can authenticate with, verified against when the
+# account does not exist so that login costs the same either way.
+_DUMMY_HASH = hash_password(secrets.token_urlsafe(32))
+
+
+def burn_password_verification(plain: str) -> None:
+    """Spend the cost of a password check without having an account to check."""
+    verify_password(plain, _DUMMY_HASH)

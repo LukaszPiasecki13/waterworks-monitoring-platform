@@ -7,13 +7,12 @@ from sqlalchemy.exc import IntegrityError
 
 from app.core.audit import AuditEntry, AuditPort, EntityType, calculate_delta
 from app.core.errors import ConflictError, NotFoundError
+from app.modules.core_data.models.device import Device
 from app.modules.core_data.models.user import User
 from app.modules.core_data.repositories.devices import DeviceRepository
 from app.modules.core_data.repositories.water_objects import WaterObjectRepository
 from app.modules.core_data.schemas.devices import (
     DeviceCreateRequest,
-    DeviceCreateResponse,
-    DeviceResponse,
     DeviceUpdateRequest,
 )
 from app.modules.core_data.utils.org_scope import assert_same_organization
@@ -73,21 +72,16 @@ class DeviceService:
     def get_by_id(self, device_id: UUID, actor: User):
         """Get device by ID with org isolation."""
         device = self.repo.find_by_id(device_id)
-        water_obj = self.water_object_repo.get_by_id(device.water_object_id)
-        if water_obj:
-            assert_same_organization(actor, water_obj.organization_id)
+        water_obj = self.water_object_repo.find_by_id(device.water_object_id)
+        assert_same_organization(actor, water_obj.organization_id)
         return device
 
-    def list_all(self, query, *, actor: User | None = None):
+    def list_all(self, query, *, actor: User):
         """List devices with org isolation."""
-        if actor and actor.organization_id is not None:
-            org_id = (
-                actor.organization_id
-            )  # non-admin: wymuszone, ignoruje query.organization_id
+        if actor.organization_id is not None:
+            org_id = actor.organization_id
         else:
-            org_id = getattr(
-                query, "organization_id", None
-            )  # admin: z klienta; None = bez filtra
+            org_id = getattr(query, "organization_id", None)
 
         if query.water_object_id is not None and org_id is not None:
             water_obj = self.water_object_repo.get_by_id(query.water_object_id)
@@ -106,17 +100,20 @@ class DeviceService:
         )
         return devices, count
 
-    def create(
-        self, request: DeviceCreateRequest, *, actor: User
-    ) -> DeviceCreateResponse:
-        """Create device, return response with plain_secret."""
-        try:
+    def create(self, request: DeviceCreateRequest, *, actor: User) -> Device:
+        """Create device.
+
+        A secret is still generated and stored (hashed) for when ingest
+        actually verifies it, but is not handed to the operator: ingest
+        currently authenticates via one shared key, so showing this value
+        as if it were a working per-device credential would be misleading.
+        """
+        with self.repo.transaction():
             water_obj = self.water_object_repo.find_by_id(request.water_object_id)
             assert_same_organization(actor, water_obj.organization_id)
             if self.repo.get_by_external_id(request.external_id):
                 raise ConflictError("Device with this external_id already exists")
-            plain_secret = self.generate_secret()
-            hashed_secret = self.hash_secret(plain_secret)
+            hashed_secret = self.hash_secret(self.generate_secret())
             device = self.repo.create(
                 water_object_id=request.water_object_id,
                 external_id=request.external_id,
@@ -126,18 +123,11 @@ class DeviceService:
             self.repo.flush()
             self.repo.refresh(device)
             self._record_audit("CREATE", device, actor, {}, self._state(device))
-            self.repo.commit()
-            response = DeviceResponse.model_validate(device)
-            return DeviceCreateResponse(
-                **response.model_dump(), plain_secret=plain_secret
-            )
-        except Exception:
-            self.repo.rollback()
-            raise
+            return device
 
-    def update(self, device_id: int, request: DeviceUpdateRequest, actor: User):
+    def update(self, device_id: UUID, request: DeviceUpdateRequest, actor: User):
         """Update device."""
-        try:
+        with self.repo.transaction() as tx:
             device = self.get_by_id(device_id, actor)
             old_state = self._state(device)
             self.repo.update(device, **request.model_dump(exclude_unset=True))
@@ -145,28 +135,20 @@ class DeviceService:
             self.repo.refresh(device)
             new_state = self._state(device)
             if not calculate_delta(old_state, new_state):
-                self.repo.commit(skip_audit=True)
+                tx.skip_audit()
                 return device
             self._record_audit("UPDATE", device, actor, old_state, new_state)
-            self.repo.commit()
             return device
-        except Exception:
-            self.repo.rollback()
-            raise
 
     def delete(self, device_id: UUID, actor: User) -> None:
         """Delete device."""
         try:
-            device = self.get_by_id(device_id, actor)
-            old_state = self._state(device)
-            self.repo.delete(device)
-            self._record_audit("DELETE", device, actor, old_state, {})
-            self.repo.commit()
+            with self.repo.transaction():
+                device = self.get_by_id(device_id, actor)
+                old_state = self._state(device)
+                self.repo.delete(device)
+                self._record_audit("DELETE", device, actor, old_state, {})
         except IntegrityError as err:
-            self.repo.rollback()
             raise ConflictError(
                 "Cannot delete device with related measurement points"
             ) from err
-        except Exception:
-            self.repo.rollback()
-            raise

@@ -1,7 +1,9 @@
-"""Security module - JWT token management and authentication."""
-
 from app.modules.security.api import router as security_router
-from app.modules.security.schemas import LoginRequest, Token, TokenRefresh
+from app.modules.security.schemas import (
+    LoginRequest,
+    TokenRefreshRequest,
+    TokenResponse,
+)
 from app.modules.security.services import (
     AuthService,
     TokenService,
@@ -12,8 +14,8 @@ from app.modules.security.services import (
 __all__ = [
     "AuthService",
     "LoginRequest",
-    "Token",
-    "TokenRefresh",
+    "TokenRefreshRequest",
+    "TokenResponse",
     "TokenService",
     "hash_password",
     "security_router",

@@ -1,6 +1,8 @@
 """Telemetry-specific exceptions."""
 
-from app.core.errors import ConflictError, ForbiddenError
+from fastapi import status
+
+from app.core.errors import APIError, ConflictError, ForbiddenError
 
 
 class TelemetryPacketAlreadyExistsError(ConflictError):
@@ -17,3 +19,17 @@ class InvalidTelemetryIngestKeyError(ForbiddenError):
 
     def __init__(self):
         super().__init__("Invalid telemetry ingest key")
+
+
+class TelemetryIngestKeyNotConfiguredError(APIError):
+    """Raised when the deployment has no telemetry ingest key configured.
+
+    A server-side misconfiguration, not a client error: ingest stays closed
+    until TELEMETRY_INGEST_KEY is set.
+    """
+
+    def __init__(self):
+        super().__init__(
+            "Telemetry ingest is not configured",
+            status.HTTP_503_SERVICE_UNAVAILABLE,
+        )

@@ -7,7 +7,10 @@ from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
 from app.core.dependencies import get_db
-from app.modules.telemetry.exceptions import InvalidTelemetryIngestKeyError
+from app.modules.telemetry.exceptions import (
+    InvalidTelemetryIngestKeyError,
+    TelemetryIngestKeyNotConfiguredError,
+)
 from app.modules.telemetry.repositories.packets import TelemetryPacketRepository
 from app.modules.telemetry.repositories.queries import TelemetryQueryRepository
 from app.modules.telemetry.services.ingest import TelemetryIngestService
@@ -17,10 +20,11 @@ from app.modules.telemetry.services.query import TelemetryQueryService
 def verify_telemetry_ingest_key(
     x_device_key: str | None = Header(default=None, alias="X-Device-Key"),
 ) -> None:
+    """Reject ingest requests that do not carry the configured shared key"""
     expected_key = get_settings().telemetry_ingest_key
 
     if not expected_key:
-        return
+        raise TelemetryIngestKeyNotConfiguredError
 
     if x_device_key is None or not secrets.compare_digest(x_device_key, expected_key):
         raise InvalidTelemetryIngestKeyError

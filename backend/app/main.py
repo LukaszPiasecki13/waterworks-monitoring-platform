@@ -10,6 +10,7 @@ from app.core.dependencies import create_session, dispose_sql_engines
 from app.core.errors import register_error_handlers
 from app.core.health import router as health_router
 from app.core.logging import configure_logging
+from app.core.rate_limit import register_rate_limiting
 from app.modules.core_data.api import router as core_data_router
 from app.modules.security.api import router as security_router
 from app.modules.security.dependencies import get_permission_repo
@@ -59,6 +60,7 @@ app.add_middleware(
 )
 
 register_error_handlers(app)
+register_rate_limiting(app)
 
 
 @app.get("/", include_in_schema=False)

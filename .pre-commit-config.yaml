@@ -9,3 +9,26 @@ repos:
       - id: ruff-format
         name: ruff format (backend)
         files: ^backend/
+
+  - repo: local
+    hooks:
+      - id: eslint-frontend
+        name: eslint (frontend)
+        entry: npm --prefix frontend run lint
+        language: system
+        files: ^frontend/
+        pass_filenames: false
+      - id: typecheck-frontend
+        name: tsc --noEmit (frontend)
+        entry: npm --prefix frontend run typecheck
+        language: system
+        files: ^frontend/.*\.(ts|tsx)$
+        pass_filenames: false
+
+  - repo: https://github.com/pre-commit/mirrors-clang-format
+    rev: v22.1.8
+    hooks:
+      - id: clang-format
+        name: clang-format (firmware)
+        files: ^firmware/.*\.(c|cc|cpp|h|hpp)$
+        args: [-i]

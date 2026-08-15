@@ -55,33 +55,31 @@ class MeasurementPointService:
             )
         )
 
+    def _device_organization_id(self, device_id: UUID) -> UUID:
+        """Resolve the organization owning a device."""
+        device = self.device_repo.find_by_id(device_id)
+        water_obj = self.water_object_repo.find_by_id(device.water_object_id)
+        return water_obj.organization_id
+
     def get_by_id(self, point_id: UUID, actor: User):
         """Get measurement point by ID with org isolation."""
         point = self.repo.find_by_id(point_id)
-        device = self.device_repo.get_by_id(point.device_id)
-        if device:
-            water_obj = self.water_object_repo.get_by_id(device.water_object_id)
-            if water_obj:
-                assert_same_organization(actor, water_obj.organization_id)
+        assert_same_organization(actor, self._device_organization_id(point.device_id))
         return point
 
-    def list_all(self, query, *, actor: User | None = None):
+    def list_all(self, query, *, actor: User):
         """List measurement points with org isolation."""
-        if actor and actor.organization_id is not None:
-            org_id = (
-                actor.organization_id
-            )  # non-admin: wymuszone, ignoruje query.organization_id
+        if actor.organization_id is not None:
+            org_id = actor.organization_id
         else:
-            org_id = getattr(
-                query, "organization_id", None
-            )  # admin: z klienta; None = bez filtra
+            org_id = getattr(query, "organization_id", None)
 
-        if query.device_id is not None and org_id is not None:
-            device = self.device_repo.get_by_id(query.device_id)
-            if device:
-                water_obj = self.water_object_repo.get_by_id(device.water_object_id)
-                if water_obj and water_obj.organization_id != org_id:
-                    raise NotFoundError("Device not found")
+        if (
+            query.device_id is not None
+            and org_id is not None
+            and self._device_organization_id(query.device_id) != org_id
+        ):
+            raise NotFoundError("Device not found")
 
         points = self.repo.list_all_with_org_filter(
             organization_id=org_id,
@@ -97,11 +95,10 @@ class MeasurementPointService:
 
     def create(self, request: MeasurementPointCreateRequest, *, actor: User):
         """Create measurement point."""
-        try:
-            device = self.device_repo.find_by_id(request.device_id)
-            water_obj = self.water_object_repo.get_by_id(device.water_object_id)
-            if water_obj:
-                assert_same_organization(actor, water_obj.organization_id)
+        with self.repo.transaction():
+            assert_same_organization(
+                actor, self._device_organization_id(request.device_id)
+            )
             existing = self.repo.get_by_device_and_external_id(
                 request.device_id, request.external_id
             )
@@ -120,17 +117,13 @@ class MeasurementPointService:
             self.repo.flush()
             self.repo.refresh(point)
             self._record_audit("CREATE", point, actor, {}, self._state(point))
-            self.repo.commit()
             return point
-        except Exception:
-            self.repo.rollback()
-            raise
 
     def update(
-        self, point_id: int, request: MeasurementPointUpdateRequest, actor: User
+        self, point_id: UUID, request: MeasurementPointUpdateRequest, actor: User
     ):
         """Update measurement point."""
-        try:
+        with self.repo.transaction() as tx:
             point = self.get_by_id(point_id, actor)
             old_state = self._state(point)
             self.repo.update(point, **request.model_dump(exclude_unset=True))
@@ -138,23 +131,15 @@ class MeasurementPointService:
             self.repo.refresh(point)
             new_state = self._state(point)
             if not calculate_delta(old_state, new_state):
-                self.repo.commit(skip_audit=True)
+                tx.skip_audit()
                 return point
             self._record_audit("UPDATE", point, actor, old_state, new_state)
-            self.repo.commit()
             return point
-        except Exception:
-            self.repo.rollback()
-            raise
 
-    def delete(self, point_id: int, actor: User) -> None:
+    def delete(self, point_id: UUID, actor: User) -> None:
         """Delete measurement point."""
-        try:
+        with self.repo.transaction():
             point = self.get_by_id(point_id, actor)
             old_state = self._state(point)
             self.repo.delete(point)
             self._record_audit("DELETE", point, actor, old_state, {})
-            self.repo.commit()
-        except Exception:
-            self.repo.rollback()
-            raise

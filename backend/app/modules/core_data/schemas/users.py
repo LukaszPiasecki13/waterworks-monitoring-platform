@@ -17,34 +17,6 @@ class PaginatedResponse[T](BaseModel):
     limit: int
 
 
-class UserRegisterRequest(BaseModel):
-    """User registration request."""
-
-    username: str = Field(..., min_length=3, max_length=150)
-    email: EmailStr
-    password: str = Field(..., min_length=6, max_length=72)
-    first_name: str = Field(default="", max_length=150)
-    last_name: str = Field(default="", max_length=150)
-    status: UserStatus = "regular"
-
-
-class UserLoginRequest(BaseModel):
-    """User login request - supports email or username."""
-
-    username: str = Field(...)  # Can be username or email
-    password: str = Field(...)
-
-
-class TokenResponse(BaseModel):
-    """Token response."""
-
-    access: str = Field(alias="access_token")
-    refresh: str = Field(alias="refresh_token")
-    token_type: str = "bearer"
-
-    model_config = ConfigDict(populate_by_name=True)
-
-
 class UserResponse(BaseModel):
     """User response DTO."""
 
@@ -91,6 +63,7 @@ class ListUsersRequest(BaseModel):
 
     skip: int = Field(0, ge=0)
     limit: int = Field(100, ge=1, le=1000)
+    organization_id: UUID | None = None
     search: str | None = None
     status: UserStatus | None = None
     is_active: bool | None = None

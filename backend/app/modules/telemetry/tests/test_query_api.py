@@ -2,6 +2,7 @@
 
 from collections.abc import Generator
 from datetime import UTC, datetime, timedelta
+from uuid import uuid4
 
 import pytest
 from fastapi import FastAPI
@@ -16,7 +17,7 @@ from app.modules.security.dependencies import get_current_user
 from app.modules.telemetry.api.query import router as query_router
 from app.modules.telemetry.models.measurement_packet import TelemetryPacket
 from app.modules.telemetry.repositories.queries import TelemetryQueryRepository
-from app.modules.telemetry.schemas.query import LatestPointValue
+from app.modules.telemetry.schemas.query import GetMeasurementsRequest, LatestPointValue
 from app.modules.telemetry.services.query import TelemetryQueryService
 
 
@@ -24,7 +25,7 @@ from app.modules.telemetry.services.query import TelemetryQueryService
 def telemetry_user(db_session: Session) -> User:
     """Create a test user for telemetry queries."""
     user = User(
-        id=100,
+        id=uuid4(),
         username="telemetry_user",
         email="telemetry@example.com",
         first_name="Test",
@@ -44,13 +45,13 @@ def telemetry_user(db_session: Session) -> User:
 def telemetry_client(
     db_session: Session,
     telemetry_user: User,
-) -> Generator[TestClient, None, None]:
+) -> Generator[TestClient]:
     """FastAPI test client with telemetry router and mocked auth."""
     app = FastAPI()
     register_error_handlers(app)
     app.include_router(query_router, prefix="/api/v1")
 
-    def override_get_db() -> Generator[Session, None, None]:
+    def override_get_db() -> Generator[Session]:
         yield db_session
 
     app.dependency_overrides[get_db] = override_get_db
@@ -101,8 +102,6 @@ def test_query_service_unpacks_latest_points(sample_packet_data, db_session: Ses
 
     packet = TelemetryPacket(
         device_id="esp32-test-001",
-        org_id="test-org",
-        object_id="pump-station-01",
         seq=1,
         sent_at=datetime.now(UTC),
         received_at=datetime.now(UTC),
@@ -151,12 +150,14 @@ def test_query_service_compute_status_warning(db_session: Session):
     points = [
         LatestPointValue(
             point_id="pressure",
+            point_name="pressure",
             type="pressure",
             unit="bar",
             value=2.1,
             quality="sensor_error",
             measured_at=datetime.now(UTC),
             device_id="esp32-test-002",
+            device_name="esp32-test-002",
         )
     ]
 
@@ -173,12 +174,14 @@ def test_query_service_compute_status_ok(db_session: Session):
     points = [
         LatestPointValue(
             point_id="pressure",
+            point_name="pressure",
             type="pressure",
             unit="bar",
             value=3.5,
             quality="good",
             measured_at=datetime.now(UTC),
             device_id="esp32-test-001",
+            device_name="esp32-test-001",
         )
     ]
 
@@ -186,14 +189,20 @@ def test_query_service_compute_status_ok(db_session: Session):
     assert status == "ok"
 
 
-def test_query_service_get_measurements_not_found(db_session: Session):
+def test_query_service_get_measurements_not_found(
+    db_session: Session, telemetry_user: User
+):
     """Test that get_measurements raises NotFoundError for unknown object."""
     settings = get_settings()
     repo = TelemetryQueryRepository(db_session)
     service = TelemetryQueryService(repo, settings)
 
     with pytest.raises(NotFoundError):
-        service.get_measurements(object_id="unknown-object")
+        service.get_measurements(
+            user=telemetry_user,
+            object_id=uuid4(),
+            query=GetMeasurementsRequest(),
+        )
 
 
 def test_api_list_objects_requires_auth(db_session: Session):
@@ -202,7 +211,7 @@ def test_api_list_objects_requires_auth(db_session: Session):
     register_error_handlers(app)
     app.include_router(query_router, prefix="/api/v1")
 
-    def override_get_db() -> Generator[Session, None, None]:
+    def override_get_db() -> Generator[Session]:
         yield db_session
 
     app.dependency_overrides[get_db] = override_get_db
@@ -225,6 +234,12 @@ def test_api_list_objects_empty(telemetry_client: TestClient):
 
 
 def test_api_get_object_detail_not_found(telemetry_client: TestClient):
-    """Test get_object_detail returns 404 for unknown object."""
-    response = telemetry_client.get("/api/v1/telemetry/objects/unknown-object")
+    """Test get_object_detail returns 404 for a well-formed but unknown object id."""
+    response = telemetry_client.get(f"/api/v1/telemetry/objects/{uuid4()}")
     assert response.status_code == 404
+
+
+def test_api_get_object_detail_invalid_id_format(telemetry_client: TestClient):
+    """Test get_object_detail returns 422 for an object id that is not a UUID."""
+    response = telemetry_client.get("/api/v1/telemetry/objects/unknown-object")
+    assert response.status_code == 422

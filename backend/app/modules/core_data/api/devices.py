@@ -8,7 +8,6 @@ from app.modules.core_data.dependencies import get_device_service
 from app.modules.core_data.models import User
 from app.modules.core_data.schemas.devices import (
     DeviceCreateRequest,
-    DeviceCreateResponse,
     DeviceResponse,
     DeviceUpdateRequest,
     ListDevicesRequest,
@@ -40,13 +39,13 @@ def list_devices(
     )
 
 
-@router.post("", response_model=DeviceCreateResponse)
+@router.post("", response_model=DeviceResponse)
 def create_device(
     request: DeviceCreateRequest,
     service: DeviceService = Depends(get_device_service),
     user: User = Depends(require_permission(CAN_MANAGE_ASSETS)),
 ):
-    """Create device (returns plain secret, shown only once)."""
+    """Create device."""
     return service.create(request, actor=user)
 
 

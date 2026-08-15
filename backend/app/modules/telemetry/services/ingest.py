@@ -30,7 +30,8 @@ class TelemetryIngestService:
         received_at = datetime.now(UTC)
 
         try:
-            self._repository.create(packet=packet, received_at=received_at)
+            with self._repository.transaction(skip_audit=True):
+                self._repository.create(packet=packet, received_at=received_at)
         except TelemetryPacketAlreadyExistsError:
             return TelemetryIngestResponse(
                 status="duplicate",

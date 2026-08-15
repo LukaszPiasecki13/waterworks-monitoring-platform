@@ -75,7 +75,7 @@ class Settings(BaseSettings):
         return level
 
     @model_validator(mode="after")
-    def enforce_production_hardening(self) -> "Settings":
+    def enforce_production_hardening(self) -> Settings:
         """Fail fast instead of booting a deployment with unsafe defaults."""
         if not self.is_production:
             return self
@@ -83,6 +83,10 @@ class Settings(BaseSettings):
             raise ValueError("secret_key must be at least 32 characters outside dev")
         if not self.telemetry_ingest_key:
             raise ValueError("telemetry_ingest_key is required outside dev")
+        # An empty list is rejected too: main.py falls back to a wildcard when
+        # no origin is configured, so "unset" is as unsafe as an explicit "*".
+        if not self.cors_origins:
+            raise ValueError("cors_origins must be set outside dev")
         if "*" in self.cors_origins:
             raise ValueError("cors_origins must not be a wildcard outside dev")
         return self

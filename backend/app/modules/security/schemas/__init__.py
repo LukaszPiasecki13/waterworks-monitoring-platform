@@ -4,8 +4,8 @@ from .auth import (
     LoginRequest,
     ProfileUpdateRequest,
     RegisterRequest,
-    Token,
-    TokenRefresh,
+    TokenRefreshRequest,
+    TokenResponse,
     UserResponse,
 )
 from .permissions import (
@@ -28,8 +28,8 @@ __all__ = [
     "PermissionResponse",
     "ProfileUpdateRequest",
     "RegisterRequest",
-    "Token",
-    "TokenRefresh",
+    "TokenRefreshRequest",
+    "TokenResponse",
     "UserGroupCreateRequest",
     "UserGroupResponse",
     "UserGroupSaveRequest",

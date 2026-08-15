@@ -41,6 +41,7 @@ class UserRepository(SQLRepository):
         self,
         skip: int = 0,
         limit: int = 100,
+        organization_id: UUID | None = None,
         search: str | None = None,
         status: str | None = None,
         is_active: bool | None = None,
@@ -48,6 +49,8 @@ class UserRepository(SQLRepository):
         """List users with optional search and filters."""
         query = self.session.query(User)
 
+        if organization_id is not None:
+            query = query.filter(User.organization_id == organization_id)
         if search:
             pattern = f"%{search}%"
             query = query.filter(
@@ -72,6 +75,7 @@ class UserRepository(SQLRepository):
 
     def count(
         self,
+        organization_id: UUID | None = None,
         search: str | None = None,
         status: str | None = None,
         is_active: bool | None = None,
@@ -79,6 +83,8 @@ class UserRepository(SQLRepository):
         """Count users with optional search and filters."""
         query = self.session.query(func.count(User.id))
 
+        if organization_id is not None:
+            query = query.filter(User.organization_id == organization_id)
         if search:
             pattern = f"%{search}%"
             query = query.filter(

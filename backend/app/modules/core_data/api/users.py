@@ -31,10 +31,10 @@ router = APIRouter(prefix="/users", tags=["users"])
 def list_users(
     query: ListUsersRequest = Depends(),
     service: UserService = Depends(get_user_service),
-    _user: User = Depends(require_any_permission(CAN_VIEW_USERS, CAN_VIEW_SECURITY)),
+    user: User = Depends(require_any_permission(CAN_VIEW_USERS, CAN_VIEW_SECURITY)),
 ):
     """List users with optional filters."""
-    users, total = service.list_users(query)
+    users, total = service.list_users(query, actor=user)
     return PaginatedResponse(
         items=users,
         total=total,
@@ -57,10 +57,10 @@ def create_user(
 def get_user(
     user_id: UUID,
     service: UserService = Depends(get_user_service),
-    _user: User = Depends(require_any_permission(CAN_VIEW_USERS, CAN_VIEW_SECURITY)),
+    user: User = Depends(require_any_permission(CAN_VIEW_USERS, CAN_VIEW_SECURITY)),
 ):
     """Get user by ID."""
-    return service.get_user_by_id(user_id)
+    return service.get_user_by_id(user_id, actor=user)
 
 
 @router.patch("/{user_id}", response_model=UserResponse)
@@ -92,9 +92,9 @@ def user_audit_history(
     offset: int = Query(0, ge=0),
     service: UserService = Depends(get_user_service),
     audit: AuditReaderPort = Depends(get_audit_reader),
-    _user: User = Depends(require_any_permission(CAN_VIEW_USERS, CAN_VIEW_SECURITY)),
+    user: User = Depends(require_any_permission(CAN_VIEW_USERS, CAN_VIEW_SECURITY)),
 ):
-    service.get_user_by_id(user_id)
+    service.get_user_by_id(user_id, actor=user)
     return audit.get_logs_for_entity(
         EntityType.CORE_DATA_USER.value,
         str(user_id),

@@ -62,8 +62,8 @@ class PermissionService:
         self,
         user: User,
         actor: User,
-        old_group_ids: list[int],
-        new_group_ids: list[int],
+        old_group_ids: list[UUID],
+        new_group_ids: list[UUID],
     ) -> None:
         self.audit.record(
             AuditEntry(
@@ -79,7 +79,7 @@ class PermissionService:
             )
         )
 
-    def _capture_user_groups(self, user_ids: set[UUID]) -> dict[UUID, list[int]]:
+    def _capture_user_groups(self, user_ids: set[UUID]) -> dict[UUID, list[UUID]]:
         return {
             user_id: sorted(self.repo.group_ids_for_user(user_id))
             for user_id in user_ids
@@ -87,7 +87,7 @@ class PermissionService:
 
     def _record_membership_changes(
         self,
-        before: dict[UUID, list[int]],
+        before: dict[UUID, list[UUID]],
         actor: User,
     ) -> None:
         for user_id, old_group_ids in before.items():
@@ -122,7 +122,7 @@ class PermissionService:
         *,
         actor: User,
     ) -> dict:
-        try:
+        with self.repo.transaction():
             if any(
                 group.name.casefold() == request.name.casefold()
                 for group in self.repo.list_groups()
@@ -136,11 +136,7 @@ class PermissionService:
             self.repo.flush()
             self.repo.refresh(group)
             self._record_group("CREATE", group, actor, {}, self._group_state(group))
-            self.repo.commit()
             return self._serialize_group(group)
-        except Exception:
-            self.repo.rollback()
-            raise
 
     def update_group(
         self,
@@ -148,7 +144,7 @@ class PermissionService:
         request: UserGroupUpdateRequest,
         actor: User,
     ) -> dict:
-        try:
+        with self.repo.transaction() as tx:
             group = self.get_group(group_id)
             old_state = self._group_state(group)
             self._ensure_custom_group(group)
@@ -168,19 +164,15 @@ class PermissionService:
             self.repo.refresh(group)
             new_state = self._group_state(group)
             if not calculate_delta(old_state, new_state):
-                self.repo.commit(skip_audit=True)
+                tx.skip_audit()
                 return self._serialize_group(group)
             self._record_group("UPDATE", group, actor, old_state, new_state)
-            self.repo.commit()
             return self._serialize_group(group)
-        except Exception:
-            self.repo.rollback()
-            raise
 
     def replace_group_permissions(
         self, group_id: UUID, codes: list[str], actor: User
     ) -> dict:
-        try:
+        with self.repo.transaction() as tx:
             group = self.get_group(group_id)
             old_state = self._group_state(group)
             self._ensure_permissions_editable(group)
@@ -189,14 +181,10 @@ class PermissionService:
             self.repo.refresh(group)
             new_state = self._group_state(group)
             if not calculate_delta(old_state, new_state):
-                self.repo.commit(skip_audit=True)
+                tx.skip_audit()
                 return self._serialize_group(group)
             self._record_group("PERMISSIONS_UPDATE", group, actor, old_state, new_state)
-            self.repo.commit()
             return self._serialize_group(group)
-        except Exception:
-            self.repo.rollback()
-            raise
 
     def save_group(
         self,
@@ -207,7 +195,7 @@ class PermissionService:
     ) -> dict:
         """Save metadata, permissions and members atomically."""
 
-        try:
+        with self.repo.transaction() as tx:
             group = self.repo.get_group_for_update(group_id)
             if not group:
                 raise NotFoundError("Grupa użytkowników nie istnieje")
@@ -249,20 +237,16 @@ class PermissionService:
             self.repo.refresh(group)
             new_state = self._group_state(group)
             if not calculate_delta(old_state, new_state):
-                self.repo.commit(skip_audit=True)
+                tx.skip_audit()
                 return self._serialize_group(group)
             self._record_group("UPDATE", group, actor, old_state, new_state)
             self._record_membership_changes(user_groups_before, actor)
-            self.repo.commit()
             return self._serialize_group(group)
-        except Exception:
-            self.repo.rollback()
-            raise
 
     def replace_group_users(
         self, group_id: UUID, user_ids: list[UUID], actor: User
     ) -> dict:
-        try:
+        with self.repo.transaction() as tx:
             group = self.repo.get_group_for_update(group_id)
             if not group:
                 raise NotFoundError("Grupa użytkowników nie istnieje")
@@ -276,20 +260,16 @@ class PermissionService:
             self.repo.flush()
             new_state = self._group_state(group)
             if not calculate_delta(old_state, new_state):
-                self.repo.commit(skip_audit=True)
+                tx.skip_audit()
                 return self._serialize_group(group)
             self._record_group("MEMBERS_UPDATE", group, actor, old_state, new_state)
             self._record_membership_changes(user_groups_before, actor)
-            self.repo.commit()
             return self._serialize_group(group)
-        except Exception:
-            self.repo.rollback()
-            raise
 
     def replace_user_groups(
-        self, user_id: UUID, group_ids: list[int], actor: User
-    ) -> list[int]:
-        try:
+        self, user_id: UUID, group_ids: list[UUID], actor: User
+    ) -> list[UUID]:
+        with self.repo.transaction() as tx:
             user = self.users.get_by_id(user_id)
             if not user:
                 raise NotFoundError("Użytkownik nie istnieje")
@@ -317,7 +297,7 @@ class PermissionService:
             self.repo.flush()
             new_ids = sorted(ids)
             if old_ids == new_ids:
-                self.repo.commit(skip_audit=True)
+                tx.skip_audit()
                 return old_ids
             self._record_user_groups(user, actor, old_ids, new_ids)
             for group_id, old_state in group_states_before.items():
@@ -329,11 +309,7 @@ class PermissionService:
                     old_state,
                     self._group_state(group),
                 )
-            self.repo.commit()
             return sorted(ids)
-        except Exception:
-            self.repo.rollback()
-            raise
 
     def assign_default_group(self, user: User, actor: User | None = None) -> None:
         """Add the default system group without replacing explicit memberships."""
@@ -383,7 +359,7 @@ class PermissionService:
                 )
 
     def delete_group(self, group_id: UUID, actor: User) -> None:
-        try:
+        with self.repo.transaction():
             group = self.get_group(group_id)
             old_state = self._group_state(group)
             affected_user_ids = set(old_state["user_ids"])
@@ -393,10 +369,6 @@ class PermissionService:
             self.repo.flush()
             self._record_group("DELETE", group, actor, old_state, {})
             self._record_membership_changes(user_groups_before, actor)
-            self.repo.commit()
-        except Exception:
-            self.repo.rollback()
-            raise
 
     def group_ids_for_user(self, user_id: UUID) -> list[UUID]:
         if not self.users.get_by_id(user_id):
@@ -419,7 +391,7 @@ class PermissionService:
         if missing:
             raise NotFoundError(f"Nie istnieją użytkownicy: {missing}")
 
-    def _protect_last_admin(self, group: UserGroup, new_user_ids: set[int]) -> None:
+    def _protect_last_admin(self, group: UserGroup, new_user_ids: set[UUID]) -> None:
         if group.system_key != ADMIN_GROUP_KEY:
             return
         if not new_user_ids:

@@ -1,3 +1,4 @@
+from functools import partial
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 from uuid import UUID, uuid4
@@ -5,7 +6,12 @@ from uuid import UUID, uuid4
 import pytest
 
 from app.core.errors import BadRequestError, ConflictError, NotFoundError
-from app.modules.core_data.schemas.users import UserCreateRequest, UserUpdateRequest
+from app.infrastructure.sql.repository import SQLRepository
+from app.modules.core_data.schemas.users import (
+    ListUsersRequest,
+    UserCreateRequest,
+    UserUpdateRequest,
+)
 from app.modules.core_data.services.users import UserService
 
 
@@ -30,6 +36,7 @@ def service(session: MagicMock, repo: MagicMock) -> UserService:
     repo.refresh = session.refresh
     repo.commit = session.commit
     repo.rollback = session.rollback
+    repo.transaction = partial(SQLRepository.transaction, repo)
     service.settings = SimpleNamespace(
         secret_key="test-secret",
         algorithm="HS256",
@@ -58,6 +65,7 @@ def test_create_user_normalizes_credentials_hashes_password_and_commits(
         last_name="Admin",
         status="admin",
         is_active=False,
+        organization_id=None,
     )
     repo.get_by_username.return_value = None
     repo.get_by_email.return_value = None
@@ -135,6 +143,7 @@ def test_update_user_normalizes_unique_fields_and_hashes_password(
         last_name="",
         status="regular",
         is_active=True,
+        organization_id=None,
     )
     repo.find_by_id.return_value = user
     repo.get_by_username.return_value = None
@@ -184,6 +193,7 @@ def test_update_user_rejects_duplicate_username(
         last_name="",
         status="regular",
         is_active=True,
+        organization_id=None,
     )
     repo.find_by_id.return_value = user
     repo.get_by_username.return_value = SimpleNamespace(id=uuid4())
@@ -220,4 +230,71 @@ def test_get_user_by_id_raises_not_found_when_missing(
     repo.find_by_id.side_effect = NotFoundError("User not found")
 
     with pytest.raises(NotFoundError):
-        service.get_user_by_id(uuid4())
+        service.get_user_by_id(uuid4(), actor=actor())
+
+
+def test_get_user_by_id_hides_user_from_another_organization(
+    service: UserService,
+    repo: MagicMock,
+) -> None:
+    repo.find_by_id.return_value = SimpleNamespace(
+        id=uuid4(),
+        organization_id=uuid4(),
+    )
+    tenant_actor = SimpleNamespace(
+        id=uuid4(),
+        email="tenant@example.com",
+        organization_id=uuid4(),
+    )
+
+    with pytest.raises(NotFoundError):
+        service.get_user_by_id(uuid4(), actor=tenant_actor)
+
+
+def test_update_user_cannot_target_another_organization(
+    service: UserService,
+    repo: MagicMock,
+    session: MagicMock,
+) -> None:
+    """A tenant admin must not be able to reset a foreign user's password."""
+    repo.find_by_id.return_value = SimpleNamespace(
+        id=uuid4(),
+        organization_id=uuid4(),
+    )
+    tenant_actor = SimpleNamespace(
+        id=uuid4(),
+        email="tenant@example.com",
+        organization_id=uuid4(),
+    )
+
+    with pytest.raises(NotFoundError):
+        service.update_user(
+            uuid4(),
+            UserUpdateRequest(password="TakeoverPass123"),
+            actor=tenant_actor,
+        )
+
+    repo.update.assert_not_called()
+    session.rollback.assert_called_once()
+
+
+def test_list_users_pins_non_admin_to_own_organization(
+    service: UserService,
+    repo: MagicMock,
+) -> None:
+    own_org = uuid4()
+    tenant_actor = SimpleNamespace(
+        id=uuid4(),
+        email="tenant@example.com",
+        organization_id=own_org,
+    )
+    repo.list_all.return_value = []
+    repo.count.return_value = 0
+
+    service.list_users(
+        ListUsersRequest(organization_id=uuid4()),
+        actor=tenant_actor,
+    )
+
+    assert repo.list_all.call_args.kwargs["organization_id"] == own_org
+    assert repo.count.call_args.kwargs["organization_id"] == own_org

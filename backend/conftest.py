@@ -25,6 +25,7 @@ os.environ.setdefault("SECRET_KEY", "test-secret-key-at-least-32-chars-long!")
 from app.core.config import get_settings
 from app.core.dependencies import get_db
 from app.core.errors import register_error_handlers
+from app.core.rate_limit import limiter
 from app.infrastructure.sql import models_registry  # noqa: F401
 from app.modules.core_data.api.users import router as users_router
 from app.modules.core_data.models import User
@@ -40,7 +41,7 @@ from app.modules.security.services.seed import SecuritySeedService
 
 
 @pytest.fixture
-def db_engine() -> Generator[Engine, None, None]:
+def db_engine() -> Generator[Engine]:
     """Engine for the configured database.
 
     Schema is owned by Alembic migrations, not by tests. DATABASE_URL may
@@ -56,7 +57,7 @@ def db_engine() -> Generator[Engine, None, None]:
 
 
 @pytest.fixture
-def db_session(db_engine: Engine) -> Generator[Session, None, None]:
+def db_session(db_engine: Engine) -> Generator[Session]:
     """Session bound to a connection whose outer transaction is rolled back
     after the test. A SAVEPOINT is restarted after every commit/rollback so
     test code can call session.commit() freely without ending the outer
@@ -95,11 +96,24 @@ def db_session(db_engine: Engine) -> Generator[Session, None, None]:
 
 
 @pytest.fixture(autouse=True)
-def clear_settings_cache() -> Generator[None, None, None]:
+def clear_settings_cache() -> Generator[None]:
     """Keep env-var driven settings from leaking between tests."""
     get_settings.cache_clear()
     yield
     get_settings.cache_clear()
+
+
+@pytest.fixture(autouse=True)
+def reset_rate_limiter() -> Generator[None]:
+    """Reset slowapi's in-memory counters between tests.
+
+    TestClient requests all share one synthetic remote address, so without
+    this every test hitting a rate-limited endpoint would draw down the same
+    bucket as every other test in the run.
+    """
+    limiter.reset()
+    yield
+    limiter.reset()
 
 
 @pytest.fixture
@@ -157,13 +171,13 @@ def admin_user(db_session: Session) -> User:
 def api_client(
     db_session: Session,
     admin_user: User,
-) -> Generator[TestClient, None, None]:
+) -> Generator[TestClient]:
     app = FastAPI()
     register_error_handlers(app)
     app.include_router(security_router)
     app.include_router(users_router, prefix="/api/v1")
 
-    def override_get_db() -> Generator[Session, None, None]:
+    def override_get_db() -> Generator[Session]:
         yield db_session
 
     app.dependency_overrides[get_db] = override_get_db

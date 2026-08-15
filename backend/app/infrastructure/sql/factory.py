@@ -106,10 +106,10 @@ class SQLConnectionFactory:
     def get_session_dependency(
         self,
         session_factory: sessionmaker[Session] | scoped_session[Session],
-    ) -> Callable[[], Generator[Session, None, None]]:
+    ) -> Callable[[], Generator[Session]]:
         """Create FastAPI dependency function for database sessions."""
 
-        def session_generator() -> Generator[Session, None, None]:
+        def session_generator() -> Generator[Session]:
             session = session_factory()
             try:
                 yield session
@@ -131,6 +131,3 @@ class SQLConnectionFactory:
             except Exception as exc:
                 logger.warning("Error disposing engine for %s: %s", _mask_url(url), exc)
         self._engines.clear()
-
-
-sql_factory = SQLConnectionFactory()

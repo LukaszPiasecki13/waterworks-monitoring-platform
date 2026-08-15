@@ -4,7 +4,7 @@ FastAPI backend z SQLAlchemy ORM i Alembic do migracji.
 
 ## 📋 Wymagania
 
-- **Python:** 3.12+
+- **Python:** 3.14+
 - **Database:** PostgreSQL 14+
 - **Inne:** pip, Alembic
 

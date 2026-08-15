@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "fastapi-backend"
 version = "0.1.0"
 description = "FastAPI Backend with PostgreSQL, SQLAlchemy, and Alembic"
-requires-python = ">=3.12"
+requires-python = ">=3.14"
 
 dependencies = [
     "fastapi>=0.104.0",
@@ -21,6 +21,7 @@ dependencies = [
     "passlib[bcrypt]>=1.7.0",
     "python-dotenv>=1.0.0",
     "python-multipart>=0.0.22",
+    "slowapi>=0.1.10",
 ]
 
 [project.optional-dependencies]
@@ -38,7 +39,7 @@ exclude = ["alembic*", "seed*"]
 
 [tool.ruff]
 line-length = 88
-target-version = "py312"
+target-version = "py314"
 indent-width = 4
 exclude = [
     ".venv",
@@ -86,7 +87,7 @@ skip-magic-trailing-comma = false
 line-ending = "auto"
 
 [tool.mypy]
-python_version = "3.12"
+python_version = "3.14"
 cache_dir = ".mypy_cache"
 incremental = true
 explicit_package_bases = true

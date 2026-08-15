@@ -8,6 +8,7 @@ from app.modules.core_data.audit_state import user_audit_state
 from app.modules.core_data.models.user import User
 from app.modules.core_data.repositories.users import UserRepository
 from app.modules.core_data.schemas.users import UserCreateRequest, UserUpdateRequest
+from app.modules.core_data.utils.org_scope import assert_same_organization
 from app.modules.security.services.password import hash_password
 from app.modules.security.services.permissions import PermissionService
 
@@ -52,20 +53,33 @@ class UserService:
             )
         )
 
-    def get_user_by_id(self, user_id: UUID) -> User:
-        """Get user by ID or raise NotFoundError."""
-        return self.user_repo.find_by_id(user_id)
+    def get_user_by_id(self, user_id: UUID, *, actor: User) -> User:
+        """Get user by ID with org isolation, or raise NotFoundError."""
+        user = self.user_repo.find_by_id(user_id)
+        assert_same_organization(actor, user.organization_id)
+        return user
 
-    def list_users(self, query):
-        """List users with pagination and filters."""
+    def list_users(self, query, *, actor: User):
+        """List users with pagination and filters.
+
+        Non-admin is pinned to their own organization and query.organization_id
+        is ignored; a platform admin may filter by any org, or none for all.
+        """
+        if actor.organization_id is not None:
+            org_id = actor.organization_id
+        else:
+            org_id = query.organization_id
+
         users = self.user_repo.list_all(
             skip=query.skip,
             limit=query.limit,
+            organization_id=org_id,
             search=query.search,
             status=query.status,
             is_active=query.is_active,
         )
         count = self.user_repo.count(
+            organization_id=org_id,
             search=query.search,
             status=query.status,
             is_active=query.is_active,
@@ -79,7 +93,7 @@ class UserService:
         actor: User,
     ) -> User:
         """Create a user from the admin panel."""
-        try:
+        with self.user_repo.transaction():
             normalized_username = request.username.strip().lower()
             normalized_email = str(request.email).strip().lower()
 
@@ -107,18 +121,14 @@ class UserService:
             self.user_repo.refresh(user)
             self.permissions.assign_default_group(user, actor=actor)
             self._record_audit("CREATE", user, actor, {}, self._state(user))
-            self.user_repo.commit()
             return user
-        except Exception:
-            self.user_repo.rollback()
-            raise
 
     def update_user(
         self, user_id: UUID, request: UserUpdateRequest, actor: User
     ) -> User:
         """Update a user from the admin panel."""
-        try:
-            user = self.get_user_by_id(user_id)
+        with self.user_repo.transaction() as tx:
+            user = self.get_user_by_id(user_id, actor=actor)
             old_state = self._state(user)
             username = (
                 request.username.strip().lower()
@@ -176,7 +186,7 @@ class UserService:
                     "new": "[zmieniono]",
                 }
             if not changes:
-                self.user_repo.commit(skip_audit=True)
+                tx.skip_audit()
                 return user
             self._record_audit(
                 "UPDATE",
@@ -186,23 +196,15 @@ class UserService:
                 new_state,
                 password_changed=bool(password),
             )
-            self.user_repo.commit()
             return user
-        except Exception:
-            self.user_repo.rollback()
-            raise
 
     def delete_user(self, user_id: UUID, actor: User) -> None:
         """Delete a user from the admin panel."""
         if actor.id == user_id:
             raise BadRequestError("You cannot delete your own account")
 
-        try:
-            user = self.get_user_by_id(user_id)
+        with self.user_repo.transaction():
+            user = self.get_user_by_id(user_id, actor=actor)
             old_state = self._state(user)
             self.user_repo.delete(user)
             self._record_audit("DELETE", user, actor, old_state, {})
-            self.user_repo.commit()
-        except Exception:
-            self.user_repo.rollback()
-            raise

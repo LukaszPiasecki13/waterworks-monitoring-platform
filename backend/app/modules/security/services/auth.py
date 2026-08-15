@@ -2,7 +2,6 @@ from uuid import UUID
 
 from app.core.audit import AuditEntry, AuditPort, EntityType, calculate_delta
 from app.core.errors import (
-    APIError,
     AuthenticationError,
     BadRequestError,
     ConflictError,
@@ -10,8 +9,16 @@ from app.core.errors import (
 from app.modules.core_data.audit_state import user_audit_state
 from app.modules.core_data.models import User
 from app.modules.core_data.repositories.users import UserRepository
-from app.modules.security.schemas import LoginRequest, ProfileUpdateRequest, Token
-from app.modules.security.services.password import hash_password, verify_password
+from app.modules.security.schemas import (
+    LoginRequest,
+    ProfileUpdateRequest,
+    TokenResponse,
+)
+from app.modules.security.services.password import (
+    burn_password_verification,
+    hash_password,
+    verify_password,
+)
 from app.modules.security.services.permissions import PermissionService
 
 from .token import TokenService
@@ -56,11 +63,11 @@ class AuthService:
             )
         )
 
-    def _issue_tokens(self, user: User) -> Token:
+    def _issue_tokens(self, user: User) -> TokenResponse:
         sub = {"sub": str(user.id)}
         access = self.token_service.create_access_token(sub)
         refresh = self.token_service.create_refresh_token(sub)
-        return Token(access=access, refresh=refresh)
+        return TokenResponse(access=access, refresh=refresh)
 
     def register(
         self,
@@ -71,7 +78,7 @@ class AuthService:
         last_name: str = "",
     ) -> User:
         """Register new user."""
-        try:
+        with self.repo.transaction():
             # Normalize inputs for consistent lookups
             normalized_username = username.strip().lower()
             normalized_email = email.strip().lower()
@@ -82,36 +89,20 @@ class AuthService:
             if self.repo.get_by_email(normalized_email):
                 raise ConflictError(f"Email '{email}' already exists")
 
-            # Hash password
-            hashed_password = hash_password(password)
-
-            old_state: dict[str, object] = {}
             user = self.repo.create(
                 username=normalized_username,
                 email=normalized_email,
-                hashed_password=hashed_password,
+                hashed_password=hash_password(password),
                 first_name=first_name,
                 last_name=last_name,
             )
             self.repo.flush()
             self.repo.refresh(user)
             self.permissions.assign_default_group(user, actor=user)
-            self._record_user(
-                "REGISTER",
-                user,
-                old_state,
-                self._state(user),
-            )
-            self.repo.commit()
+            self._record_user("REGISTER", user, {}, self._state(user))
             return user
-        except APIError:
-            self.repo.rollback()
-            raise
-        except Exception:
-            self.repo.rollback()
-            raise
 
-    def login(self, data: LoginRequest) -> Token:
+    def login(self, data: LoginRequest) -> TokenResponse:
         """Login user - supports username or email."""
         identifier = data.username.strip().lower()
 
@@ -120,20 +111,20 @@ class AuthService:
         if not user:
             user = self.repo.get_by_email(identifier)
 
-        if (
-            not user
-            or not user.is_active
-            or not verify_password(
-                data.password,
-                user.hashed_password,
-            )
+        if not user:
+            burn_password_verification(data.password)
+            raise AuthenticationError("Invalid credentials")
+
+        if not user.is_active or not verify_password(
+            data.password, user.hashed_password
         ):
             raise AuthenticationError("Invalid credentials")
+
         return self._issue_tokens(user)
 
     def update_profile(self, user: User, data: ProfileUpdateRequest) -> User:
         """Update the current user's own profile, optionally changing the password."""
-        try:
+        with self.repo.transaction() as tx:
             if data.new_password:
                 if not data.current_password:
                     raise BadRequestError("Podaj obecne hasło, aby je zmienić.")
@@ -167,7 +158,7 @@ class AuthService:
                     "new": "[zmieniono]",
                 }
             if not changes:
-                self.repo.commit(skip_audit=True)
+                tx.skip_audit()
                 return user
             self._record_user(
                 "PROFILE_UPDATE",
@@ -176,16 +167,9 @@ class AuthService:
                 new_state,
                 password_changed=bool(data.new_password),
             )
-            self.repo.commit()
             return user
-        except APIError:
-            self.repo.rollback()
-            raise
-        except Exception:
-            self.repo.rollback()
-            raise
 
-    def refresh(self, refresh_token: str) -> Token:
+    def refresh(self, refresh_token: str) -> TokenResponse:
         payload = self.token_service.decode_token(refresh_token)
         if not payload or payload.get("type") != "refresh":
             raise AuthenticationError("Invalid refresh token")

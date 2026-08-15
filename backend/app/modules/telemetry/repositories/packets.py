@@ -9,7 +9,6 @@ from sqlalchemy.orm import Session
 from app.core.errors import NotFoundError
 from app.infrastructure.sql.repository import SQLRepository
 from app.modules.core_data.models.device import Device
-from app.modules.core_data.models.water_object import WaterObject
 from app.modules.telemetry.exceptions import TelemetryPacketAlreadyExistsError
 from app.modules.telemetry.models.measurement_packet import TelemetryPacket
 from app.modules.telemetry.schemas.measurement_packet import MeasurementPacketRequest
@@ -32,6 +31,12 @@ class TelemetryPacketRepository(SQLRepository):
         packet: MeasurementPacketRequest,
         received_at: datetime,
     ) -> TelemetryPacket:
+        """Persist a packet for a known device.
+
+        Flushes rather than commits: the transaction belongs to the service,
+        and flushing is enough to surface a duplicate (device_id, seq) here
+        instead of at commit time.
+        """
         device = (
             self.session.query(Device)
             .filter(Device.external_id == packet.device_id)
@@ -41,17 +46,6 @@ class TelemetryPacketRepository(SQLRepository):
         if not device:
             raise NotFoundError(
                 f"Device with external_id '{packet.device_id}' not found"
-            )
-
-        water_object = (
-            self.session.query(WaterObject)
-            .filter(WaterObject.id == device.water_object_id)
-            .first()
-        )
-
-        if not water_object:
-            raise NotFoundError(
-                f"Water object with id '{device.water_object_id}' not found"
             )
 
         entity = TelemetryPacket(
@@ -65,7 +59,7 @@ class TelemetryPacketRepository(SQLRepository):
         self.session.add(entity)
 
         try:
-            self.commit(skip_audit=True)
+            self.flush()
         except IntegrityError as exc:
             self.rollback()
             message = (

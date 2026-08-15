@@ -67,7 +67,7 @@ def test_admin_can_search_organizations_by_name(db_session: Session) -> None:
     register_error_handlers(app)
     app.include_router(organizations_router)
 
-    def override_get_db() -> Generator[Session, None, None]:
+    def override_get_db() -> Generator[Session]:
         yield db_session
 
     app.dependency_overrides[get_db] = override_get_db
@@ -113,7 +113,7 @@ def test_regular_user_sees_only_own_organization_regardless_of_name_filter(
     register_error_handlers(app)
     app.include_router(organizations_router)
 
-    def override_get_db() -> Generator[Session, None, None]:
+    def override_get_db() -> Generator[Session]:
         yield db_session
 
     app.dependency_overrides[get_db] = override_get_db
@@ -159,7 +159,7 @@ def test_list_organizations_endpoint_allows_any_authenticated_user(
     register_error_handlers(app)
     app.include_router(organizations_router)
 
-    def override_get_db() -> Generator[Session, None, None]:
+    def override_get_db() -> Generator[Session]:
         yield db_session
 
     app.dependency_overrides[get_db] = override_get_db

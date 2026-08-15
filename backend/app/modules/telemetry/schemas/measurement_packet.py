@@ -18,7 +18,7 @@ class MeasurementPoint(BaseModel):
     value: float | int | bool | None = None
 
     @model_validator(mode="after")
-    def validate_measurement_shape(self) -> "MeasurementPoint":
+    def validate_measurement_shape(self) -> MeasurementPoint:
         has_aggregate = (
             self.avg is not None or self.min is not None or self.max is not None
         )

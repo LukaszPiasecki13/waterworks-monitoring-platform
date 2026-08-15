@@ -22,14 +22,14 @@ class LoginRequest(BaseModel):
     password: str = Field(..., min_length=1, max_length=72)
 
 
-class Token(BaseModel):
+class TokenResponse(BaseModel):
     """Token response."""
 
     access: str
     refresh: str
 
 
-class TokenRefresh(BaseModel):
+class TokenRefreshRequest(BaseModel):
     """Token refresh request."""
 
     refresh: str

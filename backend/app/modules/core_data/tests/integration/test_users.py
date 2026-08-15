@@ -91,7 +91,7 @@ def test_users_api_rejects_non_admin_user(db_session: Session) -> None:
     register_error_handlers(app)
     app.include_router(users_router, prefix="/api/v1")
 
-    def override_get_db() -> Generator[Session, None, None]:
+    def override_get_db() -> Generator[Session]:
         yield db_session
 
     mock_user_id = uuid4()
@@ -141,7 +141,7 @@ def test_security_group_viewer_can_list_users_for_membership_management(
     register_error_handlers(app)
     app.include_router(users_router, prefix="/api/v1")
 
-    def override_get_db() -> Generator[Session, None, None]:
+    def override_get_db() -> Generator[Session]:
         yield db_session
 
     app.dependency_overrides[get_db] = override_get_db

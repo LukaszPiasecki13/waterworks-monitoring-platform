@@ -35,12 +35,6 @@ class DeviceResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
-class DeviceCreateResponse(DeviceResponse):
-    """Device creation response with plain secret."""
-
-    plain_secret: str
-
-
 class ListDevicesRequest(BaseModel):
     """List devices query parameters."""
 

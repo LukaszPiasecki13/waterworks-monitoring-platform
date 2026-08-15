@@ -1,15 +1,16 @@
 """Authentication API endpoints."""
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 
+from app.core.rate_limit import limiter
 from app.modules.core_data.models import User
 from app.modules.security.dependencies import get_auth_service, get_current_user
 from app.modules.security.schemas import (
     LoginRequest,
     ProfileUpdateRequest,
     RegisterRequest,
-    Token,
-    TokenRefresh,
+    TokenRefreshRequest,
+    TokenResponse,
     UserResponse,
 )
 from app.modules.security.services.auth import AuthService
@@ -29,14 +30,23 @@ def register(data: RegisterRequest, svc: AuthService = Depends(get_auth_service)
     )
 
 
-@router.post("/token", response_model=Token)
-def login(data: LoginRequest, svc: AuthService = Depends(get_auth_service)):
-    """Login with username or email."""
+@router.post("/token", response_model=TokenResponse)
+@limiter.limit("5/minute")
+def login(
+    request: Request, data: LoginRequest, svc: AuthService = Depends(get_auth_service)
+):
+    """Login with username or email.
+
+    Rate limited per IP: login is the one endpoint an attacker can hit
+    repeatedly to guess passwords, unlike token-authenticated endpoints.
+    """
     return svc.login(data)
 
 
-@router.post("/token/refresh", response_model=Token)
-def refresh_token(body: TokenRefresh, svc: AuthService = Depends(get_auth_service)):
+@router.post("/token/refresh", response_model=TokenResponse)
+def refresh_token(
+    body: TokenRefreshRequest, svc: AuthService = Depends(get_auth_service)
+):
     """Refresh access token using refresh token."""
     return svc.refresh(body.refresh)
 

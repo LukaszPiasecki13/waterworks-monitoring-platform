@@ -1,10 +1,12 @@
 """Audit state snapshots for core_data domain entities."""
 
+from uuid import UUID
+
 from app.core.audit import audit_value
 from app.modules.core_data.models import User
 
 
-def user_audit_state(user: User, group_ids: list[int] | None = None) -> dict:
+def user_audit_state(user: User, group_ids: list[UUID] | None = None) -> dict:
     """Capture user state for audit comparison.
 
     Pass group_ids when the operation can change security-group membership,

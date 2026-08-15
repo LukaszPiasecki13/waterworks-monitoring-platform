@@ -60,16 +60,12 @@ class WaterObjectService:
         assert_same_organization(actor, obj.organization_id)
         return obj
 
-    def list_all(self, query, *, actor: User = None):
+    def list_all(self, query, *, actor: User):
         """List water objects with org isolation."""
-        if actor and actor.organization_id is not None:
-            org_id = (
-                actor.organization_id
-            )  # non-admin: wymuszone, ignoruje query.organization_id
+        if actor.organization_id is not None:
+            org_id = actor.organization_id
         else:
-            org_id = getattr(
-                query, "organization_id", None
-            )  # admin: z klienta; None = bez filtra
+            org_id = getattr(query, "organization_id", None)
         objs = self.repo.list_all(
             organization_id=org_id, skip=query.skip, limit=query.limit
         )
@@ -78,7 +74,7 @@ class WaterObjectService:
 
     def create(self, request: WaterObjectCreateRequest, *, actor: User):
         """Create water object."""
-        try:
+        with self.repo.transaction():
             org_id = resolve_organization_id(actor, request.organization_id)
             self.org_repo.find_by_id(org_id)
             obj = self.repo.create(
@@ -92,15 +88,11 @@ class WaterObjectService:
             self.repo.flush()
             self.repo.refresh(obj)
             self._record_audit("CREATE", obj, actor, {}, self._state(obj))
-            self.repo.commit()
             return obj
-        except Exception:
-            self.repo.rollback()
-            raise
 
-    def update(self, obj_id: int, request: WaterObjectUpdateRequest, actor: User):
+    def update(self, obj_id: UUID, request: WaterObjectUpdateRequest, actor: User):
         """Update water object."""
-        try:
+        with self.repo.transaction() as tx:
             obj = self.get_by_id(obj_id, actor)
             old_state = self._state(obj)
             self.repo.update(obj, **request.model_dump(exclude_unset=True))
@@ -108,28 +100,20 @@ class WaterObjectService:
             self.repo.refresh(obj)
             new_state = self._state(obj)
             if not calculate_delta(old_state, new_state):
-                self.repo.commit(skip_audit=True)
+                tx.skip_audit()
                 return obj
             self._record_audit("UPDATE", obj, actor, old_state, new_state)
-            self.repo.commit()
             return obj
-        except Exception:
-            self.repo.rollback()
-            raise
 
-    def delete(self, obj_id: int, actor: User) -> None:
+    def delete(self, obj_id: UUID, actor: User) -> None:
         """Delete water object."""
         try:
-            obj = self.get_by_id(obj_id, actor)
-            old_state = self._state(obj)
-            self.repo.delete(obj)
-            self._record_audit("DELETE", obj, actor, old_state, {})
-            self.repo.commit()
+            with self.repo.transaction():
+                obj = self.get_by_id(obj_id, actor)
+                old_state = self._state(obj)
+                self.repo.delete(obj)
+                self._record_audit("DELETE", obj, actor, old_state, {})
         except IntegrityError as err:
-            self.repo.rollback()
             raise ConflictError(
                 "Cannot delete water object with related devices"
             ) from err
-        except Exception:
-            self.repo.rollback()
-            raise
