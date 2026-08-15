@@ -108,10 +108,6 @@ uint64_t TimeSync::getUtcTimestamp() {
   return current_utc_ms;
 }
 
-bool TimeSync::isSynced() {
-  return synced_;
-}
+bool TimeSync::isSynced() { return synced_; }
 
-uint32_t TimeSync::getLastSyncMs() {
-  return lastSyncMs_;
-}
+uint32_t TimeSync::getLastSyncMs() { return lastSyncMs_; }

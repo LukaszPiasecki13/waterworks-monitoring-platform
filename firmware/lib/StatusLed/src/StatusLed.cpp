@@ -8,13 +8,9 @@ StatusLed::StatusLed(int pin) : pin_(pin) {
   }
 }
 
-void StatusLed::blinkSuccess() {
-  blink(1, 80);
-}
+void StatusLed::blinkSuccess() { blink(1, 80); }
 
-void StatusLed::blinkError() {
-  blink(3, 120);
-}
+void StatusLed::blinkError() { blink(3, 120); }
 
 void StatusLed::blink(int count, int delayMs) {
   if (pin_ < 0) {

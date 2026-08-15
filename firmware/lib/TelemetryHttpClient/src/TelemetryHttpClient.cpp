@@ -6,11 +6,7 @@
 #define SerialMon Serial
 
 TelemetryHttpClient::TelemetryHttpClient(ModemLink& modem, const char* server, int port, const char* deviceKey)
-    : modem_(modem),
-      server_(server),
-      port_(port),
-      device_key_(deviceKey),
-      http_(nullptr) {
+    : modem_(modem), server_(server), port_(port), device_key_(deviceKey), http_(nullptr) {
   TinyGsmClientSecure* client = new TinyGsmClientSecure(modem_.modem());
   http_ = new HttpClient(*client, server_, port_);
 }

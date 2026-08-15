@@ -9,12 +9,8 @@ class StatusLed;
 
 class TelemetrySender {
  public:
-  TelemetrySender(ModemLink& modem,
-                  TelemetryHttpClient& httpClient,
-                  TelemetryPayload& payload,
-                  StatusLed& led,
-                  unsigned long sendIntervalMs,
-                  unsigned long errorRetryMs);
+  TelemetrySender(ModemLink& modem, TelemetryHttpClient& httpClient, TelemetryPayload& payload, StatusLed& led,
+                  unsigned long sendIntervalMs, unsigned long errorRetryMs);
 
   void update(unsigned long now);
   unsigned long lastSuccessMs() const { return last_success_ms_; }

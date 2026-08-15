@@ -9,19 +9,14 @@
 
 #define SerialMon Serial
 
-TelemetrySender::TelemetrySender(ModemLink& modem,
-                                 TelemetryHttpClient& httpClient,
-                                 TelemetryPayload& payload,
-                                 StatusLed& led,
-                                 unsigned long sendIntervalMs,
-                                 unsigned long errorRetryMs)
+TelemetrySender::TelemetrySender(ModemLink& modem, TelemetryHttpClient& httpClient, TelemetryPayload& payload,
+                                 StatusLed& led, unsigned long sendIntervalMs, unsigned long errorRetryMs)
     : modem_(modem),
       http_(httpClient),
       payload_(payload),
       led_(led),
       send_interval_ms_(sendIntervalMs),
-      error_retry_ms_(errorRetryMs) {
-}
+      error_retry_ms_(errorRetryMs) {}
 
 void TelemetrySender::update(unsigned long now) {
   if (now < next_allowed_send_ms_) {

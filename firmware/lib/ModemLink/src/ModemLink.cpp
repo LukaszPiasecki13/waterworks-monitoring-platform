@@ -5,8 +5,7 @@
 #define SerialMon Serial
 
 ModemLink::ModemLink(HardwareSerial& serialAT, uint32_t baudRate)
-    : serial_at_(serialAT), baud_rate_(baudRate), modem_(nullptr) {
-}
+    : serial_at_(serialAT), baud_rate_(baudRate), modem_(nullptr) {}
 
 bool ModemLink::init(const char* apn, const char* gprsUser, const char* gprsPass, const char* simPin) {
   apn_ = apn;

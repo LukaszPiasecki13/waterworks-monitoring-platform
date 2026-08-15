@@ -7,10 +7,7 @@ class ModemPower;
 
 class Watchdog {
  public:
-  Watchdog(ModemLink& modem,
-           ModemPower& power,
-           unsigned long stuckThresholdMs,
-           uint8_t maxRestarts);
+  Watchdog(ModemLink& modem, ModemPower& power, unsigned long stuckThresholdMs, uint8_t maxRestarts);
 
   void check(unsigned long now, unsigned long lastSuccessMs);
 

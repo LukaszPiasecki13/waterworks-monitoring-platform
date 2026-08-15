@@ -6,15 +6,8 @@
 
 #define SerialMon Serial
 
-Watchdog::Watchdog(ModemLink& modem,
-                   ModemPower& power,
-                   unsigned long stuckThresholdMs,
-                   uint8_t maxRestarts)
-    : modem_(modem),
-      power_(power),
-      stuck_threshold_ms_(stuckThresholdMs),
-      max_restarts_(maxRestarts) {
-}
+Watchdog::Watchdog(ModemLink& modem, ModemPower& power, unsigned long stuckThresholdMs, uint8_t maxRestarts)
+    : modem_(modem), power_(power), stuck_threshold_ms_(stuckThresholdMs), max_restarts_(maxRestarts) {}
 
 void Watchdog::check(unsigned long now, unsigned long lastSuccessMs) {
   if (now - lastSuccessMs <= stuck_threshold_ms_) {

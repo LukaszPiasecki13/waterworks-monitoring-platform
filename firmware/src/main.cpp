@@ -69,7 +69,8 @@ void setup() {
 
   httpClient = new TelemetryHttpClient(modemLink, SERVER, PORT, DEVICE_KEY);
   telemetryPayload.setGetUtcTime([]() { return TimeSync::getUtcTimestamp(); });
-  telemetrySender = new TelemetrySender(modemLink, *httpClient, telemetryPayload, led, SEND_INTERVAL_MS, ERROR_RETRY_MS);
+  telemetrySender =
+      new TelemetrySender(modemLink, *httpClient, telemetryPayload, led, SEND_INTERVAL_MS, ERROR_RETRY_MS);
   watchdog = new Watchdog(modemLink, modemPower, WATCHDOG_STUCK_MS, MAX_RESTART_ATTEMPTS);
 
   rtcRestartCounter = 0;

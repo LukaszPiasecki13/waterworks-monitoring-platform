@@ -2,10 +2,7 @@
 #include "ModemPower.h"
 
 ModemPower::ModemPower(int pwrkeyPin, int resetPin, int powerEnablePin)
-    : pwrkey_pin_(pwrkeyPin),
-      reset_pin_(resetPin),
-      power_enable_pin_(powerEnablePin) {
-}
+    : pwrkey_pin_(pwrkeyPin), reset_pin_(resetPin), power_enable_pin_(powerEnablePin) {}
 
 void ModemPower::powerOn() {
   if (power_enable_pin_ >= 0) {

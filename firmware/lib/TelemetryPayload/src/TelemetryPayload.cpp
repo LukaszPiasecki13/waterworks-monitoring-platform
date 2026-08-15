@@ -3,10 +3,7 @@
 #include <time.h>
 #include "TelemetryPayload.h"
 
-TelemetryPayload::TelemetryPayload(const char* deviceId)
-    : device_id_(deviceId),
-      getUtcTime_(nullptr) {
-}
+TelemetryPayload::TelemetryPayload(const char* deviceId) : device_id_(deviceId), getUtcTime_(nullptr) {}
 
 float TelemetryPayload::calculateSineValue(uint32_t seq) {
   const float BASE_VALUE = 100.0f;
@@ -29,14 +26,8 @@ String TelemetryPayload::formatIso8601(uint64_t utcMs) {
   gmtime_r(&seconds, &timeinfo);
 
   char buffer[30];
-  snprintf(buffer, sizeof(buffer), "%04d-%02d-%02dT%02d:%02d:%02d.%03luZ",
-           timeinfo.tm_year + 1900,
-           timeinfo.tm_mon + 1,
-           timeinfo.tm_mday,
-           timeinfo.tm_hour,
-           timeinfo.tm_min,
-           timeinfo.tm_sec,
-           (unsigned long)ms);
+  snprintf(buffer, sizeof(buffer), "%04d-%02d-%02dT%02d:%02d:%02d.%03luZ", timeinfo.tm_year + 1900, timeinfo.tm_mon + 1,
+           timeinfo.tm_mday, timeinfo.tm_hour, timeinfo.tm_min, timeinfo.tm_sec, (unsigned long)ms);
 
   return String(buffer);
 }
@@ -89,6 +80,4 @@ String TelemetryPayload::build(uint32_t seq, unsigned long timestampMs) {
   return payload;
 }
 
-void TelemetryPayload::setGetUtcTime(std::function<uint64_t()> getUtcTime) {
-  getUtcTime_ = getUtcTime;
-}
+void TelemetryPayload::setGetUtcTime(std::function<uint64_t()> getUtcTime) { getUtcTime_ = getUtcTime; }
