@@ -160,7 +160,7 @@ export function SecurityGroupsPanel({ users, canManage }: SecurityGroupsPanelPro
                   onClick={() => setSelectedGroupId(group.id)}
                   className={`w-full text-left px-3 py-2 rounded-md text-sm flex items-center justify-between gap-2 transition-colors ${
                     selectedGroupId === group.id
-                      ? 'bg-blue-50 text-blue-900'
+                      ? 'bg-brand-50 text-brand-700'
                       : 'hover:bg-neutral-100 text-neutral-900'
                   }`}
                 >

@@ -133,13 +133,13 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
                       className={cn(
                         'flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors',
                         isActive
-                          ? 'bg-teal-50 text-teal-700 font-semibold'
+                          ? 'bg-brand-50 text-brand-700 font-semibold'
                           : 'text-neutral-700 hover:bg-neutral-100'
                       )}
                     >
                       <div className={cn(
                         'flex-shrink-0',
-                        isActive ? 'text-teal-600' : 'text-neutral-400'
+                        isActive ? 'text-brand-600' : 'text-neutral-400'
                       )}>
                         {item.icon}
                       </div>

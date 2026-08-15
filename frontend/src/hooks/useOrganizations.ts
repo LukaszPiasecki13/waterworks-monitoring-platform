@@ -25,6 +25,7 @@ export function useOrganization(id: string) {
   return useQuery({
     queryKey: queryKeys.organizations.detail(id),
     queryFn: () => organizationsService.get(id),
+    enabled: !!id,
   });
 }
 

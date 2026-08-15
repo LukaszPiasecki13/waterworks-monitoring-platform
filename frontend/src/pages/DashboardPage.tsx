@@ -11,8 +11,8 @@ export function DashboardPage() {
   return (
     <div className="px-6 py-8">
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
-        <p className="text-gray-600 mt-2">Monitorowanie sieci wodociągów w czasie rzeczywistym</p>
+        <h1 className="text-3xl font-bold text-neutral-900">Dashboard</h1>
+        <p className="text-neutral-600 mt-2">Monitorowanie sieci wodociągów w czasie rzeczywistym</p>
       </div>
 
       <div className="grid gap-6">

@@ -4,7 +4,7 @@ import { DataTable } from '@/components/ui/DataTable'
 import { StatusPill } from '@/components/ui/StatusPill'
 import { Button } from '@/components/ui/Button'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/Popover'
-import type { ObjectSummary } from '@/hooks/useTelemetryApi'
+import type { ObjectSummary } from '@/types/telemetry'
 import { formatDistanceToNow } from 'date-fns'
 import { pl } from 'date-fns/locale'
 import { Filter, X } from 'lucide-react'
@@ -187,7 +187,7 @@ export function ObjectsStatusTable({ onSelectObject }: ObjectsStatusTableProps) 
       />
 
       {filteredObjects.length > limit && (
-        <div className="flex items-center justify-between pt-4 border-t border-gray-200">
+        <div className="flex items-center justify-between pt-4 border-t border-neutral-200">
           <div className="text-sm text-neutral-600">
             Wyświetlanie {Math.min(skip + 1, filteredObjects.length)}–{Math.min(skip + limit, filteredObjects.length)} z {filteredObjects.length}
           </div>

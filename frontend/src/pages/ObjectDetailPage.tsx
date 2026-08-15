@@ -144,7 +144,7 @@ export function ObjectDetailPage() {
                       onClick={() => setHoursBack(opt.value)}
                       className={`px-3 py-2 text-sm font-medium rounded-md border transition-colors ${
                         hoursBack === opt.value
-                          ? 'bg-teal-50 border-teal-300 text-teal-700'
+                          ? 'bg-brand-50 border-brand-300 text-brand-700'
                           : 'border-neutral-300 text-neutral-700 hover:bg-neutral-50'
                       }`}
                     >

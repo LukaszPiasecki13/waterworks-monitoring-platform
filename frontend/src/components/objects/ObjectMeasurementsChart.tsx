@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import {
   LineChart,
   Line,
@@ -16,7 +16,14 @@ interface ObjectMeasurementsChartProps {
   hoursBack?: number
 }
 
-const CHART_COLORS = ['#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6', '#06b6d4']
+const CHART_COLORS = [
+  'var(--color-chart-1)',
+  'var(--color-chart-2)',
+  'var(--color-chart-3)',
+  'var(--color-chart-4)',
+  'var(--color-chart-5)',
+  'var(--color-chart-6)',
+]
 const HOUR_MS = 60 * 60 * 1000
 const DAY_MS = 24 * HOUR_MS
 
@@ -75,19 +82,17 @@ export function ObjectMeasurementsChart({
   // Get unique point IDs
   const uniquePoints = [...new Set((measurements?.items || []).map((i) => i.point_id))]
 
-  // Auto-select first point if none selected
-  useEffect(() => {
-    if (selectedPointIds.length === 0 && uniquePoints.length > 0) {
-      setSelectedPointIds([uniquePoints[0]])
-    }
-  }, [uniquePoints, selectedPointIds.length])
+  // Auto-select first point if none selected yet (derived, no effect needed)
+  const effectiveSelectedPointIds =
+    selectedPointIds.length > 0 ? selectedPointIds : uniquePoints.slice(0, 1)
 
   const togglePoint = (pointId: string) => {
-    setSelectedPointIds((prev) =>
-      prev.includes(pointId)
-        ? prev.filter((id) => id !== pointId)
-        : [...prev, pointId].slice(-3), // Max 3 lines
-    )
+    setSelectedPointIds((prev) => {
+      const base = prev.length > 0 ? prev : uniquePoints.slice(0, 1)
+      return base.includes(pointId)
+        ? base.filter((id) => id !== pointId)
+        : [...base, pointId].slice(-3) // Max 3 lines
+    })
   }
 
   if (isLoading) {
@@ -119,12 +124,12 @@ export function ObjectMeasurementsChart({
                 key={pointId}
                 onClick={() => togglePoint(pointId)}
                 className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors border ${
-                  selectedPointIds.includes(pointId)
+                  effectiveSelectedPointIds.includes(pointId)
                     ? 'border-transparent text-white'
                     : 'border-neutral-300 text-neutral-700 bg-white hover:bg-neutral-50'
                 }`}
                 style={
-                  selectedPointIds.includes(pointId)
+                  effectiveSelectedPointIds.includes(pointId)
                     ? { backgroundColor: CHART_COLORS[idx % CHART_COLORS.length] }
                     : undefined
                 }
@@ -136,7 +141,7 @@ export function ObjectMeasurementsChart({
         </div>
       )}
 
-      {chartData.length > 0 && selectedPointIds.length > 0 ? (
+      {chartData.length > 0 && effectiveSelectedPointIds.length > 0 ? (
         <div className="bg-neutral-50 border border-neutral-200 rounded-lg p-4 h-96">
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={chartData} margin={{ top: 5, right: 30, left: 0, bottom: 5 }}>
@@ -166,7 +171,7 @@ export function ObjectMeasurementsChart({
                 labelStyle={{ color: '#000' }}
               />
               <Legend wrapperStyle={{ paddingTop: '1rem' }} iconType="line" />
-              {selectedPointIds.map((pointId) => {
+              {effectiveSelectedPointIds.map((pointId) => {
                 const colorIdx = uniquePoints.indexOf(pointId)
                 return (
                   <Line

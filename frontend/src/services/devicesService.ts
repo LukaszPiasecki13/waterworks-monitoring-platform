@@ -2,7 +2,6 @@ import { apiClient } from '@/lib/api';
 import type {
   Device,
   DeviceCreateRequest,
-  DeviceCreateResponse,
   DeviceUpdateRequest,
 } from '@/types/coreData';
 
@@ -32,7 +31,7 @@ export const devicesService = {
     return response.data;
   },
 
-  async create(data: DeviceCreateRequest): Promise<DeviceCreateResponse> {
+  async create(data: DeviceCreateRequest): Promise<Device> {
     const response = await apiClient.post('/api/v1/devices', data);
     return response.data;
   },

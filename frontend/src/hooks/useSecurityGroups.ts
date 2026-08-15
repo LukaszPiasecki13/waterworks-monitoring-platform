@@ -1,3 +1,4 @@
+import axios from 'axios'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { securityService } from '@/services/securityService'
 import { queryKeys } from './queryKeys'
@@ -6,6 +7,10 @@ import type {
   UserGroupCreateRequest,
   UserGroupSaveRequest,
 } from '@/types/security'
+
+function extractErrorDetail(error: unknown): string | undefined {
+  return axios.isAxiosError(error) ? error.response?.data?.detail : undefined
+}
 
 export function useSecurityGroups() {
   const queryClient = useQueryClient()
@@ -27,8 +32,8 @@ export function useSecurityGroups() {
       queryClient.invalidateQueries({ queryKey: queryKeys.security.myPermissions() })
       toast.success('Grupa utworzona')
     },
-    onError: (error: any) => {
-      toast.error(error.response?.data?.detail || 'Błąd przy tworzeniu grupy')
+    onError: (error: unknown) => {
+      toast.error(extractErrorDetail(error) || 'Błąd przy tworzeniu grupy')
     },
   })
 
@@ -40,8 +45,8 @@ export function useSecurityGroups() {
       queryClient.invalidateQueries({ queryKey: queryKeys.security.myPermissions() })
       toast.success('Grupa zapisana')
     },
-    onError: (error: any) => {
-      toast.error(error.response?.data?.detail || 'Błąd przy zapisywaniu grupy')
+    onError: (error: unknown) => {
+      toast.error(extractErrorDetail(error) || 'Błąd przy zapisywaniu grupy')
     },
   })
 
@@ -52,8 +57,8 @@ export function useSecurityGroups() {
       queryClient.invalidateQueries({ queryKey: queryKeys.security.myPermissions() })
       toast.success('Grupa usunięta')
     },
-    onError: (error: any) => {
-      toast.error(error.response?.data?.detail || 'Błąd przy usuwaniu grupy')
+    onError: (error: unknown) => {
+      toast.error(extractErrorDetail(error) || 'Błąd przy usuwaniu grupy')
     },
   })
 
@@ -88,8 +93,8 @@ export function useReplaceUserGroups() {
       queryClient.invalidateQueries({ queryKey: queryKeys.security.myPermissions() })
       toast.success('Grupy użytkownika zaktualizowane')
     },
-    onError: (error: any) => {
-      toast.error(error.response?.data?.detail || 'Błąd przy aktualizacji grup')
+    onError: (error: unknown) => {
+      toast.error(extractErrorDetail(error) || 'Błąd przy aktualizacji grup')
     },
   })
 }

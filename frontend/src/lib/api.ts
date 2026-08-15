@@ -1,4 +1,4 @@
-import axios from 'axios'
+import axios, { type InternalAxiosRequestConfig, type AxiosProgressEvent } from 'axios'
 import { useAuthStore } from '@/stores/authStore'
 import { queryClient } from '@/lib/queryClient'
 import { resetBackendWakeupNotice, startBackendRequest } from '@/lib/backendWakeup'
@@ -14,31 +14,29 @@ export const apiClient = axios.create({
   baseURL: API_URL,
 })
 
-export function attachBackendWakeupInterceptors() {
-  apiClient.interceptors.request.use((config) => {
-    const cleanup = startBackendRequest()
-    config.signal?.addEventListener('abort', cleanup)
-    if (config.onDownloadProgress) {
-      const originalProgress = config.onDownloadProgress
-      config.onDownloadProgress = (progressEvent) => {
-        cleanup()
-        originalProgress(progressEvent)
-      }
+apiClient.interceptors.request.use((config: InternalAxiosRequestConfig) => {
+  const cleanup = startBackendRequest()
+  config.signal?.addEventListener?.('abort', () => cleanup())
+  const originalProgress = config.onDownloadProgress
+  if (originalProgress) {
+    config.onDownloadProgress = (progressEvent: AxiosProgressEvent) => {
+      cleanup()
+      originalProgress(progressEvent)
     }
-    return config
-  })
+  }
+  return config
+})
 
-  apiClient.interceptors.response.use(
-    (response) => {
-      resetBackendWakeupNotice()
-      return response
-    },
-    (error) => {
-      resetBackendWakeupNotice()
-      return Promise.reject(error)
-    }
-  )
-}
+apiClient.interceptors.response.use(
+  (response) => {
+    resetBackendWakeupNotice()
+    return response
+  },
+  (error) => {
+    resetBackendWakeupNotice()
+    return Promise.reject(error)
+  }
+)
 
 apiClient.interceptors.request.use((config) => {
   const store = useAuthStore.getState()

@@ -54,13 +54,13 @@ describe('authStore', () => {
     expect(store.user).toBeNull()
   })
 
-  it('setTokens updates localStorage', async () => {
+  it('setTokens updates store state', async () => {
     const { useAuthStore } = await import('./authStore')
     const store = useAuthStore.getState()
 
     store.setTokens('new_access', 'new_refresh')
 
-    expect(localStorage.getItem('access_token')).toBe('new_access')
-    expect(localStorage.getItem('refresh_token')).toBe('new_refresh')
+    expect(useAuthStore.getState().accessToken).toBe('new_access')
+    expect(useAuthStore.getState().refreshToken).toBe('new_refresh')
   })
 })

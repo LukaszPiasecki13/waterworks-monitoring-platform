@@ -1,13 +1,12 @@
-import { useState } from 'react';
+import { useCrudPageState } from '@/hooks/useCrudPageState';
 import { useOrganizations, useCreateOrganization, useUpdateOrganization, useDeleteOrganization } from '@/hooks/useOrganizations';
 import { Button } from '@/components/ui/Button';
 import { Card, CardContent } from '@/components/ui/Card';
 import { DataTable } from '@/components/ui/DataTable';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
-import { toast } from '@/components/ui/Toast';
 import { Plus, Pencil, Trash2 } from 'lucide-react';
 import type { Organization } from '@/types/coreData';
-import { OrganizationFormDialog } from '@/components/dialogs/OrganizationFormDialog';
+import { OrganizationFormDialog, type OrganizationFormData } from '@/components/dialogs/OrganizationFormDialog';
 
 export function OrganizationsPage() {
   const { data: organizations = [], isLoading } = useOrganizations();
@@ -15,53 +14,19 @@ export function OrganizationsPage() {
   const updateMutation = useUpdateOrganization();
   const deleteMutation = useDeleteOrganization();
 
-  const [isFormOpen, setIsFormOpen] = useState(false);
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [deleteId, setDeleteId] = useState<string | null>(null);
-
-  const handleCreate = (data: any) => {
-    createMutation.mutate(data, {
-      onSuccess: () => {
-        setIsFormOpen(false);
-        toast.success('Organizacja utworzona');
-      },
-      onError: (error: any) => {
-        toast.error(error.message || 'Błąd przy tworzeniu');
-      },
-    });
-  };
-
-  const handleUpdate = (data: any) => {
-    if (editingId) {
-      updateMutation.mutate(
-        { id: editingId, data },
-        {
-          onSuccess: () => {
-            setIsFormOpen(false);
-            setEditingId(null);
-            toast.success('Organizacja zaktualizowana');
-          },
-          onError: (error: any) => {
-            toast.error(error.message || 'Błąd przy aktualizacji');
-          },
-        }
-      );
-    }
-  };
-
-  const handleDelete = () => {
-    if (deleteId) {
-      deleteMutation.mutate(deleteId, {
-        onSuccess: () => {
-          setDeleteId(null);
-          toast.success('Organizacja usunięta');
-        },
-        onError: (error: any) => {
-          toast.error(error.message || 'Błąd przy usuwaniu');
-        },
-      });
-    }
-  };
+  const crud = useCrudPageState<string, OrganizationFormData>({
+    createMutation,
+    updateMutation,
+    deleteMutation,
+    messages: {
+      createSuccess: 'Organizacja utworzona',
+      updateSuccess: 'Organizacja zaktualizowana',
+      deleteSuccess: 'Organizacja usunięta',
+      createErrorFallback: 'Błąd przy tworzeniu',
+      updateErrorFallback: 'Błąd przy aktualizacji',
+      deleteErrorFallback: 'Błąd przy usuwaniu',
+    },
+  });
 
   const columns = [
     {
@@ -77,17 +42,14 @@ export function OrganizationsPage() {
           <Button
             variant="outline"
             size="sm"
-            onClick={() => {
-              setEditingId(row.id);
-              setIsFormOpen(true);
-            }}
+            onClick={() => crud.openEdit(row.id)}
           >
             <Pencil className="h-4 w-4" />
           </Button>
           <Button
             variant="destructive"
             size="sm"
-            onClick={() => setDeleteId(row.id)}
+            onClick={() => crud.requestDelete(row.id)}
           >
             <Trash2 className="h-4 w-4" />
           </Button>
@@ -103,7 +65,7 @@ export function OrganizationsPage() {
           <h1 className="text-3xl font-bold text-neutral-900">Organizacje</h1>
           <p className="text-neutral-600">Zarządzanie organizacjami i ich użytkownikami</p>
         </div>
-        <Button onClick={() => { setEditingId(null); setIsFormOpen(true); }}>
+        <Button onClick={crud.openCreate}>
           <Plus className="mr-2 h-4 w-4" />
           Nowa organizacja
         </Button>
@@ -115,33 +77,31 @@ export function OrganizationsPage() {
             columns={columns}
             data={organizations}
             isLoading={isLoading}
-            onRowClick={(row) => {
-              setEditingId(row.id.toString());
-              setIsFormOpen(true);
-            }}
+            onRowClick={(row) => crud.openEdit(row.id)}
           />
         </CardContent>
       </Card>
 
       <OrganizationFormDialog
-        open={isFormOpen}
-        onOpenChange={setIsFormOpen}
-        organizationId={editingId}
-        onSubmit={editingId ? handleUpdate : handleCreate}
-        isLoading={createMutation.isPending || updateMutation.isPending}
+        open={crud.isFormOpen}
+        onOpenChange={crud.setIsFormOpen}
+        organizationId={crud.editingId}
+        onSubmit={crud.handleSubmit}
+        isLoading={crud.isSubmitting}
+        serverFieldErrors={crud.serverFieldErrors}
       />
 
       <ConfirmDialog
-        open={!!deleteId}
-        onOpenChange={(open) => !open && setDeleteId(null)}
+        open={!!crud.deleteId}
+        onOpenChange={(open) => !open && crud.cancelDelete()}
         title="Usuń organizację"
         description="Ta akcja nie może być cofnięta."
         message="Czy na pewno chcesz usunąć tę organizację?"
         confirmText="Usuń"
         cancelText="Anuluj"
         isDestructive
-        isLoading={deleteMutation.isPending}
-        onConfirm={handleDelete}
+        isLoading={crud.isDeleting}
+        onConfirm={crud.confirmDelete}
       />
     </div>
   );

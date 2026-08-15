@@ -4,7 +4,7 @@ import { cn } from '@/lib/cn';
 
 const Tabs = RadixTabs.Root;
 
-interface TabsListProps extends React.ComponentPropsWithoutRef<typeof RadixTabs.List> {}
+type TabsListProps = React.ComponentPropsWithoutRef<typeof RadixTabs.List>;
 
 const TabsList = React.forwardRef<
   React.ElementRef<typeof RadixTabs.List>,
@@ -22,7 +22,7 @@ const TabsList = React.forwardRef<
 
 TabsList.displayName = 'TabsList';
 
-interface TabsTriggerProps extends React.ComponentPropsWithoutRef<typeof RadixTabs.Trigger> {}
+type TabsTriggerProps = React.ComponentPropsWithoutRef<typeof RadixTabs.Trigger>;
 
 const TabsTrigger = React.forwardRef<
   React.ElementRef<typeof RadixTabs.Trigger>,
@@ -44,7 +44,7 @@ const TabsTrigger = React.forwardRef<
 
 TabsTrigger.displayName = 'TabsTrigger';
 
-interface TabsContentProps extends React.ComponentPropsWithoutRef<typeof RadixTabs.Content> {}
+type TabsContentProps = React.ComponentPropsWithoutRef<typeof RadixTabs.Content>;
 
 const TabsContent = React.forwardRef<
   React.ElementRef<typeof RadixTabs.Content>,

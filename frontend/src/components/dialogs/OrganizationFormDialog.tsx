@@ -12,7 +12,7 @@ const organizationSchema = z.object({
   name: z.string().min(1, 'Nazwa jest wymagana').min(2, 'Minimum 2 znaki'),
 });
 
-type OrganizationFormData = z.infer<typeof organizationSchema>;
+export type OrganizationFormData = z.infer<typeof organizationSchema>;
 
 interface OrganizationFormDialogProps {
   open?: boolean;
@@ -20,6 +20,7 @@ interface OrganizationFormDialogProps {
   organizationId?: string | null;
   onSubmit: (data: OrganizationFormData) => void;
   isLoading?: boolean;
+  serverFieldErrors?: Record<string, string> | null;
 }
 
 export function OrganizationFormDialog({
@@ -28,12 +29,14 @@ export function OrganizationFormDialog({
   organizationId,
   onSubmit,
   isLoading = false,
+  serverFieldErrors,
 }: OrganizationFormDialogProps) {
   const { data: organization } = useOrganization(organizationId || '');
   const {
     register,
     handleSubmit,
     reset,
+    setError,
     formState: { errors },
   } = useForm<OrganizationFormData>({
     resolver: zodResolver(organizationSchema),
@@ -48,6 +51,13 @@ export function OrganizationFormDialog({
       reset();
     }
   }, [organizationId, organization, reset]);
+
+  useEffect(() => {
+    if (!serverFieldErrors) return;
+    Object.entries(serverFieldErrors).forEach(([field, message]) => {
+      setError(field as keyof OrganizationFormData, { type: 'server', message });
+    });
+  }, [serverFieldErrors, setError]);
 
   const handleFormSubmit = (data: OrganizationFormData) => {
     onSubmit(data);

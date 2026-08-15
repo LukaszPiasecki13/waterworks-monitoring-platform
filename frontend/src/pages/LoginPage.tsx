@@ -55,10 +55,10 @@ export function LoginPage() {
   }
 
   return (
-    <div className="flex min-h-dvh items-center justify-center bg-gray-100 px-4 py-6">
+    <div className="flex min-h-dvh items-center justify-center bg-neutral-100 px-4 py-6">
       <div className="w-full max-w-md rounded-lg bg-white p-6 shadow-md sm:p-8">
-        <h1 className="text-2xl font-bold text-center mb-6 text-gray-900">Waterworks Monitor</h1>
-        <h2 className="text-xl text-center mb-6 text-gray-600">Logowanie</h2>
+        <h1 className="text-2xl font-bold text-center mb-6 text-neutral-900">Waterworks Monitor</h1>
+        <h2 className="text-xl text-center mb-6 text-neutral-600">Logowanie</h2>
 
         {error && (
           <div className="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded-md">
@@ -68,7 +68,7 @@ export function LoginPage() {
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           <div>
-            <label htmlFor="username" className="block text-sm font-medium text-gray-700 mb-1">
+            <label htmlFor="username" className="block text-sm font-medium text-neutral-700 mb-1">
               Nazwa użytkownika lub email
             </label>
             <input
@@ -77,7 +77,7 @@ export function LoginPage() {
               {...register('username', {
                 required: 'Nazwa użytkownika lub email są wymagane',
               })}
-              className="min-h-10 w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="min-h-10 w-full rounded-md border border-neutral-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
               placeholder="użytkownik lub twój@email.pl"
               disabled={isLoading}
             />
@@ -87,7 +87,7 @@ export function LoginPage() {
           </div>
 
           <div>
-            <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
+            <label htmlFor="password" className="block text-sm font-medium text-neutral-700 mb-1">
               Hasło
             </label>
             <input
@@ -96,7 +96,7 @@ export function LoginPage() {
               {...register('password', {
                 required: 'Hasło jest wymagane',
               })}
-              className="min-h-10 w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="min-h-10 w-full rounded-md border border-neutral-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
               placeholder="••••••••"
               disabled={isLoading}
             />
@@ -108,7 +108,7 @@ export function LoginPage() {
           <button
             type="submit"
             disabled={isLoading}
-            className="min-h-10 w-full rounded-md bg-blue-600 px-4 py-2 text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-gray-400"
+            className="min-h-10 w-full rounded-md bg-blue-600 px-4 py-2 text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-neutral-400"
           >
             {isLoading ? 'Logowanie...' : 'Zaloguj się'}
           </button>

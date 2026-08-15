@@ -1,14 +1,12 @@
-import { useState } from 'react';
+import { useCrudPageState } from '@/hooks/useCrudPageState';
 import { useDevices, useCreateDevice, useUpdateDevice, useDeleteDevice } from '@/hooks/useDevices';
 import { Button } from '@/components/ui/Button';
 import { Card, CardContent } from '@/components/ui/Card';
 import { DataTable } from '@/components/ui/DataTable';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
-import { toast } from '@/components/ui/Toast';
-import { Plus, Pencil, Trash2, Key } from 'lucide-react';
-import type { Device } from '@/types/coreData';
-import { DeviceFormDialog } from '@/components/dialogs/DeviceFormDialog';
-import { DeviceSecretRevealDialog } from '@/components/dialogs/DeviceSecretRevealDialog';
+import { Plus, Pencil, Trash2 } from 'lucide-react';
+import type { Device, DeviceCreateRequest, DeviceUpdateRequest } from '@/types/coreData';
+import { DeviceFormDialog, type DeviceFormData } from '@/components/dialogs/DeviceFormDialog';
 
 export function DevicesPage() {
   const { data: devices = [], isLoading } = useDevices();
@@ -16,68 +14,30 @@ export function DevicesPage() {
   const updateMutation = useUpdateDevice();
   const deleteMutation = useDeleteDevice();
 
-  const [isFormOpen, setIsFormOpen] = useState(false);
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [deleteId, setDeleteId] = useState<string | null>(null);
-  const [revealSecretId, setRevealSecretId] = useState<string | null>(null);
-  const [revealSecret, setRevealSecret] = useState<string | null>(null);
-
-  const handleCreate = (data: any) => {
-    const createData = {
-      external_id: data.external_id,
-      water_object_id: data.water_object_id,
+  const crud = useCrudPageState<string, DeviceFormData, DeviceCreateRequest, DeviceUpdateRequest, Device>({
+    createMutation,
+    updateMutation,
+    deleteMutation,
+    messages: {
+      createSuccess: 'Urządzenie utworzone',
+      updateSuccess: 'Urządzenie zaktualizowane',
+      deleteSuccess: 'Urządzenie usunięte',
+      createErrorFallback: 'Błąd przy tworzeniu',
+      updateErrorFallback: 'Błąd przy aktualizacji',
+      deleteErrorFallback: 'Błąd przy usuwaniu',
+    },
+    toCreateInput: (data) => ({
+      external_id: data.external_id ?? '',
+      water_object_id: data.water_object_id ?? '',
       firmware_version: data.firmware_version || undefined,
-    };
-    createMutation.mutate(createData, {
-      onSuccess: (response) => {
-        setIsFormOpen(false);
-        toast.success('Urządzenie utworzone');
-        if (response.plain_secret) {
-          setRevealSecretId(response.id.toString());
-          setRevealSecret(response.plain_secret);
-        }
-      },
-      onError: (error: any) => {
-        toast.error(error.message || 'Błąd przy tworzeniu');
-      },
-    });
-  };
-
-  const handleUpdate = (data: any) => {
-    if (editingId) {
-      const updateData: any = {};
+    }),
+    toUpdateInput: (data) => {
+      const updateData: DeviceUpdateRequest = {};
       if (data.firmware_version) updateData.firmware_version = data.firmware_version;
       if (data.is_active !== undefined) updateData.is_active = data.is_active;
-
-      updateMutation.mutate(
-        { id: editingId, data: updateData },
-        {
-          onSuccess: () => {
-            setIsFormOpen(false);
-            setEditingId(null);
-            toast.success('Urządzenie zaktualizowane');
-          },
-          onError: (error: any) => {
-            toast.error(error.message || 'Błąd przy aktualizacji');
-          },
-        }
-      );
-    }
-  };
-
-  const handleDelete = () => {
-    if (deleteId) {
-      deleteMutation.mutate(deleteId, {
-        onSuccess: () => {
-          setDeleteId(null);
-          toast.success('Urządzenie usunięte');
-        },
-        onError: (error: any) => {
-          toast.error(error.message || 'Błąd przy usuwaniu');
-        },
-      });
-    }
-  };
+      return updateData;
+    },
+  });
 
   const columns = [
     {
@@ -98,25 +58,14 @@ export function DevicesPage() {
           <Button
             variant="outline"
             size="sm"
-            onClick={() => setRevealSecretId(row.id)}
-            title="Pokaż sekret"
-          >
-            <Key className="h-4 w-4" />
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => {
-              setEditingId(row.id);
-              setIsFormOpen(true);
-            }}
+            onClick={() => crud.openEdit(row.id)}
           >
             <Pencil className="h-4 w-4" />
           </Button>
           <Button
             variant="destructive"
             size="sm"
-            onClick={() => setDeleteId(row.id)}
+            onClick={() => crud.requestDelete(row.id)}
           >
             <Trash2 className="h-4 w-4" />
           </Button>
@@ -132,7 +81,7 @@ export function DevicesPage() {
           <h1 className="text-3xl font-bold text-neutral-900">Urządzenia</h1>
           <p className="text-neutral-600">Zarządzanie urządzeniami pomiarowymi</p>
         </div>
-        <Button onClick={() => { setEditingId(null); setIsFormOpen(true); }}>
+        <Button onClick={crud.openCreate}>
           <Plus className="mr-2 h-4 w-4" />
           Nowe urządzenie
         </Button>
@@ -149,36 +98,25 @@ export function DevicesPage() {
       </Card>
 
       <DeviceFormDialog
-        open={isFormOpen}
-        onOpenChange={setIsFormOpen}
-        deviceId={editingId}
-        onSubmit={editingId ? handleUpdate : handleCreate}
-        isLoading={createMutation.isPending || updateMutation.isPending}
-      />
-
-      <DeviceSecretRevealDialog
-        open={!!revealSecretId}
-        onOpenChange={(open) => {
-          if (!open) {
-            setRevealSecretId(null);
-            setRevealSecret(null);
-          }
-        }}
-        deviceId={revealSecretId}
-        secret={revealSecret}
+        open={crud.isFormOpen}
+        onOpenChange={crud.setIsFormOpen}
+        deviceId={crud.editingId}
+        onSubmit={crud.handleSubmit}
+        isLoading={crud.isSubmitting}
+        serverFieldErrors={crud.serverFieldErrors}
       />
 
       <ConfirmDialog
-        open={!!deleteId}
-        onOpenChange={(open) => !open && setDeleteId(null)}
+        open={!!crud.deleteId}
+        onOpenChange={(open) => !open && crud.cancelDelete()}
         title="Usuń urządzenie"
         description="Ta akcja nie może być cofnięta."
         message="Czy na pewno chcesz usunąć to urządzenie?"
         confirmText="Usuń"
         cancelText="Anuluj"
         isDestructive
-        isLoading={deleteMutation.isPending}
-        onConfirm={handleDelete}
+        isLoading={crud.isDeleting}
+        onConfirm={crud.confirmDelete}
       />
     </div>
   );

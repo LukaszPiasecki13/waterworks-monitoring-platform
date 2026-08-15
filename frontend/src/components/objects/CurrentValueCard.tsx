@@ -1,7 +1,7 @@
 import { StatusPill } from '@/components/ui/StatusPill'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/Popover'
 import { HelpCircle } from 'lucide-react'
-import type { LatestPointValue } from '@/hooks/useTelemetryApi'
+import type { LatestPointValue } from '@/types/telemetry'
 import type { DataQuality } from '@/lib/statusConfig'
 import { formatDistanceToNow } from 'date-fns'
 import { pl } from 'date-fns/locale'

@@ -20,15 +20,19 @@ export interface ParsedApiError {
   conflictMessage?: string;
 }
 
+interface ApiErrorResponseData {
+  detail?: string | ApiErrorDetail[];
+}
+
 export function parseApiError(error: unknown): ParsedApiError {
   if (axios.isAxiosError(error)) {
     const status = error.response?.status;
-    const data = error.response?.data as any;
+    const data = error.response?.data as ApiErrorResponseData;
 
     /* 409 Conflict */
     if (status === 409) {
       return {
-        message: typeof data.detail === 'string' ? data.detail : 'Conflict',
+        message: typeof data.detail === 'string' ? data.detail : 'Konflikt',
         statusCode: 409,
         conflictMessage: typeof data.detail === 'string' ? data.detail : undefined,
       };
@@ -37,13 +41,13 @@ export function parseApiError(error: unknown): ParsedApiError {
     /* 422 Unprocessable Entity (Pydantic validation) */
     if (status === 422) {
       const fieldErrors: Record<string, string> = {};
-      let messages: string[] = [];
+      const messages: string[] = [];
 
       if (Array.isArray(data.detail)) {
         data.detail.forEach((err: ApiErrorDetail) => {
           if (err.loc && err.loc.length > 0) {
             const fieldName = err.loc[err.loc.length - 1];
-            fieldErrors[String(fieldName)] = err.msg || 'Invalid value';
+            fieldErrors[String(fieldName)] = err.msg || 'Nieprawidłowa wartość';
           }
           if (err.msg) {
             messages.push(err.msg);
@@ -52,7 +56,7 @@ export function parseApiError(error: unknown): ParsedApiError {
       }
 
       return {
-        message: messages.length > 0 ? messages.join('; ') : 'Validation error',
+        message: messages.length > 0 ? messages.join('; ') : 'Błąd walidacji',
         statusCode: 422,
         fieldErrors: Object.keys(fieldErrors).length > 0 ? fieldErrors : undefined,
       };
@@ -60,7 +64,7 @@ export function parseApiError(error: unknown): ParsedApiError {
 
     /* Generic error */
     return {
-      message: typeof data.detail === 'string' ? data.detail : 'An error occurred',
+      message: typeof data.detail === 'string' ? data.detail : 'Wystąpił błąd',
       statusCode: status,
     };
   }
@@ -72,7 +76,7 @@ export function parseApiError(error: unknown): ParsedApiError {
   }
 
   return {
-    message: 'Unknown error occurred',
+    message: 'Nieznany błąd',
   };
 }
 

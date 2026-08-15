@@ -14,6 +14,7 @@ interface DeviceMeasurementPointFormDialogProps {
   device_id: string
   initialData?: MeasurementPoint
   isLoading?: boolean
+  serverFieldErrors?: Record<string, string> | null
 }
 
 type PointType = 'pressure' | 'flow_rate' | 'total_volume' | 'power_status'
@@ -33,11 +34,13 @@ export function DeviceMeasurementPointFormDialog({
   device_id,
   initialData,
   isLoading = false,
+  serverFieldErrors,
 }: DeviceMeasurementPointFormDialogProps) {
   const {
     register,
     handleSubmit,
     reset,
+    setError,
     formState: { errors },
   } = useForm<FormData>({
     defaultValues: {
@@ -68,6 +71,13 @@ export function DeviceMeasurementPointFormDialog({
       })
     }
   }, [initialData, reset, isOpen])
+
+  useEffect(() => {
+    if (!serverFieldErrors) return
+    Object.entries(serverFieldErrors).forEach(([field, message]) => {
+      setError(field as keyof FormData, { type: 'server', message })
+    })
+  }, [serverFieldErrors, setError])
 
   const handleFormSubmit = (data: FormData) => {
     if (initialData) {

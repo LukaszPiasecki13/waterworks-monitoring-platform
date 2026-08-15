@@ -63,17 +63,6 @@ export interface DeviceCreateRequest {
   firmware_version?: string;
 }
 
-export interface DeviceCreateResponse {
-  id: string;
-  water_object_id: string;
-  external_id: string;
-  firmware_version: string | null;
-  last_seen_at: string | null;
-  last_diagnostics_at: string | null;
-  is_active: boolean;
-  plain_secret: string;
-}
-
 export interface DeviceUpdateRequest {
   firmware_version?: string;
   is_active?: boolean;
@@ -86,8 +75,8 @@ export interface MeasurementPoint {
   external_id: string;
   point_type: string;
   unit: string;
-  min_technical?: number;
-  max_technical?: number;
+  min_technical: number | null;
+  max_technical: number | null;
   is_active: boolean;
   created_at: string;
   updated_at: string;
@@ -149,6 +138,6 @@ export interface AuditLogEntry {
   action: string;
   resource_type: string;
   resource_id?: string;
-  details?: Record<string, any>;
+  details?: Record<string, unknown>;
   created_at: string;
 }

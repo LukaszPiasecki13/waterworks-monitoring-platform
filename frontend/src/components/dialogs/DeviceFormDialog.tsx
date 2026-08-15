@@ -17,7 +17,7 @@ const deviceSchema = z.object({
   is_active: z.boolean().optional(),
 });
 
-type DeviceFormData = z.infer<typeof deviceSchema>;
+export type DeviceFormData = z.infer<typeof deviceSchema>;
 
 interface DeviceFormDialogProps {
   open?: boolean;
@@ -25,6 +25,7 @@ interface DeviceFormDialogProps {
   deviceId?: string | null;
   onSubmit: (data: DeviceFormData) => void;
   isLoading?: boolean;
+  serverFieldErrors?: Record<string, string> | null;
 }
 
 export function DeviceFormDialog({
@@ -33,6 +34,7 @@ export function DeviceFormDialog({
   deviceId,
   onSubmit,
   isLoading = false,
+  serverFieldErrors,
 }: DeviceFormDialogProps) {
   const { data: device } = useDevice(deviceId || '');
   const { data: waterObjects = [] } = useWaterObjects();
@@ -40,6 +42,7 @@ export function DeviceFormDialog({
     register,
     handleSubmit,
     reset,
+    setError,
     formState: { errors },
   } = useForm<DeviceFormData>({
     resolver: zodResolver(deviceSchema),
@@ -57,6 +60,13 @@ export function DeviceFormDialog({
       reset();
     }
   }, [deviceId, device, reset]);
+
+  useEffect(() => {
+    if (!serverFieldErrors) return;
+    Object.entries(serverFieldErrors).forEach(([field, message]) => {
+      setError(field as keyof DeviceFormData, { type: 'server', message });
+    });
+  }, [serverFieldErrors, setError]);
 
   const handleFormSubmit = (data: DeviceFormData) => {
     onSubmit(data);

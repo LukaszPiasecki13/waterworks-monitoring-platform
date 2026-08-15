@@ -18,7 +18,7 @@ const waterObjectSchema = z.object({
   longitude: z.number().optional(),
 });
 
-type WaterObjectFormData = z.infer<typeof waterObjectSchema>;
+export type WaterObjectFormData = z.infer<typeof waterObjectSchema>;
 
 interface WaterObjectFormDialogProps {
   open?: boolean;
@@ -26,6 +26,7 @@ interface WaterObjectFormDialogProps {
   waterObjectId?: string | null;
   onSubmit: (data: WaterObjectFormData) => void;
   isLoading?: boolean;
+  serverFieldErrors?: Record<string, string> | null;
 }
 
 export function WaterObjectFormDialog({
@@ -34,12 +35,14 @@ export function WaterObjectFormDialog({
   waterObjectId,
   onSubmit,
   isLoading = false,
+  serverFieldErrors,
 }: WaterObjectFormDialogProps) {
   const { data: waterObject } = useWaterObject(waterObjectId || '');
   const {
     register,
     handleSubmit,
     reset,
+    setError,
     formState: { errors },
   } = useForm<WaterObjectFormData>({
     resolver: zodResolver(waterObjectSchema),
@@ -58,6 +61,13 @@ export function WaterObjectFormDialog({
       reset();
     }
   }, [waterObjectId, waterObject, reset]);
+
+  useEffect(() => {
+    if (!serverFieldErrors) return;
+    Object.entries(serverFieldErrors).forEach(([field, message]) => {
+      setError(field as keyof WaterObjectFormData, { type: 'server', message });
+    });
+  }, [serverFieldErrors, setError]);
 
   const handleFormSubmit = (data: WaterObjectFormData) => {
     onSubmit(data);

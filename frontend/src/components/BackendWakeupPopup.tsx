@@ -18,10 +18,10 @@ export function BackendWakeupPopup() {
         aria-live="polite"
       >
         <div className="flex justify-center mb-4">
-          <div className="w-12 h-12 border-4 border-gray-200 border-t-blue-600 rounded-full animate-spin"></div>
+          <div className="w-12 h-12 border-4 border-neutral-200 border-t-blue-600 rounded-full animate-spin"></div>
         </div>
-        <h2 className="text-xl font-semibold mb-2 text-gray-900">Trwa uruchamianie serwera</h2>
-        <p className="text-gray-600">Proszę czekać. Może to potrwać do minuty...</p>
+        <h2 className="text-xl font-semibold mb-2 text-neutral-900">Trwa uruchamianie serwera</h2>
+        <p className="text-neutral-600">Proszę czekać. Może to potrwać do minuty...</p>
       </div>
     </div>
   )

@@ -5,8 +5,9 @@ import { cn } from '@/lib/cn';
 const DropdownMenu = RadixDropdownMenu.Root;
 const DropdownMenuTrigger = RadixDropdownMenu.Trigger;
 
-interface DropdownMenuContentProps
-  extends React.ComponentPropsWithoutRef<typeof RadixDropdownMenu.Content> {}
+type DropdownMenuContentProps = React.ComponentPropsWithoutRef<
+  typeof RadixDropdownMenu.Content
+>;
 
 const DropdownMenuContent = React.forwardRef<
   React.ElementRef<typeof RadixDropdownMenu.Content>,
@@ -26,8 +27,9 @@ const DropdownMenuContent = React.forwardRef<
 
 DropdownMenuContent.displayName = 'DropdownMenuContent';
 
-interface DropdownMenuItemProps
-  extends React.ComponentPropsWithoutRef<typeof RadixDropdownMenu.Item> {}
+type DropdownMenuItemProps = React.ComponentPropsWithoutRef<
+  typeof RadixDropdownMenu.Item
+>;
 
 const DropdownMenuItem = React.forwardRef<
   React.ElementRef<typeof RadixDropdownMenu.Item>,
@@ -47,8 +49,9 @@ const DropdownMenuItem = React.forwardRef<
 
 DropdownMenuItem.displayName = 'DropdownMenuItem';
 
-interface DropdownMenuCheckboxItemProps
-  extends React.ComponentPropsWithoutRef<typeof RadixDropdownMenu.CheckboxItem> {}
+type DropdownMenuCheckboxItemProps = React.ComponentPropsWithoutRef<
+  typeof RadixDropdownMenu.CheckboxItem
+>;
 
 const DropdownMenuCheckboxItem = React.forwardRef<
   React.ElementRef<typeof RadixDropdownMenu.CheckboxItem>,
@@ -68,8 +71,9 @@ const DropdownMenuCheckboxItem = React.forwardRef<
 
 DropdownMenuCheckboxItem.displayName = 'DropdownMenuCheckboxItem';
 
-interface DropdownMenuSeparatorProps
-  extends React.ComponentPropsWithoutRef<typeof RadixDropdownMenu.Separator> {}
+type DropdownMenuSeparatorProps = React.ComponentPropsWithoutRef<
+  typeof RadixDropdownMenu.Separator
+>;
 
 const DropdownMenuSeparator = React.forwardRef<
   React.ElementRef<typeof RadixDropdownMenu.Separator>,

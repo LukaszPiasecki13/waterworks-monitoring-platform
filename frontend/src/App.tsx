@@ -1,12 +1,11 @@
-import { useEffect } from 'react'
 import { QueryClientProvider } from '@tanstack/react-query'
-import { RouterProvider, createBrowserRouter, createRoutesFromElements, Route, Navigate } from 'react-router-dom'
+import { RouterProvider, createBrowserRouter, createRoutesFromElements, Route, Navigate, Outlet } from 'react-router-dom'
 import { queryClient } from '@/lib/queryClient'
-import { attachBackendWakeupInterceptors } from '@/lib/api'
+import '@/lib/api'
 import { BackendWakeupPopup } from '@/components/BackendWakeupPopup'
 import { ProtectedRoute } from '@/components/ProtectedRoute'
 import { RequirePermission } from '@/components/RequirePermission'
-import { AppLayout } from '@/components/layout/AppLayout'
+import { AppShell } from '@/components/layout/AppShell'
 import { LoginPage } from '@/pages/LoginPage'
 import { DashboardPage } from '@/pages/DashboardPage'
 import { ObjectDetailPage } from '@/pages/ObjectDetailPage'
@@ -25,7 +24,7 @@ const router = createBrowserRouter(
       <Route path="/login" element={<LoginPage />} />
       <Route path="/forbidden" element={<ForbiddenPage />} />
       <Route element={<ProtectedRoute />}>
-        <Route element={<AppLayout />}>
+        <Route element={<AppShell><Outlet /></AppShell>}>
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
           <Route path="/dashboard" element={<DashboardPage />} />
           <Route path="/objects/:objectId" element={<ObjectDetailPage />} />
@@ -80,10 +79,6 @@ const router = createBrowserRouter(
 )
 
 function App() {
-  useEffect(() => {
-    attachBackendWakeupInterceptors()
-  }, [])
-
   return (
     <QueryClientProvider client={queryClient}>
       <RouterProvider router={router} />

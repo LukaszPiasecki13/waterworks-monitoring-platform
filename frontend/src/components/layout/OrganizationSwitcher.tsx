@@ -20,7 +20,6 @@ export function OrganizationSwitcher() {
   const [open, setOpen] = useState(false)
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
-  const [error, setError] = useState<string | null>(null)
 
   // Debounce search
   useEffect(() => {
@@ -60,7 +59,6 @@ export function OrganizationSwitcher() {
       </PopoverTrigger>
       <PopoverContent className="w-72 p-0" align="start">
         <div className="space-y-2 p-2">
-          {error && <div className="px-2 py-1 text-sm text-red-600 bg-red-50 rounded">{error}</div>}
           <div className="px-2">
             <Input
               placeholder="Szukaj organizacji..."
@@ -80,13 +78,8 @@ export function OrganizationSwitcher() {
                   key={org.id}
                   onClick={() => {
                     if (org.id !== activeOrgId) {
-                      try {
-                        setActiveOrganization({ id: org.id, name: org.name })
-                        navigate('/dashboard', { replace: true })
-                        setError(null)
-                      } catch (err) {
-                        setError(`Failed to switch to ${org.name}`)
-                      }
+                      setActiveOrganization({ id: org.id, name: org.name })
+                      navigate('/dashboard', { replace: true })
                     }
                     setOpen(false)
                   }}
@@ -96,7 +89,7 @@ export function OrganizationSwitcher() {
                     org.id === activeOrgId ? 'bg-neutral-50' : ''
                   }`}
                 >
-                  {org.id === activeOrgId && <Check className="h-4 w-4 text-blue-600 flex-shrink-0" aria-hidden="true" />}
+                  {org.id === activeOrgId && <Check className="h-4 w-4 text-brand-600 flex-shrink-0" aria-hidden="true" />}
                   <span className={`truncate ${org.id === activeOrgId ? 'font-medium' : ''}`}>{org.name}</span>
                 </button>
               ))

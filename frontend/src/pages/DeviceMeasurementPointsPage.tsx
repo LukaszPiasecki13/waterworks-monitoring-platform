@@ -1,5 +1,6 @@
-import { useState, useMemo } from 'react'
+import { useMemo } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
+import { useCrudPageState } from '@/hooks/useCrudPageState'
 import {
   useMeasurementPoints,
   useCreateMeasurementPoint,
@@ -10,10 +11,11 @@ import { Button } from '@/components/ui/Button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { DataTable } from '@/components/ui/DataTable'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
-import { toast } from '@/components/ui/Toast'
 import { ChevronLeft, Plus, Pencil, Trash2 } from 'lucide-react'
 import type { MeasurementPoint, MeasurementPointCreateRequest, MeasurementPointUpdateRequest } from '@/types/coreData'
 import { DeviceMeasurementPointFormDialog } from '@/components/dialogs/DeviceMeasurementPointFormDialog'
+
+type PointFormData = MeasurementPointCreateRequest | MeasurementPointUpdateRequest
 
 export function DeviceMeasurementPointsPage() {
   const { deviceId } = useParams<{ deviceId: string }>()
@@ -23,9 +25,28 @@ export function DeviceMeasurementPointsPage() {
   const updateMutation = useUpdateMeasurementPoint()
   const deleteMutation = useDeleteMeasurementPoint()
 
-  const [isFormOpen, setIsFormOpen] = useState(false)
-  const [editingId, setEditingId] = useState<string | null>(null)
-  const [deleteId, setDeleteId] = useState<string | null>(null)
+  const devicePoints = useMemo(
+    () => allPoints.filter((p) => p.device_id === deviceId),
+    [allPoints, deviceId]
+  )
+
+  const crud = useCrudPageState<string, PointFormData, MeasurementPointCreateRequest, MeasurementPointUpdateRequest>({
+    createMutation,
+    updateMutation,
+    deleteMutation,
+    messages: {
+      createSuccess: 'Punkt pomiarowy utworzony',
+      updateSuccess: 'Punkt pomiarowy zaktualizowany',
+      deleteSuccess: 'Punkt pomiarowy usunięty',
+      createErrorFallback: 'Błąd przy tworzeniu',
+      updateErrorFallback: 'Błąd przy aktualizacji',
+      deleteErrorFallback: 'Błąd przy usuwaniu',
+    },
+    toCreateInput: (data) => data as MeasurementPointCreateRequest,
+    toUpdateInput: (data) => data as MeasurementPointUpdateRequest,
+  })
+
+  const editingPoint = crud.editingId ? devicePoints.find((p) => p.id === crud.editingId) : undefined
 
   if (!deviceId) {
     return (
@@ -33,56 +54,6 @@ export function DeviceMeasurementPointsPage() {
         <div className="text-red-600">Brakuje ID urządzenia</div>
       </div>
     )
-  }
-
-  const devicePoints = useMemo(
-    () => allPoints.filter((p) => p.device_id === deviceId),
-    [allPoints, deviceId]
-  )
-  const editingPoint = editingId ? devicePoints.find((p) => p.id === editingId) : undefined
-
-  const handleCreate = (data: MeasurementPointCreateRequest | MeasurementPointUpdateRequest) => {
-    createMutation.mutate(data as MeasurementPointCreateRequest, {
-      onSuccess: () => {
-        setIsFormOpen(false)
-        toast.success('Punkt pomiarowy utworzony')
-      },
-      onError: (error: any) => {
-        toast.error(error.message || 'Błąd przy tworzeniu')
-      },
-    })
-  }
-
-  const handleUpdate = (data: MeasurementPointCreateRequest | MeasurementPointUpdateRequest) => {
-    if (editingId) {
-      updateMutation.mutate(
-        { id: editingId, data: data as MeasurementPointUpdateRequest },
-        {
-          onSuccess: () => {
-            setIsFormOpen(false)
-            setEditingId(null)
-            toast.success('Punkt pomiarowy zaktualizowany')
-          },
-          onError: (error: any) => {
-            toast.error(error.message || 'Błąd przy aktualizacji')
-          },
-        }
-      )
-    }
-  }
-
-  const handleDelete = () => {
-    if (deleteId) {
-      deleteMutation.mutate(deleteId, {
-        onSuccess: () => {
-          setDeleteId(null)
-          toast.success('Punkt pomiarowy usunięty')
-        },
-        onError: (error: any) => {
-          toast.error(error.message || 'Błąd przy usuwaniu')
-        },
-      })
-    }
   }
 
   const columns = [
@@ -117,7 +88,7 @@ export function DeviceMeasurementPointsPage() {
       key: 'is_active',
       label: 'Status',
       render: (row: MeasurementPoint) => (
-        <span className={row.is_active ? 'text-green-600 font-medium' : 'text-gray-400'}>
+        <span className={row.is_active ? 'text-green-600 font-medium' : 'text-neutral-400'}>
           {row.is_active ? 'Aktywny' : 'Nieaktywny'}
         </span>
       ),
@@ -130,17 +101,14 @@ export function DeviceMeasurementPointsPage() {
           <Button
             variant="outline"
             size="sm"
-            onClick={() => {
-              setEditingId(row.id)
-              setIsFormOpen(true)
-            }}
+            onClick={() => crud.openEdit(row.id)}
           >
             <Pencil className="h-4 w-4" />
           </Button>
           <Button
             variant="outline"
             size="sm"
-            onClick={() => setDeleteId(row.id)}
+            onClick={() => crud.requestDelete(row.id)}
             className="text-red-600 hover:text-red-700"
           >
             <Trash2 className="h-4 w-4" />
@@ -160,12 +128,12 @@ export function DeviceMeasurementPointsPage() {
 
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">Punkty pomiarowe urządzenia</h1>
-            <p className="text-gray-600 mt-2">
+            <h1 className="text-3xl font-bold text-neutral-900">Punkty pomiarowe urządzenia</h1>
+            <p className="text-neutral-600 mt-2">
               Urządzenie: <span className="font-mono text-sm">{deviceId}</span>
             </p>
           </div>
-          <Button onClick={() => setIsFormOpen(true)}>
+          <Button onClick={crud.openCreate}>
             <Plus className="mr-2 h-4 w-4" />
             Dodaj punkt
           </Button>
@@ -182,24 +150,22 @@ export function DeviceMeasurementPointsPage() {
       </Card>
 
       <DeviceMeasurementPointFormDialog
-        isOpen={isFormOpen}
-        onClose={() => {
-          setIsFormOpen(false)
-          setEditingId(null)
-        }}
-        onSubmit={editingId ? handleUpdate : handleCreate}
+        isOpen={crud.isFormOpen}
+        onClose={() => crud.setIsFormOpen(false)}
+        onSubmit={crud.handleSubmit}
         device_id={deviceId}
         initialData={editingPoint}
-        isLoading={createMutation.isPending || updateMutation.isPending}
+        isLoading={crud.isSubmitting}
+        serverFieldErrors={crud.serverFieldErrors}
       />
 
       <ConfirmDialog
-        open={deleteId !== null}
-        onOpenChange={(open) => !open && setDeleteId(null)}
+        open={crud.deleteId !== null}
+        onOpenChange={(open) => !open && crud.cancelDelete()}
         title="Usuń punkt pomiarowy?"
         message="Ta operacja nie może być cofnięta."
-        onConfirm={handleDelete}
-        isLoading={deleteMutation.isPending}
+        onConfirm={crud.confirmDelete}
+        isLoading={crud.isDeleting}
       />
     </div>
   )

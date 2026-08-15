@@ -20,7 +20,7 @@ const userSchema = z.object({
   organization_id: z.string().optional(),
 });
 
-type UserFormData = z.infer<typeof userSchema>;
+export type UserFormData = z.infer<typeof userSchema>;
 
 interface UserFormDialogProps {
   open?: boolean;
@@ -28,6 +28,7 @@ interface UserFormDialogProps {
   userId?: number | null;
   onSubmit: (data: UserFormData) => void;
   isLoading?: boolean;
+  serverFieldErrors?: Record<string, string> | null;
 }
 
 export function UserFormDialog({
@@ -36,6 +37,7 @@ export function UserFormDialog({
   userId,
   onSubmit,
   isLoading = false,
+  serverFieldErrors,
 }: UserFormDialogProps) {
   const { data: user } = useUser(userId || 0);
   const { data: organizations = [] } = useOrganizations();
@@ -43,6 +45,7 @@ export function UserFormDialog({
     register,
     handleSubmit,
     reset,
+    setError,
     formState: { errors },
   } = useForm<UserFormData>({
     resolver: zodResolver(userSchema),
@@ -59,7 +62,7 @@ export function UserFormDialog({
         email: user.email || '',
         first_name: user.first_name || '',
         last_name: user.last_name || '',
-        status: user.status as any || 'regular',
+        status: (user.status as 'regular' | 'admin') || 'regular',
         is_active: user.is_active,
         organization_id: user.organization_id || '',
       });
@@ -67,6 +70,13 @@ export function UserFormDialog({
       reset();
     }
   }, [userId, user, reset]);
+
+  useEffect(() => {
+    if (!serverFieldErrors) return;
+    Object.entries(serverFieldErrors).forEach(([field, message]) => {
+      setError(field as keyof UserFormData, { type: 'server', message });
+    });
+  }, [serverFieldErrors, setError]);
 
   const handleFormSubmit = (data: UserFormData) => {
     onSubmit(data);

@@ -29,6 +29,7 @@ export function useWaterObject(id: string) {
   return useQuery({
     queryKey: queryKeys.waterObjects.detail(id),
     queryFn: () => waterObjectsService.get(id),
+    enabled: !!id,
   });
 }
 

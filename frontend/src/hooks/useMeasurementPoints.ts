@@ -29,13 +29,6 @@ export function useMeasurementPoints(params?: ListParams) {
   });
 }
 
-export function useMeasurementPoint(id: string) {
-  return useQuery({
-    queryKey: queryKeys.measurementPoints.detail(id),
-    queryFn: () => measurementPointsService.get(id),
-  });
-}
-
 export function useCreateMeasurementPoint() {
   const queryClient = useQueryClient();
 

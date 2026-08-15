@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
+import axios from 'axios'
 import * as RadixDialog from '@radix-ui/react-dialog'
 import { useSecurityGroups, useUserGroups, useReplaceUserGroups } from '@/hooks/useSecurityGroups'
 import { Badge } from '@/components/ui/Badge'
@@ -23,24 +24,19 @@ export function UserGroupsModal({ userId, userEmail, onClose }: UserGroupsModalP
   const { data: userGroupIds = [] } = useUserGroups(userId)
   const replaceUserGroups = useReplaceUserGroups()
 
-  const [selectedGroupIds, setSelectedGroupIds] = useState<string[]>([])
-  const [isChanged, setIsChanged] = useState(false)
-
-  useEffect(() => {
-    setSelectedGroupIds(userGroupIds)
-    setIsChanged(false)
-  }, [userGroupIds])
+  const [pendingSelection, setPendingSelection] = useState<string[] | null>(null)
+  const selectedGroupIds = pendingSelection ?? userGroupIds
+  const isChanged = pendingSelection !== null && (
+    pendingSelection.length !== userGroupIds.length ||
+    !pendingSelection.every((id) => userGroupIds.includes(id))
+  )
 
   const handleToggleGroup = (groupId: string) => {
-    setSelectedGroupIds((prev) => {
-      const next = prev.includes(groupId)
-        ? prev.filter((id) => id !== groupId)
-        : [...prev, groupId]
-      setIsChanged(
-        next.length !== userGroupIds.length ||
-          !next.every((id) => userGroupIds.includes(id))
-      )
-      return next
+    setPendingSelection((prev) => {
+      const base = prev ?? userGroupIds
+      return base.includes(groupId)
+        ? base.filter((id) => id !== groupId)
+        : [...base, groupId]
     })
   }
 
@@ -49,11 +45,12 @@ export function UserGroupsModal({ userId, userEmail, onClose }: UserGroupsModalP
       { userId, groupIds: selectedGroupIds },
       {
         onSuccess: () => {
-          setIsChanged(false)
+          setPendingSelection(null)
           onClose()
         },
-        onError: (error: any) => {
-          toast.error(error.response?.data?.detail || 'Błąd przy aktualizacji grup')
+        onError: (error: unknown) => {
+          const detail = axios.isAxiosError(error) ? error.response?.data?.detail : undefined
+          toast.error(detail || 'Błąd przy aktualizacji grup')
         },
       }
     )

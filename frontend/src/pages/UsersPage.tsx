@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useCrudPageState } from '@/hooks/useCrudPageState'
 import { useUsers, useCreateUser, useUpdateUser, useDeleteUser } from '@/hooks/useUsers'
 import { useAuthStore } from '@/stores/authStore'
 import { Button } from '@/components/ui/Button'
@@ -6,10 +7,9 @@ import { Card, CardContent } from '@/components/ui/Card'
 import { DataTable } from '@/components/ui/DataTable'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/Tabs'
-import { toast } from '@/components/ui/Toast'
 import { Plus, Pencil, Trash2, Users } from 'lucide-react'
-import type { ManagedUser } from '@/types/coreData'
-import { UserFormDialog } from '@/components/dialogs/UserFormDialog'
+import type { ManagedUser, ManagedUserCreateRequest, ManagedUserUpdateRequest } from '@/types/coreData'
+import { UserFormDialog, type UserFormData } from '@/components/dialogs/UserFormDialog'
 import { SecurityGroupsPanel } from '@/components/security/SecurityGroupsPanel'
 import { UserGroupsModal } from '@/components/security/UserGroupsModal'
 
@@ -31,54 +31,21 @@ export function UsersPage() {
     return 'users'
   })
 
-  const [isFormOpen, setIsFormOpen] = useState(false)
-  const [editingId, setEditingId] = useState<number | null>(null)
-  const [deleteId, setDeleteId] = useState<number | null>(null)
   const [selectedUserForGroups, setSelectedUserForGroups] = useState<string | null>(null)
 
-  const handleCreate = (data: any) => {
-    createMutation.mutate(data, {
-      onSuccess: () => {
-        setIsFormOpen(false)
-        toast.success('Użytkownik utworzony')
-      },
-      onError: (error: any) => {
-        toast.error(error.message || 'Błąd przy tworzeniu')
-      },
-    })
-  }
-
-  const handleUpdate = (data: any) => {
-    if (editingId) {
-      updateMutation.mutate(
-        { id: editingId, data },
-        {
-          onSuccess: () => {
-            setIsFormOpen(false)
-            setEditingId(null)
-            toast.success('Użytkownik zaktualizowany')
-          },
-          onError: (error: any) => {
-            toast.error(error.message || 'Błąd przy aktualizacji')
-          },
-        }
-      )
-    }
-  }
-
-  const handleDelete = () => {
-    if (deleteId) {
-      deleteMutation.mutate(deleteId, {
-        onSuccess: () => {
-          setDeleteId(null)
-          toast.success('Użytkownik usunięty')
-        },
-        onError: (error: any) => {
-          toast.error(error.message || 'Błąd przy usuwaniu')
-        },
-      })
-    }
-  }
+  const crud = useCrudPageState<number, UserFormData, ManagedUserCreateRequest, ManagedUserUpdateRequest>({
+    createMutation,
+    updateMutation,
+    deleteMutation,
+    messages: {
+      createSuccess: 'Użytkownik utworzony',
+      updateSuccess: 'Użytkownik zaktualizowany',
+      deleteSuccess: 'Użytkownik usunięty',
+      createErrorFallback: 'Błąd przy tworzeniu',
+      updateErrorFallback: 'Błąd przy aktualizacji',
+      deleteErrorFallback: 'Błąd przy usuwaniu',
+    },
+  })
 
   const columns = [
     {
@@ -111,17 +78,14 @@ export function UsersPage() {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => {
-                  setEditingId(row.id)
-                  setIsFormOpen(true)
-                }}
+                onClick={() => crud.openEdit(row.id)}
               >
                 <Pencil className="h-4 w-4" />
               </Button>
               <Button
                 variant="destructive"
                 size="sm"
-                onClick={() => setDeleteId(row.id)}
+                onClick={() => crud.requestDelete(row.id)}
               >
                 <Trash2 className="h-4 w-4" />
               </Button>
@@ -169,12 +133,7 @@ export function UsersPage() {
             <div className="flex items-center justify-between">
               <div />
               {canManageUsers && (
-                <Button
-                  onClick={() => {
-                    setEditingId(null)
-                    setIsFormOpen(true)
-                  }}
-                >
+                <Button onClick={crud.openCreate}>
                   <Plus className="mr-2 h-4 w-4" />
                   Nowy użytkownik
                 </Button>
@@ -197,24 +156,25 @@ export function UsersPage() {
       </Tabs>
 
       <UserFormDialog
-        open={isFormOpen}
-        onOpenChange={setIsFormOpen}
-        userId={editingId}
-        onSubmit={editingId ? handleUpdate : handleCreate}
-        isLoading={createMutation.isPending || updateMutation.isPending}
+        open={crud.isFormOpen}
+        onOpenChange={crud.setIsFormOpen}
+        userId={crud.editingId}
+        onSubmit={crud.handleSubmit}
+        isLoading={crud.isSubmitting}
+        serverFieldErrors={crud.serverFieldErrors}
       />
 
       <ConfirmDialog
-        open={!!deleteId}
-        onOpenChange={(open) => !open && setDeleteId(null)}
+        open={!!crud.deleteId}
+        onOpenChange={(open) => !open && crud.cancelDelete()}
         title="Usuń użytkownika"
         description="Ta akcja nie może być cofnięta."
         message="Czy na pewno chcesz usunąć tego użytkownika?"
         confirmText="Usuń"
         cancelText="Anuluj"
         isDestructive
-        isLoading={deleteMutation.isPending}
-        onConfirm={handleDelete}
+        isLoading={crud.isDeleting}
+        onConfirm={crud.confirmDelete}
       />
 
       {selectedUserForGroups && (

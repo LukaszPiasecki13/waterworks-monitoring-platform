@@ -24,14 +24,14 @@ interface DataTableProps<T> {
   onPageChange?: (page: number) => void;
 }
 
-export function DataTable<T extends Record<string, any>>({
+export function DataTable<T extends object>({
   columns,
   data,
   isLoading = false,
   isEmpty = false,
   isError = false,
-  errorMessage = 'Error loading data',
-  emptyMessage = 'No data found',
+  errorMessage = 'Błąd wczytywania danych',
+  emptyMessage = 'Brak danych',
   onRowClick,
   pageSize = 20,
   currentPage = 1,
@@ -62,7 +62,7 @@ export function DataTable<T extends Record<string, any>>({
       <div className="flex justify-center items-center h-64">
         <div className="text-center">
           <p className="text-red-600 font-medium">Invalid data format: expected array</p>
-          <p className="text-sm text-gray-600 mt-2">Received: {typeof data}</p>
+          <p className="text-sm text-neutral-600 mt-2">Received: {typeof data}</p>
         </div>
       </div>
     );
@@ -112,7 +112,7 @@ export function DataTable<T extends Record<string, any>>({
                   >
                     {col.render
                       ? col.render(row, idx)
-                      : String((row as any)[col.key] ?? '-')}
+                      : String((row as Record<string, unknown>)[col.key as string] ?? '-')}
                   </td>
                 ))}
               </tr>
@@ -124,7 +124,7 @@ export function DataTable<T extends Record<string, any>>({
       {totalPages > 1 && (
         <div className="flex items-center justify-between">
           <div className="text-sm text-neutral-600">
-            Page {currentPage} of {totalPages}
+            Strona {currentPage} z {totalPages}
           </div>
           <div className="flex gap-2">
             <button
@@ -132,14 +132,14 @@ export function DataTable<T extends Record<string, any>>({
               disabled={currentPage === 1}
               className="px-3 py-1.5 rounded border border-neutral-300 text-sm font-medium hover:bg-neutral-50 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Previous
+              Poprzednia
             </button>
             <button
               onClick={() => onPageChange?.(Math.min(totalPages, currentPage + 1))}
               disabled={currentPage === totalPages}
               className="px-3 py-1.5 rounded border border-neutral-300 text-sm font-medium hover:bg-neutral-50 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Next
+              Następna
             </button>
           </div>
         </div>

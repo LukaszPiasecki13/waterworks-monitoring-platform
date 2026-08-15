@@ -30,6 +30,7 @@ export function useDevice(id: string) {
   return useQuery({
     queryKey: queryKeys.devices.detail(id),
     queryFn: () => devicesService.get(id),
+    enabled: !!id,
   });
 }
 

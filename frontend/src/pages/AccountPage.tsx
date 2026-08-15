@@ -52,15 +52,15 @@ export function AccountPage() {
 
       useAuthStore.setState({ user: updated })
       toast.success('Profil zaktualizowany')
-    } catch (error: any) {
-      toast.error(error.message || 'Błąd przy aktualizacji profilu')
+    } catch (error: unknown) {
+      toast.error(error instanceof Error ? error.message : 'Błąd przy aktualizacji profilu')
     }
   }
 
   if (!user) {
     return (
       <div className="px-6 py-8">
-        <div className="text-gray-500">Ładowanie profilu...</div>
+        <div className="text-neutral-500">Ładowanie profilu...</div>
       </div>
     )
   }
@@ -68,8 +68,8 @@ export function AccountPage() {
   return (
     <div className="px-6 py-8 max-w-2xl">
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900">Mój profil</h1>
-        <p className="text-gray-600 mt-2">Zarządzanie swoim kontem i ustawieniami</p>
+        <h1 className="text-3xl font-bold text-neutral-900">Mój profil</h1>
+        <p className="text-neutral-600 mt-2">Zarządzanie swoim kontem i ustawieniami</p>
       </div>
 
       <Card>
@@ -115,11 +115,11 @@ export function AccountPage() {
           <CardTitle>Uprawnienia</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="text-sm text-gray-600">
+          <div className="text-sm text-neutral-600">
             <p>
-              Status: <span className="font-semibold text-gray-900">{user.status}</span>
+              Status: <span className="font-semibold text-neutral-900">{user.status}</span>
             </p>
-            <p className="mt-2 text-xs text-gray-500">
+            <p className="mt-2 text-xs text-neutral-500">
               Twoje uprawnienia do zasobów są zarządzane przez administratora systemu.
             </p>
           </div>

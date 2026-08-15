@@ -14,6 +14,7 @@ export function useUser(id: number) {
   return useQuery({
     queryKey: queryKeys.users.detail(id),
     queryFn: () => usersService.get(id),
+    enabled: !!id,
   });
 }
 

@@ -15,7 +15,7 @@ const Dialog = ({ open, onOpenChange, children }: DialogProps) => (
   </RadixDialog.Root>
 );
 
-interface DialogTriggerProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {}
+type DialogTriggerProps = React.ButtonHTMLAttributes<HTMLButtonElement>;
 
 const DialogTrigger = React.forwardRef<HTMLButtonElement, DialogTriggerProps>(
   ({ ...props }, ref) => <RadixDialog.Trigger ref={ref} {...props} />
@@ -44,7 +44,7 @@ const DialogContent = React.forwardRef<
 
 DialogContent.displayName = 'DialogContent';
 
-interface DialogHeaderProps extends React.HTMLAttributes<HTMLDivElement> {}
+type DialogHeaderProps = React.HTMLAttributes<HTMLDivElement>;
 
 const DialogHeader = React.forwardRef<HTMLDivElement, DialogHeaderProps>(
   ({ className, ...props }, ref) => (
@@ -54,7 +54,7 @@ const DialogHeader = React.forwardRef<HTMLDivElement, DialogHeaderProps>(
 
 DialogHeader.displayName = 'DialogHeader';
 
-interface DialogTitleProps extends React.ComponentPropsWithoutRef<typeof RadixDialog.Title> {}
+type DialogTitleProps = React.ComponentPropsWithoutRef<typeof RadixDialog.Title>;
 
 const DialogTitle = React.forwardRef<
   React.ElementRef<typeof RadixDialog.Title>,
@@ -69,7 +69,7 @@ const DialogTitle = React.forwardRef<
 
 DialogTitle.displayName = 'DialogTitle';
 
-interface DialogCloseProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {}
+type DialogCloseProps = React.ButtonHTMLAttributes<HTMLButtonElement>;
 
 const DialogClose = React.forwardRef<HTMLButtonElement, DialogCloseProps>(
   ({ className, ...props }, ref) => (
@@ -88,7 +88,7 @@ const DialogClose = React.forwardRef<HTMLButtonElement, DialogCloseProps>(
 
 DialogClose.displayName = 'DialogClose';
 
-interface DialogBodyProps extends React.HTMLAttributes<HTMLDivElement> {}
+type DialogBodyProps = React.HTMLAttributes<HTMLDivElement>;
 
 const DialogBody = React.forwardRef<HTMLDivElement, DialogBodyProps>(
   ({ className, ...props }, ref) => (
@@ -98,7 +98,7 @@ const DialogBody = React.forwardRef<HTMLDivElement, DialogBodyProps>(
 
 DialogBody.displayName = 'DialogBody';
 
-interface DialogFooterProps extends React.HTMLAttributes<HTMLDivElement> {}
+type DialogFooterProps = React.HTMLAttributes<HTMLDivElement>;
 
 const DialogFooter = React.forwardRef<HTMLDivElement, DialogFooterProps>(
   ({ className, ...props }, ref) => (

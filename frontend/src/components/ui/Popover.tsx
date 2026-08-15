@@ -5,8 +5,9 @@ import { cn } from '@/lib/cn';
 const Popover = RadixPopover.Root;
 const PopoverTrigger = RadixPopover.Trigger;
 
-interface PopoverContentProps
-  extends React.ComponentPropsWithoutRef<typeof RadixPopover.Content> {}
+type PopoverContentProps = React.ComponentPropsWithoutRef<
+  typeof RadixPopover.Content
+>;
 
 const PopoverContent = React.forwardRef<
   React.ElementRef<typeof RadixPopover.Content>,

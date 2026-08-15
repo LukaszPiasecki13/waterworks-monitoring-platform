@@ -41,8 +41,6 @@ export const useAuthStore = create<AuthState>()(
           refreshToken,
           isAuthenticated: true,
         })
-        localStorage.setItem('access_token', accessToken)
-        localStorage.setItem('refresh_token', refreshToken)
       },
 
       logout: () => {
@@ -55,8 +53,6 @@ export const useAuthStore = create<AuthState>()(
           refreshToken: null,
           isAuthenticated: false,
         })
-        localStorage.removeItem('access_token')
-        localStorage.removeItem('refresh_token')
         queryClient.clear()
         resetBackendWakeupNotice()
         useActiveOrganizationStore.getState().clear()
@@ -68,8 +64,6 @@ export const useAuthStore = create<AuthState>()(
 
       setTokens: (accessToken, refreshToken) => {
         set({ accessToken, refreshToken })
-        localStorage.setItem('access_token', accessToken)
-        localStorage.setItem('refresh_token', refreshToken)
       },
 
       hasPermission: (permission: PermissionCode) => {

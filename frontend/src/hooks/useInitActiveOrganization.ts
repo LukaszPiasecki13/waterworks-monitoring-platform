@@ -11,10 +11,8 @@ export function useInitActiveOrganization() {
 
   const isPlatformAdmin = user?.organization_id === null
 
-  // Fetch organizations for admin only
-  const { data: organizations } = isPlatformAdmin
-    ? useOrganizations({ limit: 1 })
-    : { data: undefined }
+  // Fetch organizations for admin only — hook always called, gated via `enabled`
+  const { data: organizations } = useOrganizations({ limit: 1 }, { enabled: isPlatformAdmin })
 
   useEffect(() => {
     if (!user) {

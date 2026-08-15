@@ -9,8 +9,8 @@ describe('DataTable', () => {
   ]
 
   const mockColumns = [
-    { key: 'name', label: 'Name', render: (row: any) => row.name },
-    { key: 'value', label: 'Value', render: (row: any) => row.value },
+    { key: 'name', label: 'Name', render: (row: (typeof mockData)[number]) => row.name },
+    { key: 'value', label: 'Value', render: (row: (typeof mockData)[number]) => row.value },
   ]
 
   it('renders table headers', () => {
