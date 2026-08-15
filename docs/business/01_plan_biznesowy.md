@@ -1752,5 +1752,5 @@ flowchart LR
   - [ADR-0002: Pragmatyczna strategia integracji](./adr/0002-pragmatic-integration-strategy.md)
   - [ADR-0003: Model finansowy — hardware + subskrypcja](./adr/0003-revenue-model-hardware-plus-subscription.md)
 - **Plan wdrożenia backendu MVP**: [docs/03_plan_wdrozenia_backend_mvp.md](./03_plan_wdrozenia_backend_mvp.md)
-- **Architektura backendu**: [docs/backend-architecture.md](./backend-architecture.md)
-- **Architektura frontendu**: [docs/frontend-architecture.md](./frontend-architecture.md)
+- **Architektura backendu**: [docs/technical/01_backend-architecture.md](../technical/01_backend-architecture.md)
+- **Architektura frontendu**: [docs/technical/frontend-architecture.md](../technical/frontend-architecture.md)

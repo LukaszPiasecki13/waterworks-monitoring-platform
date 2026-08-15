@@ -14,9 +14,11 @@
    - 5.1 [Struktura katalogów](#51-struktura-katalogów)
    - 5.2 [Odpowiedzialność każdej warstwy](#52-odpowiedzialność-każdej-warstwy)
    - 5.3 [Wiring zależności — dependencies.py](#53-wiring-zależności--dependenciespy)
-6. [Moduły specjalne](#6-moduły-specjalne)
-   - 6.1 [security/](#61-security--autentykacja-i-autoryzacja)
+6. [Moduły biznesowe](#6-moduły-biznesowe)
+   - 6.1 [security/](#61-security)
    - 6.2 [core_data/](#62-core_data)
+   - 6.3 [telemetry/](#63-telemetry)
+   - 6.4 [audit/](#64-audit)
 7. [Obsługa błędów](#7-obsługa-błędów)
 8. [Strategia testowania](#8-strategia-testowania)
 
@@ -169,6 +171,7 @@ Zawiera elementy współdzielone przez wszystkie moduły. **Nie zawiera logiki b
 | `dependencies.py` | Globalne zależności FastAPI (`Depends()`): `get_db_session`, `get_current_user`, `get_nosql_client` |
 | `base.py` | Abstrakcyjne klasy bazowe: `BaseRepository`, `BaseService` — spójny interfejs dla wszystkich modułów |
 | `errors.py` | Hierarchia wyjątków aplikacji: `BaseAppException` i klasy pochodne (szczegóły w sekcji 7) |
+| `rate_limit.py` | `slowapi` limiter per-IP, in-memory — chroni `/auth/token` przed brute-force (szczegóły w [`03_security_module.md`](./03_security_module.md#6-nieoczywiste-decyzje-projektowe)) |
 
 ## 4.2. `infrastructure/`
 
@@ -179,8 +182,29 @@ Dostarcza narzędzia techniczne do komunikacji z zewnętrznymi systemami. **Nie 
 | Plik | Odpowiedzialność |
 |---|---|
 | `base.py` | `DeclarativeBase` SQLAlchemy — wszystkie modele ORM dziedziczą z tej klasy |
-| `factory.py` | Fabryka sesji: `AsyncSessionLocal`, `engine` — używana przez `get_db_session` w `core/dependencies.py` |
+| `factory.py` | `SQLConnectionFactory` — cache silników per URL, tworzy `sessionmaker`/`scoped_session` związany z `AuditAwareSession` (patrz niżej) |
+| `repository.py` | `SQLRepository` — bazowa klasa repozytorium, dostarcza `transaction()` (patrz niżej) |
 | `models_registry.py` | Importuje wszystkie modele ORM dla Alembic `autogenerate` — **każdy nowy model musi być tu zarejestrowany** |
+
+**`SQLRepository.transaction()`** — współdzielony context manager zastępujący powtarzany w każdym serwisie blok `try: ... commit() except Exception: rollback(); raise`:
+
+```python
+@contextmanager
+def transaction(self, *, skip_audit: bool = False) -> Iterator[Transaction]:
+    tx = Transaction()
+    if skip_audit:
+        tx.skip_audit()
+    try:
+        yield tx
+    except Exception:
+        self.rollback()
+        raise
+    self.commit(skip_audit=tx.audit_skipped)
+```
+
+Użycie w serwisie: `with self.repo.transaction() as tx: ...` — commit następuje automatycznie po bezusterkowym wyjściu z bloku, rollback + re-raise przy dowolnym wyjątku. `tx.skip_audit()` pozwala zacommitować operację, która świadomie nie generuje zdarzenia audytowego (np. update bez realnej zmiany danych), bez ręcznego wołania `commit(skip_audit=True)`.
+
+**`AuditAwareSession`** (podklasa `Session`, ustawiana jako `class_` w `sessionmaker`) — blokuje `commit()`, jeśli w ramach sesji nie zarejestrowano zdarzenia audytowego i nie przekazano jawnie `skip_audit=True`. Niezmiennik "żadna zmiana biznesowa nie commituje się bez śladu w audit logu" jest w ten sposób wymuszony na poziomie sesji SQLAlchemy, nie tylko konwencją w kodzie serwisu.
 
 ### `infrastructure/nosql/`
 
@@ -322,50 +346,33 @@ async def get_items(service: ItemService = Depends(get_item_service)): ...
 
 ---
 
-# 6. Moduły specjalne
+# 6. Moduły biznesowe
 
-## 6.1. `security/` — autentykacja i autoryzacja
+Cztery moduły domenowe aplikacji. Każdy ma własny, szczegółowy dokument z modelem danych, endpointami, regułami biznesowymi i uzasadnieniem nieoczywistych decyzji projektowych — tu tylko krótkie streszczenie i granice odpowiedzialności.
 
-Moduł `security/` jest modułem przekrojowym — dostarcza autentykację i autoryzację dla całej aplikacji. Inne moduły korzystają **wyłącznie** z jego warstwy `dependencies/`.
+## 6.1. `security/`
 
-### Struktura
+Autentykacja (login, JWT access/refresh) i autoryzacja (uprawnienia) dla całej aplikacji, plus hashowanie haseł. **Nie** przechowuje danych usera — to `core_data/`. Inne moduły korzystają z niego wyłącznie przez jego warstwę serwisów (`get_current_user`, `require_role(...)` itp.), nigdy przez `security/repositories/`.
 
-```text
-modules/security/
-├─ api/
-│  └─ auth.py              # POST /auth/login, POST /auth/refresh, POST /auth/logout
-├─ services/
-│  └─ auth.py              # Logika logowania, generowanie i odświeżanie tokenów
-├─ schemas/
-│  ├─ token.py             # TokenResponse, TokenPayload
-│  └─ user.py              # LoginRequest, UserInfo
-├─ config.py               # JWTSettings: secret, algorithm, expiry_minutes
-├─ dependencies/
-│  ├─ __init__.py
-│  ├─ auth.py              # get_current_user, get_current_active_user
-│  └─ permissions.py       # require_role("admin"), require_permission("read:data")
-├─ exceptions.py           # InvalidCredentialsError, TokenExpiredError, InsufficientPermissionsError
-├─ utils.py                # create_access_token(), verify_token(), hash_password(), verify_password()
-└─ tests/
-```
-
-### Użycie w innych modułach
-
-```python
-# modules/<domain>/api/resource.py
-from app.modules.security.dependencies.auth import get_current_user
-from app.modules.security.dependencies.permissions import require_role
-
-@router.delete("/{id}", dependencies=[Depends(require_role("admin"))])
-async def delete_resource(id: int, current_user = Depends(get_current_user)):
-    ...
-```
-
-> **Niedozwolone:** importowanie z `security/services/` lub `security/utils/` w modułach domenowych.
+→ Pełny opis: [`02_core_data_module.md`](./02_core_data_module.md) zawiera relację `security` ↔ `core_data`; szczegóły modułu `security` samego w sobie: [`03_security_module.md`](./03_security_module.md)
 
 ## 6.2. `core_data/`
 
-Moduł przechowujący dane słownikowe i konfiguracyjne współdzielone przez inne moduły domenowe. Stosuje standardową strukturę modułu (sekcja 5.1). Inne moduły korzystają z jego serwisów — nigdy bezpośrednio z repozytoriów.
+Dane referencyjne współdzielone przez inne moduły domenowe: organizacje, obiekty wodociągowe, urządzenia, punkty pomiarowe, użytkownicy. CRUD backbone, na którym budują pozostałe moduły. Inne moduły korzystają z jego serwisów — nigdy bezpośrednio z repozytoriów.
+
+→ Pełny opis: [`02_core_data_module.md`](./02_core_data_module.md)
+
+## 6.3. `telemetry/`
+
+Przyjmuje pakiety pomiarowe z gatewayów terenowych (`POST /telemetry/ingest`) i wystawia zapytania szeregów czasowych dla dashboardu. Ingest commituje zawsze przez `transaction(skip_audit=True)` — dane z urządzenia IoT, nie zmiana wywołana przez użytkownika, więc nie generuje wpisu w audit logu.
+
+→ Pełny opis: [`04_telemetry_module.md`](./04_telemetry_module.md)
+
+## 6.4. `audit/`
+
+Niezmienny, append-only log zmian biznesowych. Nie ma własnej warstwy `api/` — inne moduły zależą od abstrakcyjnego `AuditPort` (`core/audit.py`), a ten moduł dostarcza jego implementację SQL.
+
+→ Pełny opis: [`05_audit_module.md`](./05_audit_module.md)
 
 ---
 

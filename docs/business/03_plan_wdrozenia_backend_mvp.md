@@ -1,6 +1,6 @@
 # Plan wdrożenia backendu — MVP krok po kroku
 
-**Dokument towarzyszący:** `01_plan_biznesowy.md`, `backend-architecture.md`
+**Dokument towarzyszący:** `01_plan_biznesowy.md`, `../technical/01_backend-architecture.md`
 **Data:** 2026-08-09
 **Zakres:** wyłącznie backend (`backend/`). Frontend jest osobnym torem prac i nie jest tu opisany.
 
@@ -8,7 +8,7 @@
 
 ## 0. Zasady tego planu
 
-- Każdy nowy moduł/encja stosuje **dokładnie** wzorzec z `backend-architecture.md` i istniejącego modułu `core_data/users`: `api/ → services/ → repositories/ → infrastructure`, sync `Session` SQLAlchemy, `SQLRepository` jako baza repozytorium, serwisy przyjmują zależności przez `__init__` (bez `Depends()` w środku), transakcje (`commit`/`rollback`) prowadzi serwis (wyjątek: `telemetry` — tam repozytorium samo commituje, bo to zapis o wysokiej częstotliwości bez logiki biznesowej).
+- Każdy nowy moduł/encja stosuje **dokładnie** wzorzec z `../technical/01_backend-architecture.md` i istniejącego modułu `core_data/users`: `api/ → services/ → repositories/ → infrastructure`, sync `Session` SQLAlchemy, `SQLRepository` jako baza repozytorium, serwisy przyjmują zależności przez `__init__` (bez `Depends()` w środku), transakcje (`commit`/`rollback`) prowadzi serwis (wyjątek: `telemetry` — tam repozytorium samo commituje, bo to zapis o wysokiej częstotliwości bez logiki biznesowej).
 - Każda nowa tabela: model w `models/`, rejestracja w `app/infrastructure/sql/models_registry.py`, `alembic revision --autogenerate`, ręczny review diffu, `alembic upgrade head`.
 - Każde nowe uprawnienie: stała w `app/modules/security/models/constants.py` + wpis w seedzie danych referencyjnych (patrz krok 1.2 — skrypt seedujący trzeba odtworzyć, bo `alembic/README.md` się do niego odwołuje, ale `scripts/seed_required_data.py` nie istnieje w repo).
 - Każda nowa auditowalna encja: wpis w `EntityType` (`app/core/audit.py`).
@@ -19,7 +19,7 @@
 
 | # | Założenie | Uzasadnienie |
 |---|---|---|
-| A1 | Nowe encje domenowe (Organizacja, Obiekt, Urządzenie, Punkt pomiarowy) trafiają do istniejącego modułu `core_data`, nie do nowego modułu. | `backend-architecture.md` opisuje `core_data` wprost jako „dane słownikowe i konfiguracyjne współdzielone przez inne moduły" — to dokładnie ten przypadek. |
+| A1 | Nowe encje domenowe (Organizacja, Obiekt, Urządzenie, Punkt pomiarowy) trafiają do istniejącego modułu `core_data`, nie do nowego modułu. | `../technical/01_backend-architecture.md` opisuje `core_data` wprost jako „dane słownikowe i konfiguracyjne współdzielone przez inne moduły" — to dokładnie ten przypadek. |
 | A2 | `device_id`, `object_id`, `org_id` z payloadu telemetrycznego stają się **informacyjne**; źródłem prawdy jest rejestr w bazie, wiązany po `device_id`. | Firmware nie musi się zmieniać (nadal wysyła te same pola), ale backend przestaje im ślepo ufać. |
 | A3 | Nieznany `device_id` przy ingest → odrzucenie pakietu (401/403), nie auto-provisioning. | Zgodne z sekcją 14 dok. 01 („unikalne poświadczenia każdego urządzenia") — urządzenie musi być jawnie zarejestrowane. |
 | A4 | Nieznany `point_id` w ramach znanego urządzenia → pomiar tego punktu jest pomijany (log ostrzeżenia), reszta pakietu przetwarzana normalnie. | Częściowe dane są lepsze niż odrzucenie całego pakietu z powodu jednego nieskonfigurowanego punktu. |
@@ -159,7 +159,7 @@ Rejestracja obu modeli w `models_registry.py`, `alembic revision --autogenerate 
 
 Zastąpić `verify_telemetry_ingest_key` w `app/modules/telemetry/dependencies.py`. Nowa zależność `verify_device_credentials`:
 1. Czyta `X-Device-Key` z nagłówka i `device_id` z body (FastAPI: trzeba przenieść tę walidację **po** sparsowaniu body, albo zrobić lookup wewnątrz serwisu ingestu zamiast w `Depends()` na poziomie nagłówka — prościej: przenieść weryfikację do `TelemetryIngestService.ingest()`, na samym początku, przed zapisem czegokolwiek).
-2. Woła nowy serwis w `core_data` — `DeviceLookupService.get_active_by_external_id(device_id)` (komunikacja międzymodułowa **wyłącznie przez warstwę serwisów**, zgodnie z regułą 2.3 `backend-architecture.md`).
+2. Woła nowy serwis w `core_data` — `DeviceLookupService.get_active_by_external_id(device_id)` (komunikacja międzymodułowa **wyłącznie przez warstwę serwisów**, zgodnie z regułą 2.3 `../technical/01_backend-architecture.md`).
 3. Weryfikuje `X-Device-Key` przez `verify_password(x_device_key, device.hashed_secret)`.
 4. Nieznane urządzenie / zła para klucz-urządzenie / `is_active=False` → 401/403 (nowe wyjątki w `telemetry/exceptions.py`: `UnknownDeviceError`, `InvalidDeviceSecretError`, `InactiveDeviceError`).
 
