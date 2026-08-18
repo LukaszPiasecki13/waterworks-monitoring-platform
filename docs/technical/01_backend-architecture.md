@@ -15,8 +15,8 @@
    - 5.2 [Odpowiedzialność każdej warstwy](#52-odpowiedzialność-każdej-warstwy)
    - 5.3 [Wiring zależności — dependencies.py](#53-wiring-zależności--dependenciespy)
 6. [Moduły biznesowe](#6-moduły-biznesowe)
-   - 6.1 [security/](#61-security)
-   - 6.2 [core_data/](#62-core_data)
+   - 6.1 [core_data/](#61-core_data)
+   - 6.2 [security/](#62-security)
    - 6.3 [telemetry/](#63-telemetry)
    - 6.4 [audit/](#64-audit)
 7. [Obsługa błędów](#7-obsługa-błędów)
@@ -142,8 +142,8 @@ backend/
 │     │  ├─ dependencies.py
 │     │  ├─ exceptions.py
 │     │  └─ tests/
-│     ├─ security/                 ← sekcja 6.1
-│     └─ core_data/               ← sekcja 6.2
+│     ├─ core_data/               ← sekcja 6.1
+│     └─ security/                 ← sekcja 6.2
 │
 ├─ alembic/
 │  ├─ versions/
@@ -205,16 +205,6 @@ def transaction(self, *, skip_audit: bool = False) -> Iterator[Transaction]:
 Użycie w serwisie: `with self.repo.transaction() as tx: ...` — commit następuje automatycznie po bezusterkowym wyjściu z bloku, rollback + re-raise przy dowolnym wyjątku. `tx.skip_audit()` pozwala zacommitować operację, która świadomie nie generuje zdarzenia audytowego (np. update bez realnej zmiany danych), bez ręcznego wołania `commit(skip_audit=True)`.
 
 **`AuditAwareSession`** (podklasa `Session`, ustawiana jako `class_` w `sessionmaker`) — blokuje `commit()`, jeśli w ramach sesji nie zarejestrowano zdarzenia audytowego i nie przekazano jawnie `skip_audit=True`. Niezmiennik "żadna zmiana biznesowa nie commituje się bez śladu w audit logu" jest w ten sposób wymuszony na poziomie sesji SQLAlchemy, nie tylko konwencją w kodzie serwisu.
-
-### `infrastructure/nosql/`
-
-| Plik | Odpowiedzialność |
-|---|---|
-| `factory.py` | Klient NoSQL (np. Firestore, MongoDB) gotowy do wstrzyknięcia przez `Depends()` |
-
-### `infrastructure/storage/`
-
-Klient usługi przechowywania plików (np. GCS, S3). Operacje: `upload`, `download`, `delete`, `generate_signed_url`.
 
 ---
 
@@ -348,19 +338,19 @@ async def get_items(service: ItemService = Depends(get_item_service)): ...
 
 # 6. Moduły biznesowe
 
-Cztery moduły domenowe aplikacji. Każdy ma własny, szczegółowy dokument z modelem danych, endpointami, regułami biznesowymi i uzasadnieniem nieoczywistych decyzji projektowych — tu tylko krótkie streszczenie i granice odpowiedzialności.
+Każdy moduł ma własny, szczegółowy dokument z modelem danych, endpointami, regułami biznesowymi i uzasadnieniem nieoczywistych decyzji projektowych — tu tylko krótkie streszczenie i granice odpowiedzialności.
 
-## 6.1. `security/`
-
-Autentykacja (login, JWT access/refresh) i autoryzacja (uprawnienia) dla całej aplikacji, plus hashowanie haseł. **Nie** przechowuje danych usera — to `core_data/`. Inne moduły korzystają z niego wyłącznie przez jego warstwę serwisów (`get_current_user`, `require_role(...)` itp.), nigdy przez `security/repositories/`.
-
-→ Pełny opis: [`02_core_data_module.md`](./02_core_data_module.md) zawiera relację `security` ↔ `core_data`; szczegóły modułu `security` samego w sobie: [`03_security_module.md`](./03_security_module.md)
-
-## 6.2. `core_data/`
+## 6.1. `core_data/`
 
 Dane referencyjne współdzielone przez inne moduły domenowe: organizacje, obiekty wodociągowe, urządzenia, punkty pomiarowe, użytkownicy. CRUD backbone, na którym budują pozostałe moduły. Inne moduły korzystają z jego serwisów — nigdy bezpośrednio z repozytoriów.
 
 → Pełny opis: [`02_core_data_module.md`](./02_core_data_module.md)
+
+## 6.2. `security/`
+
+Autentykacja (login, JWT access/refresh) i autoryzacja (uprawnienia) dla całej aplikacji, plus hashowanie haseł. **Nie** przechowuje danych usera — to `core_data/`. Inne moduły korzystają z niego wyłącznie przez jego warstwę serwisów (`get_current_user`, `require_role(...)` itp.), nigdy przez `security/repositories/`.
+
+→ Pełny opis: [`03_security_module.md`](./03_security_module.md)
 
 ## 6.3. `telemetry/`
 
