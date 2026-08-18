@@ -4,12 +4,14 @@ from datetime import datetime
 from typing import Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import ConfigDict, Field
+
+from app.core.schemas import BaseSchema
 
 ObjectStatus = Literal["ok", "warning", "no_comm", "no_data"]
 
 
-class ListObjectsRequest(BaseModel):
+class ListObjectsRequest(BaseSchema):
     """List objects query parameters."""
 
     org_id: UUID | None = None
@@ -18,7 +20,7 @@ class ListObjectsRequest(BaseModel):
     limit: int = Field(50, ge=1, le=500)
 
 
-class GetMeasurementsRequest(BaseModel):
+class GetMeasurementsRequest(BaseSchema):
     """Get measurements query parameters."""
 
     point_id: str | None = None
@@ -30,7 +32,7 @@ class GetMeasurementsRequest(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
 
-class LatestPointValue(BaseModel):
+class LatestPointValue(BaseSchema):
     """Latest value for a single measurement point."""
 
     point_id: str
@@ -46,7 +48,7 @@ class LatestPointValue(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
-class ObjectSummaryResponse(BaseModel):
+class ObjectSummaryResponse(BaseSchema):
     """Summary of an object with its latest readings."""
 
     org_id: str
@@ -70,7 +72,7 @@ class ObjectDetailResponse(ObjectSummaryResponse):
     available_points: list[str] = Field(default_factory=list)
 
 
-class MeasurementSeriesItem(BaseModel):
+class MeasurementSeriesItem(BaseSchema):
     """A single measurement in a time series."""
 
     point_id: str
@@ -89,7 +91,7 @@ class MeasurementSeriesItem(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
-class MeasurementsResponse(BaseModel):
+class MeasurementsResponse(BaseSchema):
     """Time series measurements for an object."""
 
     object_id: str
@@ -104,7 +106,7 @@ class MeasurementsResponse(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
 
-class PaginatedResponse[T](BaseModel):
+class PaginatedResponse[T](BaseSchema):
     """Paginated response wrapper."""
 
     items: list[T]

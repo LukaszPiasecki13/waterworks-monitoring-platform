@@ -3,10 +3,12 @@
 from datetime import datetime
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import ConfigDict, Field
+
+from app.core.schemas import BaseSchema
 
 
-class DeviceCreateRequest(BaseModel):
+class DeviceCreateRequest(BaseSchema):
     """Create device request."""
 
     water_object_id: UUID
@@ -14,14 +16,14 @@ class DeviceCreateRequest(BaseModel):
     firmware_version: str | None = Field(None, max_length=50)
 
 
-class DeviceUpdateRequest(BaseModel):
+class DeviceUpdateRequest(BaseSchema):
     """Update device request."""
 
     firmware_version: str | None = Field(None, max_length=50)
     is_active: bool | None = None
 
 
-class DeviceResponse(BaseModel):
+class DeviceResponse(BaseSchema):
     """Device response DTO (no secret)."""
 
     id: UUID
@@ -35,7 +37,7 @@ class DeviceResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
-class ListDevicesRequest(BaseModel):
+class ListDevicesRequest(BaseSchema):
     """List devices query parameters."""
 
     skip: int = Field(0, ge=0)

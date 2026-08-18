@@ -3,10 +3,12 @@
 from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import ConfigDict
+
+from app.core.schemas import BaseSchema
 
 
-class AuditEventResponse(BaseModel):
+class AuditEventResponse(BaseSchema):
     model_config = ConfigDict(from_attributes=True)
 
     id: int

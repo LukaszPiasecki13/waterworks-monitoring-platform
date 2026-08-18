@@ -10,6 +10,7 @@ from sqlalchemy import (
     ForeignKey,
     String,
     Table,
+    UniqueConstraint,
     func,
 )
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
@@ -69,19 +70,29 @@ class Permission(Base):
 
 class UserGroup(Base):
     __tablename__ = "security_groups"
+    __table_args__ = (
+        UniqueConstraint("organization_id", "name", name="uq_security_groups_org_name"),
+        UniqueConstraint(
+            "organization_id", "system_key", name="uq_security_groups_org_system_key"
+        ),
+    )
 
     id: Mapped[UUID] = mapped_column(
         PG_UUID(as_uuid=True),
         primary_key=True,
         default=uuid4,
     )
-    name: Mapped[str] = mapped_column(
-        String(120), unique=True, nullable=False, index=True
+    organization_id: Mapped[UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("organizations.id", ondelete="CASCADE"),
+        nullable=True,
+        index=True,
     )
+    name: Mapped[str] = mapped_column(String(120), nullable=False, index=True)
     description: Mapped[str] = mapped_column(String(500), nullable=False, default="")
     is_system: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     system_key: Mapped[str | None] = mapped_column(
-        String(50), unique=True, nullable=True, index=True
+        String(50), nullable=True, index=True
     )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()

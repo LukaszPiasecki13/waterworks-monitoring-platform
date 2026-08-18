@@ -3,12 +3,14 @@
 from typing import Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import ConfigDict, Field
+
+from app.core.schemas import BaseSchema
 
 ObjectType = Literal["pump_station", "hydrophore", "intake", "network_point"]
 
 
-class WaterObjectCreateRequest(BaseModel):
+class WaterObjectCreateRequest(BaseSchema):
     """Create water object request."""
 
     organization_id: UUID
@@ -19,7 +21,7 @@ class WaterObjectCreateRequest(BaseModel):
     longitude: float | None = None
 
 
-class WaterObjectUpdateRequest(BaseModel):
+class WaterObjectUpdateRequest(BaseSchema):
     """Update water object request."""
 
     name: str | None = Field(None, min_length=1, max_length=255)
@@ -30,7 +32,7 @@ class WaterObjectUpdateRequest(BaseModel):
     is_active: bool | None = None
 
 
-class WaterObjectResponse(BaseModel):
+class WaterObjectResponse(BaseSchema):
     """Water object response DTO."""
 
     id: UUID
@@ -45,7 +47,7 @@ class WaterObjectResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
-class ListWaterObjectsRequest(BaseModel):
+class ListWaterObjectsRequest(BaseSchema):
     """List water objects query parameters."""
 
     skip: int = Field(0, ge=0)

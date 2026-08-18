@@ -2,22 +2,24 @@
 
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import ConfigDict, Field
+
+from app.core.schemas import BaseSchema
 
 
-class OrganizationCreateRequest(BaseModel):
+class OrganizationCreateRequest(BaseSchema):
     """Create organization request."""
 
     name: str = Field(..., min_length=1, max_length=255)
 
 
-class OrganizationUpdateRequest(BaseModel):
+class OrganizationUpdateRequest(BaseSchema):
     """Update organization request."""
 
     name: str | None = Field(None, min_length=1, max_length=255)
 
 
-class OrganizationResponse(BaseModel):
+class OrganizationResponse(BaseSchema):
     """Organization response DTO."""
 
     id: UUID
@@ -26,7 +28,7 @@ class OrganizationResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
-class ListOrganizationsRequest(BaseModel):
+class ListOrganizationsRequest(BaseSchema):
     """List organizations query parameters."""
 
     skip: int = Field(0, ge=0)

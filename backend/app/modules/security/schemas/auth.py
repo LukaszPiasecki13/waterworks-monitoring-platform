@@ -2,10 +2,12 @@
 
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field
+from pydantic import ConfigDict, EmailStr, Field
+
+from app.core.schemas import BaseSchema
 
 
-class RegisterRequest(BaseModel):
+class RegisterRequest(BaseSchema):
     """User registration request."""
 
     username: str = Field(..., min_length=3, max_length=150)
@@ -15,27 +17,27 @@ class RegisterRequest(BaseModel):
     last_name: str = Field(default="", max_length=150)
 
 
-class LoginRequest(BaseModel):
+class LoginRequest(BaseSchema):
     """Login request - supports email or username."""
 
     username: str = Field(...)  # Can be email or username
     password: str = Field(..., min_length=1, max_length=72)
 
 
-class TokenResponse(BaseModel):
+class TokenResponse(BaseSchema):
     """Token response."""
 
     access: str
     refresh: str
 
 
-class TokenRefreshRequest(BaseModel):
+class TokenRefreshRequest(BaseSchema):
     """Token refresh request."""
 
     refresh: str
 
 
-class UserResponse(BaseModel):
+class UserResponse(BaseSchema):
     """User response DTO."""
 
     id: UUID
@@ -49,7 +51,7 @@ class UserResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
-class ProfileUpdateRequest(BaseModel):
+class ProfileUpdateRequest(BaseSchema):
     """Self-service profile update request (email, name, optional password change)."""
 
     email: EmailStr | None = None

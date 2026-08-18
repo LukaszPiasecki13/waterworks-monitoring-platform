@@ -3,7 +3,7 @@
 from datetime import datetime
 from uuid import UUID, uuid4
 
-from sqlalchemy import DateTime, ForeignKey, String, func
+from sqlalchemy import DateTime, String, func
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -20,20 +20,11 @@ class User(Base):
         primary_key=True,
         default=uuid4,
     )
-    organization_id: Mapped[UUID | None] = mapped_column(
-        PG_UUID(as_uuid=True),
-        ForeignKey("organizations.id"),
-        nullable=True,
-        index=True,
-    )
     username: Mapped[str] = mapped_column(String(150), unique=True, index=True)
     email: Mapped[str] = mapped_column(String(255), unique=True, index=True)
     first_name: Mapped[str] = mapped_column(String(150), default="")
     last_name: Mapped[str] = mapped_column(String(150), default="")
     hashed_password: Mapped[str] = mapped_column(String(255))
-    # Account role hint used when assigning the default security group.
-    # Effective authorization always comes from security groups.
-    status: Mapped[str] = mapped_column(String(50), default="regular")
     is_active: Mapped[bool] = mapped_column(default=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),

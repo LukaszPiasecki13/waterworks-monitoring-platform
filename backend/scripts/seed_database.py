@@ -20,6 +20,7 @@ from app.modules.core_data.models.device import Device
 from app.modules.core_data.models.measurement_point import MeasurementPoint
 from app.modules.core_data.models.organization import Organization
 from app.modules.core_data.models.user import User
+from app.modules.core_data.models.users_organizations import UsersOrganizations
 from app.modules.core_data.models.water_object import WaterObject
 from app.modules.security.models import Permission, UserGroup
 from app.modules.security.permission_catalog import (
@@ -194,13 +195,11 @@ def seed_database():
         if not admin_global:
             admin_global = User(
                 id=uuid4(),
-                organization_id=None,
                 username="admin",
                 email="admin@waterworks.local",
                 first_name="Adam",
                 last_name="Administrator",
                 hashed_password=hash_password("password123"),
-                status="admin",
                 is_active=True,
             )
             session.add(admin_global)
@@ -212,13 +211,11 @@ def seed_database():
         if not viewer_frysztak:
             viewer_frysztak = User(
                 id=uuid4(),
-                organization_id=org1.id,
                 username="viewer_frysztak",
                 email="viewer@gmina-frysztak.pl",
                 first_name="Stanisław",
                 last_name="Obserwator",
                 hashed_password=hash_password("password123"),
-                status="regular",
                 is_active=True,
             )
             session.add(viewer_frysztak)
@@ -230,19 +227,63 @@ def seed_database():
         if not viewer_radzilow:
             viewer_radzilow = User(
                 id=uuid4(),
-                organization_id=org2.id,
                 username="viewer_radzilow",
                 email="viewer@gmina-radzilow.pl",
                 first_name="Stefan",
                 last_name="Obserwator",
                 hashed_password=hash_password("password123"),
-                status="regular",
                 is_active=True,
             )
             session.add(viewer_radzilow)
 
+        session.flush()
+
+        # Add users to organizations (M:N relationship)
+        # Admin belongs to both organizations
+        org1_admin = (
+            session.query(UsersOrganizations)
+            .filter_by(user_id=admin_global.id, organization_id=org1.id)
+            .first()
+        )
+        if not org1_admin:
+            session.add(
+                UsersOrganizations(user_id=admin_global.id, organization_id=org1.id)
+            )
+
+        org2_admin = (
+            session.query(UsersOrganizations)
+            .filter_by(user_id=admin_global.id, organization_id=org2.id)
+            .first()
+        )
+        if not org2_admin:
+            session.add(
+                UsersOrganizations(user_id=admin_global.id, organization_id=org2.id)
+            )
+
+        # Viewer Frysztak belongs to org1
+        org1_viewer = (
+            session.query(UsersOrganizations)
+            .filter_by(user_id=viewer_frysztak.id, organization_id=org1.id)
+            .first()
+        )
+        if not org1_viewer:
+            session.add(
+                UsersOrganizations(user_id=viewer_frysztak.id, organization_id=org1.id)
+            )
+
+        # Viewer Radzilow belongs to org2
+        org2_viewer = (
+            session.query(UsersOrganizations)
+            .filter_by(user_id=viewer_radzilow.id, organization_id=org2.id)
+            .first()
+        )
+        if not org2_viewer:
+            session.add(
+                UsersOrganizations(user_id=viewer_radzilow.id, organization_id=org2.id)
+            )
+
         session.commit()
-        print("  ✓ Created users (checked for existing)")
+        print("  ✓ Created users and assigned to organizations")
 
         # 3. Create Water Objects
         print("\n💧 Creating water objects...")

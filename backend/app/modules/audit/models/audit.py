@@ -1,7 +1,7 @@
 """Append-only audit persistence model."""
 
 import secrets
-from datetime import UTC, datetime
+from datetime import datetime
 
 from sqlalchemy import (
     JSON,
@@ -54,7 +54,6 @@ class AuditEvent(Base):
         DateTime(timezone=True),
         primary_key=True,
         nullable=False,
-        default=lambda: datetime.now(UTC),
         server_default=func.now(),
     )
 

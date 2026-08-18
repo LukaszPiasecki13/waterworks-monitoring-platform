@@ -3,10 +3,12 @@
 from datetime import datetime
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import ConfigDict, Field, field_validator
+
+from app.core.schemas import BaseSchema
 
 
-class PermissionResponse(BaseModel):
+class PermissionResponse(BaseSchema):
     id: UUID
     code: str
     name: str
@@ -15,7 +17,7 @@ class PermissionResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
-class UserGroupCreateRequest(BaseModel):
+class UserGroupCreateRequest(BaseSchema):
     name: str = Field(min_length=1, max_length=120)
     description: str = Field(default="", max_length=500)
     permission_codes: list[str] = Field(default_factory=list)
@@ -29,7 +31,7 @@ class UserGroupCreateRequest(BaseModel):
         return value
 
 
-class UserGroupUpdateRequest(BaseModel):
+class UserGroupUpdateRequest(BaseSchema):
     name: str | None = Field(default=None, min_length=1, max_length=120)
     description: str | None = Field(default=None, max_length=500)
 
@@ -50,19 +52,19 @@ class UserGroupSaveRequest(UserGroupCreateRequest):
     user_ids: list[UUID] = Field(default_factory=list)
 
 
-class PermissionCodesRequest(BaseModel):
+class PermissionCodesRequest(BaseSchema):
     permission_codes: list[str]
 
 
-class UserIdsRequest(BaseModel):
+class UserIdsRequest(BaseSchema):
     user_ids: list[UUID]
 
 
-class GroupIdsRequest(BaseModel):
+class GroupIdsRequest(BaseSchema):
     group_ids: list[UUID]
 
 
-class UserGroupResponse(BaseModel):
+class UserGroupResponse(BaseSchema):
     id: UUID
     name: str
     description: str
@@ -74,6 +76,6 @@ class UserGroupResponse(BaseModel):
     updated_at: datetime
 
 
-class MyPermissionsResponse(BaseModel):
+class MyPermissionsResponse(BaseSchema):
     permissions: list[str]
     group_ids: list[UUID]

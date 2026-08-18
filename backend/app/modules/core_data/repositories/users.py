@@ -41,16 +41,12 @@ class UserRepository(SQLRepository):
         self,
         skip: int = 0,
         limit: int = 100,
-        organization_id: UUID | None = None,
         search: str | None = None,
-        status: str | None = None,
         is_active: bool | None = None,
     ) -> list[User]:
         """List users with optional search and filters."""
         query = self.session.query(User)
 
-        if organization_id is not None:
-            query = query.filter(User.organization_id == organization_id)
         if search:
             pattern = f"%{search}%"
             query = query.filter(
@@ -61,8 +57,6 @@ class UserRepository(SQLRepository):
                     User.last_name.ilike(pattern),
                 )
             )
-        if status:
-            query = query.filter(User.status == status)
         if is_active is not None:
             query = query.filter(User.is_active == is_active)
 
@@ -75,16 +69,12 @@ class UserRepository(SQLRepository):
 
     def count(
         self,
-        organization_id: UUID | None = None,
         search: str | None = None,
-        status: str | None = None,
         is_active: bool | None = None,
     ) -> int:
         """Count users with optional search and filters."""
         query = self.session.query(func.count(User.id))
 
-        if organization_id is not None:
-            query = query.filter(User.organization_id == organization_id)
         if search:
             pattern = f"%{search}%"
             query = query.filter(
@@ -95,8 +85,6 @@ class UserRepository(SQLRepository):
                     User.last_name.ilike(pattern),
                 )
             )
-        if status:
-            query = query.filter(User.status == status)
         if is_active is not None:
             query = query.filter(User.is_active == is_active)
 
@@ -109,9 +97,7 @@ class UserRepository(SQLRepository):
         hashed_password: str,
         first_name: str = "",
         last_name: str = "",
-        status: str = "regular",
         is_active: bool = True,
-        organization_id: UUID | None = None,
     ) -> User:
         """Create new user."""
         user = User(
@@ -120,9 +106,7 @@ class UserRepository(SQLRepository):
             hashed_password=hashed_password,
             first_name=first_name,
             last_name=last_name,
-            status=status,
             is_active=is_active,
-            organization_id=organization_id,
         )
         self.session.add(user)
         return user
@@ -135,10 +119,8 @@ class UserRepository(SQLRepository):
         email: str | None = None,
         first_name: str | None = None,
         last_name: str | None = None,
-        status: str | None = None,
         is_active: bool | None = None,
         hashed_password: str | None = None,
-        organization_id: UUID | None = None,
     ) -> User:
         """Update user fields."""
         if username is not None:
@@ -149,14 +131,10 @@ class UserRepository(SQLRepository):
             user.first_name = first_name
         if last_name is not None:
             user.last_name = last_name
-        if status is not None:
-            user.status = status
         if is_active is not None:
             user.is_active = is_active
         if hashed_password is not None:
             user.hashed_password = hashed_password
-        if organization_id is not None:
-            user.organization_id = organization_id
         return user
 
     def delete(self, user: User) -> None:

@@ -3,12 +3,14 @@
 from typing import Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import ConfigDict, Field
+
+from app.core.schemas import BaseSchema
 
 PointType = Literal["pressure", "flow_rate", "total_volume", "power_status"]
 
 
-class MeasurementPointCreateRequest(BaseModel):
+class MeasurementPointCreateRequest(BaseSchema):
     """Create measurement point request."""
 
     device_id: UUID
@@ -19,7 +21,7 @@ class MeasurementPointCreateRequest(BaseModel):
     max_technical: float | None = None
 
 
-class MeasurementPointUpdateRequest(BaseModel):
+class MeasurementPointUpdateRequest(BaseSchema):
     """Update measurement point request."""
 
     point_type: PointType | None = None
@@ -29,7 +31,7 @@ class MeasurementPointUpdateRequest(BaseModel):
     is_active: bool | None = None
 
 
-class MeasurementPointResponse(BaseModel):
+class MeasurementPointResponse(BaseSchema):
     """Measurement point response DTO."""
 
     id: UUID
@@ -44,7 +46,7 @@ class MeasurementPointResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
-class ListMeasurementPointsRequest(BaseModel):
+class ListMeasurementPointsRequest(BaseSchema):
     """List measurement points query parameters."""
 
     skip: int = Field(0, ge=0)

@@ -3,10 +3,12 @@
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import ConfigDict, Field, model_validator
+
+from app.core.schemas import BaseSchema
 
 
-class MeasurementPoint(BaseModel):
+class MeasurementPoint(BaseSchema):
     point_id: str = Field(min_length=1, max_length=128)
     type: str = Field(min_length=1, max_length=64)
     unit: str = Field(min_length=1, max_length=32)
@@ -32,13 +34,13 @@ class MeasurementPoint(BaseModel):
         return self
 
 
-class MeasurementWindow(BaseModel):
+class MeasurementWindow(BaseSchema):
     window_start: datetime
     window_seconds: int = Field(gt=0, le=3600)
     points: list[MeasurementPoint] = Field(min_length=1)
 
 
-class MeasurementPacketRequest(BaseModel):
+class MeasurementPacketRequest(BaseSchema):
     model_config = ConfigDict(extra="forbid")
 
     v: int = Field(ge=1)
@@ -48,7 +50,7 @@ class MeasurementPacketRequest(BaseModel):
     windows: list[MeasurementWindow] = Field(min_length=1)
 
 
-class TelemetryIngestResponse(BaseModel):
+class TelemetryIngestResponse(BaseSchema):
     status: Literal["accepted", "duplicate"]
     device_id: str
     seq: int
