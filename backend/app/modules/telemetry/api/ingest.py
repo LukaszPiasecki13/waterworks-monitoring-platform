@@ -3,8 +3,8 @@
 from fastapi import APIRouter, Depends, Response, status
 
 from app.modules.telemetry.dependencies import (
+    get_device_secret_header,
     get_telemetry_ingest_service,
-    verify_telemetry_ingest_key,
 )
 from app.modules.telemetry.schemas.measurement_packet import (
     MeasurementPacketRequest,
@@ -22,14 +22,14 @@ router = APIRouter(
     "/ingest",
     response_model=TelemetryIngestResponse,
     status_code=status.HTTP_202_ACCEPTED,
-    dependencies=[Depends(verify_telemetry_ingest_key)],
 )
 def ingest_measurement_packet(
     packet: MeasurementPacketRequest,
     response: Response,
+    device_secret: str | None = Depends(get_device_secret_header),
     service: TelemetryIngestService = Depends(get_telemetry_ingest_service),
 ) -> TelemetryIngestResponse:
-    result = service.ingest(packet)
+    result = service.ingest(packet, device_secret)
 
     if result.status == "duplicate":
         response.status_code = status.HTTP_200_OK

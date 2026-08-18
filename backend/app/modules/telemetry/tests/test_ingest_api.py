@@ -1,23 +1,23 @@
+import secrets
 from collections.abc import Generator
-from types import SimpleNamespace
 
-import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
-from app.core.config import get_settings
 from app.core.dependencies import get_db
 from app.core.errors import register_error_handlers
 from app.modules.core_data.models import Device, Organization, WaterObject
+from app.modules.security.services.password import hash_password
 from app.modules.telemetry.api import router as telemetry_router
-from app.modules.telemetry.dependencies import verify_telemetry_ingest_key
-from app.modules.telemetry.exceptions import TelemetryIngestKeyNotConfiguredError
 
 
-def _seed_device(session: Session, external_id: str) -> None:
-    """Ingest resolves the packet's device_id against a real Device (and its
-    WaterObject), so tests that expect a successful ingest must seed one."""
+def _seed_device(session: Session, external_id: str) -> str:
+    """Seed a Device and return the plain-text secret for testing.
+
+    Per-device auth: each Device has its own hashed secret, so tests that
+    expect successful ingest must know the plain secret to send in X-Device-Key.
+    """
     organization = Organization(name=f"org-{external_id}")
     session.add(organization)
     session.flush()
@@ -28,14 +28,20 @@ def _seed_device(session: Session, external_id: str) -> None:
     )
     session.add(water_object)
     session.flush()
+
+    # Generate a plain secret and hash it
+    plain_secret = secrets.token_urlsafe(32)
+    hashed_secret = hash_password(plain_secret)
+
     session.add(
         Device(
             water_object_id=water_object.id,
             external_id=external_id,
-            hashed_secret="unused",
+            hashed_secret=hashed_secret,
         )
     )
     session.commit()
+    return plain_secret
 
 
 def _payload(seq: int = 1) -> dict:
@@ -76,15 +82,11 @@ def _client(db_session: Session) -> TestClient:
     return TestClient(app)
 
 
-def test_ingest_accepts_then_returns_duplicate(
-    db_session: Session,
-    monkeypatch,
-) -> None:
-    monkeypatch.setenv("TELEMETRY_INGEST_KEY", "test-device-secret")
-    get_settings.cache_clear()
-    _seed_device(db_session, "gw-2026-0001")
+def test_ingest_accepts_then_returns_duplicate(db_session: Session) -> None:
+    """Accept valid packet, then return 200 duplicate for same (device_id, seq)."""
+    plain_secret = _seed_device(db_session, "gw-2026-0001")
+    headers = {"X-Device-Key": plain_secret}
 
-    headers = {"X-Device-Key": "test-device-secret"}
     with _client(db_session) as client:
         first = client.post(
             "/telemetry/ingest", json=_payload(seq=10542), headers=headers
@@ -107,68 +109,75 @@ def test_ingest_accepts_then_returns_duplicate(
         }
 
 
-def test_ingest_denied_when_no_key_is_configured(monkeypatch) -> None:
-    """A missing TELEMETRY_INGEST_KEY closes ingest instead of opening it.
+def test_ingest_rejects_unknown_device(db_session: Session) -> None:
+    """Reject packet from unknown device_id with 401."""
+    with _client(db_session) as client:
+        response = client.post(
+            "/telemetry/ingest",
+            json=_payload(seq=12),
+            headers={"X-Device-Key": "any-secret"},
+        )
 
-    Asserted against the dependency rather than the endpoint, so the result
-    does not depend on whether a local .env happens to define the key.
-    """
-    monkeypatch.setattr(
-        "app.modules.telemetry.dependencies.get_settings",
-        lambda: SimpleNamespace(telemetry_ingest_key=None),
-    )
-
-    with pytest.raises(TelemetryIngestKeyNotConfiguredError) as exc_info:
-        verify_telemetry_ingest_key(x_device_key="any-key")
-
-    assert exc_info.value.status_code == 503
+    assert response.status_code == 401
+    assert "not found" in response.json()["detail"]
 
 
-def test_ingest_rejects_missing_device_key(
-    db_session: Session,
-    monkeypatch,
-) -> None:
-    monkeypatch.setenv("TELEMETRY_INGEST_KEY", "test-device-secret")
-    get_settings.cache_clear()
+def test_ingest_rejects_missing_device_secret(db_session: Session) -> None:
+    """Reject packet without X-Device-Key header with 403."""
+    _seed_device(db_session, "gw-2026-0001")
 
     with _client(db_session) as client:
         response = client.post("/telemetry/ingest", json=_payload(seq=12))
 
     assert response.status_code == 403
-    assert response.json() == {"detail": "Invalid telemetry ingest key"}
+    assert "credentials" in response.json()["detail"]
 
 
-def test_ingest_rejects_invalid_device_key(
-    db_session: Session,
-    monkeypatch,
-) -> None:
-    monkeypatch.setenv("TELEMETRY_INGEST_KEY", "test-device-secret")
-    get_settings.cache_clear()
-
-    with _client(db_session) as client:
-        response = client.post(
-            "/telemetry/ingest",
-            json=_payload(seq=9),
-            headers={"X-Device-Key": "bad-key"},
-        )
-
-    assert response.status_code == 403
-    assert response.json() == {"detail": "Invalid telemetry ingest key"}
-
-
-def test_ingest_accepts_valid_device_key(
-    db_session: Session,
-    monkeypatch,
-) -> None:
-    monkeypatch.setenv("TELEMETRY_INGEST_KEY", "test-device-secret")
-    get_settings.cache_clear()
+def test_ingest_rejects_invalid_device_secret(db_session: Session) -> None:
+    """Reject packet with wrong secret with 403."""
     _seed_device(db_session, "gw-2026-0001")
 
     with _client(db_session) as client:
         response = client.post(
             "/telemetry/ingest",
+            json=_payload(seq=9),
+            headers={"X-Device-Key": "wrong-secret"},
+        )
+
+    assert response.status_code == 403
+    assert "credentials" in response.json()["detail"]
+
+
+def test_ingest_rejects_inactive_device(db_session: Session) -> None:
+    """Reject packet from inactive device with 403."""
+    plain_secret = _seed_device(db_session, "gw-2026-0001")
+
+    # Deactivate the device
+    device = db_session.query(Device).filter_by(external_id="gw-2026-0001").first()
+    assert device
+    device.is_active = False
+    db_session.commit()
+
+    with _client(db_session) as client:
+        response = client.post(
+            "/telemetry/ingest",
             json=_payload(seq=10),
-            headers={"X-Device-Key": "test-device-secret"},
+            headers={"X-Device-Key": plain_secret},
+        )
+
+    assert response.status_code == 403
+    assert "inactive" in response.json()["detail"]
+
+
+def test_ingest_accepts_valid_device_secret(db_session: Session) -> None:
+    """Accept packet from authenticated device with valid secret."""
+    plain_secret = _seed_device(db_session, "gw-2026-0001")
+
+    with _client(db_session) as client:
+        response = client.post(
+            "/telemetry/ingest",
+            json=_payload(seq=10),
+            headers={"X-Device-Key": plain_secret},
         )
 
     assert response.status_code == 202

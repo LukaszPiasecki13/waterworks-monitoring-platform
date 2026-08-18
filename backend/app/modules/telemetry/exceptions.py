@@ -2,7 +2,7 @@
 
 from fastapi import status
 
-from app.core.errors import APIError, ConflictError, ForbiddenError
+from app.core.errors import APIError, AuthenticationError, ConflictError, ForbiddenError
 
 
 class TelemetryPacketAlreadyExistsError(ConflictError):
@@ -14,8 +14,32 @@ class TelemetryPacketAlreadyExistsError(ConflictError):
         )
 
 
+class UnknownDeviceError(AuthenticationError):
+    """Raised when device with given external_id does not exist."""
+
+    def __init__(self, device_id: str):
+        super().__init__(f"Device '{device_id}' not found")
+
+
+class InvalidDeviceSecretError(ForbiddenError):
+    """Raised when device secret (X-Device-Key) does not match."""
+
+    def __init__(self):
+        super().__init__("Invalid device credentials")
+
+
+class InactiveDeviceError(ForbiddenError):
+    """Raised when device is inactive (is_active=False)."""
+
+    def __init__(self, device_id: str):
+        super().__init__(f"Device '{device_id}' is inactive")
+
+
 class InvalidTelemetryIngestKeyError(ForbiddenError):
-    """Raised when the telemetry ingest key is missing or invalid."""
+    """Raised when the telemetry ingest key is missing or invalid.
+
+    Deprecated: kept for backwards compatibility during transition to per-device auth.
+    """
 
     def __init__(self):
         super().__init__("Invalid telemetry ingest key")
@@ -26,6 +50,8 @@ class TelemetryIngestKeyNotConfiguredError(APIError):
 
     A server-side misconfiguration, not a client error: ingest stays closed
     until TELEMETRY_INGEST_KEY is set.
+
+    Deprecated: kept for backwards compatibility during transition to per-device auth.
     """
 
     def __init__(self):
