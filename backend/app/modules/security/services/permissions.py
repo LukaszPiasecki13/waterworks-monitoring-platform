@@ -101,6 +101,11 @@ class PermissionService:
     def permissions_for_user(self, user: User) -> set[str]:
         return self.repo.permission_codes_for_user(user.id)
 
+    def permissions_for_user_in_org(
+        self, user: User, organization_id: UUID
+    ) -> set[str]:
+        return self.repo.permission_codes_for_user_in_org(user.id, organization_id)
+
     def has_permission(self, user: User, permission_code: str) -> bool:
         return permission_code in self.permissions_for_user(user)
 
@@ -312,28 +317,23 @@ class PermissionService:
             return sorted(ids)
 
     def assign_default_group(self, user: User, actor: User | None = None) -> None:
-        """Add the default system group without replacing explicit memberships."""
-        user_status = getattr(user, "status", None)
-        if user_status is None:
-            return
-        admin_group = self.repo.get_group_by_system_key(ADMIN_GROUP_KEY)
+        """Add the default Staff group without replacing explicit memberships."""
         staff_group = self.repo.get_group_by_system_key(STAFF_GROUP_KEY)
-        selected = admin_group if user_status == "admin" else staff_group
-        if user_status not in {"admin", "regular"} or selected is None:
+        if staff_group is None:
             return
         current = set(self.repo.group_ids_for_user(user.id))
-        if selected.id not in current:
-            old_state = self._group_state(selected) if actor else None
-            current.add(selected.id)
+        if staff_group.id not in current:
+            old_state = self._group_state(staff_group) if actor else None
+            current.add(staff_group.id)
             self.repo.replace_user_groups(user.id, current)
             if actor and old_state:
                 self.repo.flush()
                 self._record_group(
                     "MEMBERS_UPDATE",
-                    selected,
+                    staff_group,
                     actor,
                     old_state,
-                    self._group_state(selected),
+                    self._group_state(staff_group),
                 )
 
     def remove_system_group(

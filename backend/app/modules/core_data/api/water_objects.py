@@ -4,8 +4,10 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends
 
-from app.modules.core_data.dependencies import get_water_object_service
-from app.modules.core_data.models import User
+from app.modules.core_data.dependencies import (
+    get_water_object_service,
+    require_org_access,
+)
 from app.modules.core_data.schemas.users import PaginatedResponse
 from app.modules.core_data.schemas.water_objects import (
     ListWaterObjectsRequest,
@@ -14,9 +16,7 @@ from app.modules.core_data.schemas.water_objects import (
     WaterObjectUpdateRequest,
 )
 from app.modules.core_data.services.water_objects import WaterObjectService
-from app.modules.security.dependencies import (
-    require_permission,
-)
+from app.modules.security.access import OrganizationAccess
 from app.modules.security.permission_catalog import (
     CAN_MANAGE_ASSETS,
     CAN_VIEW_ASSETS,
@@ -28,11 +28,11 @@ router = APIRouter(prefix="/objects", tags=["objects"])
 @router.get("", response_model=PaginatedResponse[WaterObjectResponse])
 def list_water_objects(
     query: ListWaterObjectsRequest = Depends(),
+    org_access: OrganizationAccess = Depends(require_org_access(CAN_VIEW_ASSETS)),
     service: WaterObjectService = Depends(get_water_object_service),
-    user: User = Depends(require_permission(CAN_VIEW_ASSETS)),
 ):
     """List water objects."""
-    objs, total = service.list_all(query, actor=user)
+    objs, total = service.list_all(query, org_access)
     return PaginatedResponse(
         items=objs,
         total=total,
@@ -44,40 +44,40 @@ def list_water_objects(
 @router.post("", response_model=WaterObjectResponse)
 def create_water_object(
     request: WaterObjectCreateRequest,
+    org_access: OrganizationAccess = Depends(require_org_access(CAN_MANAGE_ASSETS)),
     service: WaterObjectService = Depends(get_water_object_service),
-    user: User = Depends(require_permission(CAN_MANAGE_ASSETS)),
 ):
     """Create water object."""
-    return service.create(request, actor=user)
+    return service.create(request, org_access)
 
 
 @router.get("/{obj_id}", response_model=WaterObjectResponse)
 def get_water_object(
     obj_id: UUID,
+    org_access: OrganizationAccess = Depends(require_org_access(CAN_VIEW_ASSETS)),
     service: WaterObjectService = Depends(get_water_object_service),
-    user: User = Depends(require_permission(CAN_VIEW_ASSETS)),
 ):
     """Get water object by ID."""
-    return service.get_by_id(obj_id, actor=user)
+    return service.get_by_id(obj_id, org_access)
 
 
 @router.patch("/{obj_id}", response_model=WaterObjectResponse)
 def update_water_object(
     obj_id: UUID,
     request: WaterObjectUpdateRequest,
+    org_access: OrganizationAccess = Depends(require_org_access(CAN_MANAGE_ASSETS)),
     service: WaterObjectService = Depends(get_water_object_service),
-    user: User = Depends(require_permission(CAN_MANAGE_ASSETS)),
 ):
     """Update water object."""
-    return service.update(obj_id, request, actor=user)
+    return service.update(obj_id, request, org_access)
 
 
 @router.delete("/{obj_id}")
 def delete_water_object(
     obj_id: UUID,
+    org_access: OrganizationAccess = Depends(require_org_access(CAN_MANAGE_ASSETS)),
     service: WaterObjectService = Depends(get_water_object_service),
-    user: User = Depends(require_permission(CAN_MANAGE_ASSETS)),
 ):
     """Delete water object."""
-    service.delete(obj_id, actor=user)
+    service.delete(obj_id, org_access)
     return {"message": "Water object deleted successfully"}

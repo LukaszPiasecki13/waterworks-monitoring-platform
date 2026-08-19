@@ -3,9 +3,16 @@
 from datetime import datetime
 from typing import Any
 
-from pydantic import ConfigDict
+from pydantic import ConfigDict, Field
 
 from app.core.schemas import BaseSchema
+
+
+class AuditHistoryQuery(BaseSchema):
+    """Pagination query parameters for entity audit history endpoints."""
+
+    limit: int = Field(100, ge=1, le=200)
+    offset: int = Field(0, ge=0)
 
 
 class AuditEventResponse(BaseSchema):

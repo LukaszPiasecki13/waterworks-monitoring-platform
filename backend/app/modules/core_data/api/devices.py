@@ -4,17 +4,17 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends
 
-from app.modules.core_data.dependencies import get_device_service
-from app.modules.core_data.models import User
+from app.modules.core_data.dependencies import get_device_service, require_org_access
 from app.modules.core_data.schemas.devices import (
     DeviceCreateRequest,
+    DeviceCreateResponse,
     DeviceResponse,
     DeviceUpdateRequest,
     ListDevicesRequest,
 )
 from app.modules.core_data.schemas.users import PaginatedResponse
 from app.modules.core_data.services.devices import DeviceService
-from app.modules.security.dependencies import require_permission
+from app.modules.security.access import OrganizationAccess
 from app.modules.security.permission_catalog import (
     CAN_MANAGE_ASSETS,
     CAN_VIEW_ASSETS,
@@ -26,11 +26,11 @@ router = APIRouter(prefix="/devices", tags=["devices"])
 @router.get("", response_model=PaginatedResponse[DeviceResponse])
 def list_devices(
     query: ListDevicesRequest = Depends(),
+    org_access: OrganizationAccess = Depends(require_org_access(CAN_VIEW_ASSETS)),
     service: DeviceService = Depends(get_device_service),
-    user: User = Depends(require_permission(CAN_VIEW_ASSETS)),
 ):
     """List devices."""
-    devices, total = service.list_all(query, actor=user)
+    devices, total = service.list_all(query, org_access)
     return PaginatedResponse(
         items=devices,
         total=total,
@@ -39,43 +39,43 @@ def list_devices(
     )
 
 
-@router.post("", response_model=DeviceResponse)
+@router.post("", response_model=DeviceCreateResponse)
 def create_device(
     request: DeviceCreateRequest,
+    org_access: OrganizationAccess = Depends(require_org_access(CAN_MANAGE_ASSETS)),
     service: DeviceService = Depends(get_device_service),
-    user: User = Depends(require_permission(CAN_MANAGE_ASSETS)),
 ):
     """Create device."""
-    return service.create(request, actor=user)
+    return service.create(request, org_access)
 
 
 @router.get("/{device_id}", response_model=DeviceResponse)
 def get_device(
     device_id: UUID,
+    org_access: OrganizationAccess = Depends(require_org_access(CAN_VIEW_ASSETS)),
     service: DeviceService = Depends(get_device_service),
-    user: User = Depends(require_permission(CAN_VIEW_ASSETS)),
 ):
     """Get device by ID."""
-    return service.get_by_id(device_id, actor=user)
+    return service.get_by_id(device_id, org_access)
 
 
 @router.patch("/{device_id}", response_model=DeviceResponse)
 def update_device(
     device_id: UUID,
     request: DeviceUpdateRequest,
+    org_access: OrganizationAccess = Depends(require_org_access(CAN_MANAGE_ASSETS)),
     service: DeviceService = Depends(get_device_service),
-    user: User = Depends(require_permission(CAN_MANAGE_ASSETS)),
 ):
     """Update device."""
-    return service.update(device_id, request, actor=user)
+    return service.update(device_id, request, org_access)
 
 
 @router.delete("/{device_id}")
 def delete_device(
     device_id: UUID,
+    org_access: OrganizationAccess = Depends(require_org_access(CAN_MANAGE_ASSETS)),
     service: DeviceService = Depends(get_device_service),
-    user: User = Depends(require_permission(CAN_MANAGE_ASSETS)),
 ):
     """Delete device."""
-    service.delete(device_id, actor=user)
+    service.delete(device_id, org_access)
     return {"message": "Device deleted successfully"}

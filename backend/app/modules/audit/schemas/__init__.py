@@ -1,3 +1,3 @@
-from app.modules.audit.schemas.audit import AuditEventResponse
+from app.modules.audit.schemas.audit import AuditEventResponse, AuditHistoryQuery
 
-__all__ = ["AuditEventResponse"]
+__all__ = ["AuditEventResponse", "AuditHistoryQuery"]

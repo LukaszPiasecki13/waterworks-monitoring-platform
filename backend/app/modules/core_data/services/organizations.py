@@ -5,7 +5,7 @@ from uuid import UUID
 from sqlalchemy.exc import IntegrityError
 
 from app.core.audit import AuditEntry, AuditPort, EntityType, calculate_delta
-from app.core.errors import ConflictError, NotFoundError
+from app.core.errors import ConflictError
 from app.modules.core_data.models.user import User
 from app.modules.core_data.repositories.organizations import OrganizationRepository
 from app.modules.core_data.schemas.organizations import (
@@ -48,20 +48,11 @@ class OrganizationService:
         )
 
     def get_by_id(self, org_id: UUID, actor: User):
-        """Get organization by ID with org isolation for non-admins."""
-        org = self.repo.find_by_id(org_id)
-
-        if actor.organization_id is not None and actor.organization_id != org.id:
-            raise NotFoundError(f"Organization with ID {org_id} not found")
-
-        return org
+        """Get organization by ID."""
+        return self.repo.find_by_id(org_id)
 
     def list_all(self, query, *, actor: User):
-        """List organizations. Non-admin sees only own org."""
-        if actor.organization_id is not None:
-            org = self.repo.get_by_id(actor.organization_id)
-            return ([org] if org else [], 1 if org else 0)
-
+        """List organizations (permission-gated by CAN_VIEW_ORGANIZATIONS)."""
         orgs = self.repo.list_all(skip=query.skip, limit=query.limit, name=query.name)
         count = self.repo.count(name=query.name)
         return orgs, count

@@ -17,7 +17,6 @@ def user_audit_state(user: User, group_ids: list[UUID] | None = None) -> dict:
         "email": audit_value(user.email),
         "first_name": audit_value(user.first_name),
         "last_name": audit_value(user.last_name),
-        "status": audit_value(user.status),
         "is_active": audit_value(user.is_active),
     }
     if group_ids is not None:

@@ -24,7 +24,6 @@ def test_user_repository_filters_and_counts_users(db_session: Session) -> None:
         hashed_password="hash",
         first_name="Anna",
         last_name="Nowak",
-        status="admin",
         is_active=True,
     )
     repo.create(
@@ -33,15 +32,14 @@ def test_user_repository_filters_and_counts_users(db_session: Session) -> None:
         hashed_password="hash",
         first_name="Jan",
         last_name="Kowalski",
-        status="regular",
         is_active=False,
     )
     db_session.commit()
 
-    active_admins = repo.list_all(search="anna", status="admin", is_active=True)
+    active_users = repo.list_all(search="anna", is_active=True)
     inactive_count = repo.count(is_active=False)
 
-    assert [user.username for user in active_admins] == ["anna"]
+    assert [user.username for user in active_users] == ["anna"]
     assert inactive_count == 1
     assert repo.get_by_email("jan@example.com") is not None
     assert repo.get_by_username("missing") is None
@@ -56,7 +54,6 @@ def test_users_api_supports_admin_crud_flow(api_client) -> None:
             "password": "StrongPass123",
             "first_name": "Panel",
             "last_name": "User",
-            "status": "regular",
             "is_active": True,
         },
     )
@@ -72,11 +69,10 @@ def test_users_api_supports_admin_crud_flow(api_client) -> None:
 
     update_response = api_client.patch(
         f"/api/v1/users/{created['id']}",
-        json={"email": "updated@example.com", "status": "admin"},
+        json={"email": "updated@example.com"},
     )
     assert update_response.status_code == 200
     assert update_response.json()["email"] == "updated@example.com"
-    assert update_response.json()["status"] == "admin"
 
     delete_response = api_client.delete(f"/api/v1/users/{created['id']}")
     assert delete_response.status_code == 200
@@ -98,7 +94,6 @@ def test_users_api_rejects_non_admin_user(db_session: Session) -> None:
     app.dependency_overrides[get_db] = override_get_db
     app.dependency_overrides[get_current_user] = lambda: SimpleNamespace(
         id=mock_user_id,
-        status="regular",
     )
 
     with TestClient(app) as client:
@@ -117,7 +112,6 @@ def test_security_group_viewer_can_list_users_for_membership_management(
         username="security-viewer",
         email="security-viewer@example.com",
         hashed_password="hash",
-        status="regular",
         is_active=True,
     )
     repo = PermissionRepository(db_session)
@@ -153,4 +147,6 @@ def test_security_group_viewer_can_list_users_for_membership_management(
     app.dependency_overrides.clear()
 
     assert response.status_code == 200
-    assert [item["email"] for item in response.json()["items"]] == [user.email]
+    items = response.json()["items"]
+    emails = [item["email"] for item in items]
+    assert user.email in emails

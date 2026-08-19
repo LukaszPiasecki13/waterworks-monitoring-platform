@@ -1,20 +1,8 @@
 """Authentication schemas."""
 
-from uuid import UUID
-
-from pydantic import ConfigDict, EmailStr, Field
+from pydantic import EmailStr, Field
 
 from app.core.schemas import BaseSchema
-
-
-class RegisterRequest(BaseSchema):
-    """User registration request."""
-
-    username: str = Field(..., min_length=3, max_length=150)
-    email: EmailStr
-    password: str = Field(..., min_length=6, max_length=72)
-    first_name: str = Field(default="", max_length=150)
-    last_name: str = Field(default="", max_length=150)
 
 
 class LoginRequest(BaseSchema):
@@ -35,20 +23,6 @@ class TokenRefreshRequest(BaseSchema):
     """Token refresh request."""
 
     refresh: str
-
-
-class UserResponse(BaseSchema):
-    """User response DTO."""
-
-    id: UUID
-    username: str
-    email: str
-    first_name: str
-    last_name: str
-    status: str
-    organization_id: UUID | None = None
-
-    model_config = ConfigDict(from_attributes=True)
 
 
 class ProfileUpdateRequest(BaseSchema):

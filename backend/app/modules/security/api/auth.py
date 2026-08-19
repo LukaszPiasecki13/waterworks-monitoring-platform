@@ -8,7 +8,6 @@ from app.modules.security.dependencies import get_auth_service, get_current_user
 from app.modules.security.schemas import (
     LoginRequest,
     ProfileUpdateRequest,
-    RegisterRequest,
     TokenRefreshRequest,
     TokenResponse,
     UserResponse,
@@ -16,18 +15,6 @@ from app.modules.security.schemas import (
 from app.modules.security.services.auth import AuthService
 
 router = APIRouter(prefix="/auth", tags=["auth"])
-
-
-@router.post("/register", response_model=UserResponse)
-def register(data: RegisterRequest, svc: AuthService = Depends(get_auth_service)):
-    """Register new user."""
-    return svc.register(
-        username=data.username,
-        email=data.email,
-        password=data.password,
-        first_name=data.first_name,
-        last_name=data.last_name,
-    )
 
 
 @router.post("/token", response_model=TokenResponse)

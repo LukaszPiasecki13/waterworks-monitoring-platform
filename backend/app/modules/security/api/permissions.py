@@ -2,11 +2,11 @@
 
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query, Response, status
+from fastapi import APIRouter, Depends, Response, status
 
 from app.core.audit import AuditReaderPort, EntityType
 from app.modules.audit.dependencies import get_audit_reader
-from app.modules.audit.schemas import AuditEventResponse
+from app.modules.audit.schemas import AuditEventResponse, AuditHistoryQuery
 from app.modules.core_data.models import User
 from app.modules.security.dependencies import (
     get_current_user,
@@ -44,17 +44,23 @@ def my_permissions(
     )
 
 
-@router.get("/permissions", response_model=list[PermissionResponse])
+@router.get(
+    "/permissions",
+    response_model=list[PermissionResponse],
+    dependencies=[Depends(require_permission(CAN_VIEW_SECURITY))],
+)
 def list_permissions(
-    _user: User = Depends(require_permission(CAN_VIEW_SECURITY)),
     service: PermissionService = Depends(get_permission_service),
 ):
     return service.list_permissions()
 
 
-@router.get("/groups", response_model=list[UserGroupResponse])
+@router.get(
+    "/groups",
+    response_model=list[UserGroupResponse],
+    dependencies=[Depends(require_permission(CAN_VIEW_SECURITY))],
+)
 def list_groups(
-    _user: User = Depends(require_permission(CAN_VIEW_SECURITY)),
     service: PermissionService = Depends(get_permission_service),
 ):
     return service.list_groups()
@@ -123,28 +129,33 @@ def delete_group(
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
-@router.get("/groups/{group_id}/audit", response_model=list[AuditEventResponse])
+@router.get(
+    "/groups/{group_id}/audit",
+    response_model=list[AuditEventResponse],
+    dependencies=[Depends(require_permission(CAN_VIEW_SECURITY))],
+)
 def security_group_audit_history(
     group_id: UUID,
-    limit: int = Query(100, ge=1, le=200),
-    offset: int = Query(0, ge=0),
+    query: AuditHistoryQuery = Depends(),
     service: PermissionService = Depends(get_permission_service),
     audit: AuditReaderPort = Depends(get_audit_reader),
-    _user: User = Depends(require_permission(CAN_VIEW_SECURITY)),
 ):
     service.get_group(group_id)
     return audit.get_logs_for_entity(
         EntityType.SECURITY_USER_GROUP.value,
         str(group_id),
-        limit=limit,
-        offset=offset,
+        limit=query.limit,
+        offset=query.offset,
     )
 
 
-@router.get("/users/{user_id}/groups", response_model=list[UUID])
+@router.get(
+    "/users/{user_id}/groups",
+    response_model=list[UUID],
+    dependencies=[Depends(require_permission(CAN_VIEW_SECURITY))],
+)
 def user_groups(
     user_id: UUID,
-    _user: User = Depends(require_permission(CAN_VIEW_SECURITY)),
     service: PermissionService = Depends(get_permission_service),
 ):
     return service.group_ids_for_user(user_id)

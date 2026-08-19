@@ -33,8 +33,32 @@ class MeasurementPointRepository(SQLRepository):
             raise NotFoundError("Measurement point not found")
         return point
 
+    def get_in_organization(
+        self, point_id: UUID, organization_id: UUID
+    ) -> MeasurementPoint | None:
+        """Get measurement point by ID within organization scope."""
+        return (
+            self.session.query(MeasurementPoint)
+            .join(Device, MeasurementPoint.device_id == Device.id)
+            .join(WaterObject, Device.water_object_id == WaterObject.id)
+            .filter(
+                MeasurementPoint.id == point_id,
+                WaterObject.organization_id == organization_id,
+            )
+            .first()
+        )
+
+    def find_in_organization(
+        self, point_id: UUID, organization_id: UUID
+    ) -> MeasurementPoint:
+        """Find measurement point by ID within organization or raise NotFoundError."""
+        point = self.get_in_organization(point_id, organization_id)
+        if not point:
+            raise NotFoundError("Measurement point not found")
+        return point
+
     def get_by_device_and_external_id(
-        self, device_id: int, external_id: str
+        self, device_id: UUID, external_id: str
     ) -> MeasurementPoint | None:
         """Get measurement point by device and external ID."""
         return (
@@ -92,7 +116,7 @@ class MeasurementPointRepository(SQLRepository):
 
     def create(
         self,
-        device_id: int,
+        device_id: UUID,
         external_id: str,
         point_type: str,
         unit: str,

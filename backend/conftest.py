@@ -151,9 +151,7 @@ def admin_user(db_session: Session) -> User:
         first_name="Admin",
         last_name="User",
         hashed_password="not-used",
-        status="admin",
         is_active=True,
-        organization_id=None,
         created_at=datetime(2026, 1, 1),
         updated_at=datetime(2026, 1, 1),
     )

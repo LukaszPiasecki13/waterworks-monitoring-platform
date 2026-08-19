@@ -69,39 +69,6 @@ class AuthService:
         refresh = self.token_service.create_refresh_token(sub)
         return TokenResponse(access=access, refresh=refresh)
 
-    def register(
-        self,
-        username: str,
-        email: str,
-        password: str,
-        first_name: str = "",
-        last_name: str = "",
-    ) -> User:
-        """Register new user."""
-        with self.repo.transaction():
-            # Normalize inputs for consistent lookups
-            normalized_username = username.strip().lower()
-            normalized_email = email.strip().lower()
-
-            # Check if user already exists
-            if self.repo.get_by_username(normalized_username):
-                raise ConflictError(f"Username '{username}' already exists")
-            if self.repo.get_by_email(normalized_email):
-                raise ConflictError(f"Email '{email}' already exists")
-
-            user = self.repo.create(
-                username=normalized_username,
-                email=normalized_email,
-                hashed_password=hash_password(password),
-                first_name=first_name,
-                last_name=last_name,
-            )
-            self.repo.flush()
-            self.repo.refresh(user)
-            self.permissions.assign_default_group(user, actor=user)
-            self._record_user("REGISTER", user, {}, self._state(user))
-            return user
-
     def login(self, data: LoginRequest) -> TokenResponse:
         """Login user - supports username or email."""
         identifier = data.username.strip().lower()

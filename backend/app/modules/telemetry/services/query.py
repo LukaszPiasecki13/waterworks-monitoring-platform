@@ -7,7 +7,7 @@ from uuid import UUID
 
 from app.core.config import Settings
 from app.core.errors import NotFoundError
-from app.modules.core_data.models import User, WaterObject
+from app.modules.core_data.models import WaterObject
 from app.modules.telemetry.models.measurement_packet import TelemetryPacket
 from app.modules.telemetry.repositories.queries import TelemetryQueryRepository
 from app.modules.telemetry.schemas.query import (
@@ -140,25 +140,17 @@ class TelemetryQueryService:
 
     def list_objects(
         self,
-        user: User,
+        organization_id: UUID,
         query: ListObjectsRequest,
     ) -> PaginatedResponse[ObjectSummaryResponse]:
-        """List objects with their latest readings and status.
-
-        Regular users are pinned to their organization and the org_id param is
-        ignored; platform admins may filter by any org, or see all.
-        """
-        org_id = query.org_id
-        if user.organization_id is not None:
-            org_id = user.organization_id
-
+        """List objects in organization with their latest readings and status."""
         if query.status is None:
             rows = self.repo.list_objects(
-                org_id=org_id, skip=query.skip, limit=query.limit
+                org_id=organization_id, skip=query.skip, limit=query.limit
             )
             return PaginatedResponse(
                 items=self._summarize(rows),
-                total=self.repo.count_objects(org_id=org_id),
+                total=self.repo.count_objects(org_id=organization_id),
                 skip=query.skip,
                 limit=query.limit,
             )
@@ -167,7 +159,7 @@ class TelemetryQueryService:
         # on. Paginating before the filter would report a total for the
         # unfiltered set and let pages overlap, so the filter is applied to
         # every object first and skip/limit only afterwards.
-        rows = self.repo.list_objects(org_id=org_id, skip=0, limit=None)
+        rows = self.repo.list_objects(org_id=organization_id, skip=0, limit=None)
         matching = [
             summary
             for summary in self._summarize(rows)
@@ -180,27 +172,26 @@ class TelemetryQueryService:
             limit=query.limit,
         )
 
-    def _resolve_object(self, user: User, object_id: UUID) -> WaterObject:
-        """Load a water object, hiding objects outside the user's org."""
+    def _resolve_object(self, organization_id: UUID, object_id: UUID) -> WaterObject:
+        """Load a water object, hiding objects outside the organization."""
         water_object = self.repo.get_water_object(object_id)
         if not water_object:
             raise NotFoundError(f"Object {object_id} not found")
 
-        if (
-            user.organization_id is not None
-            and water_object.organization_id != user.organization_id
-        ):
+        if water_object.organization_id != organization_id:
             raise NotFoundError(f"Object {object_id} not found")
 
         return water_object
 
-    def get_object_detail(self, user: User, object_id: UUID) -> ObjectDetailResponse:
+    def get_object_detail(
+        self, organization_id: UUID, object_id: UUID
+    ) -> ObjectDetailResponse:
         """Get the detailed view of a single object.
 
         An object that has never reported is returned with status "no_data"
         rather than a 404 — it exists, it is simply awaiting its first packet.
         """
-        water_object = self._resolve_object(user, object_id)
+        water_object = self._resolve_object(organization_id, object_id)
         packet = self.repo.get_latest_packet(object_id)
 
         points = self._unpack_latest_points(packet) if packet else []
@@ -278,7 +269,7 @@ class TelemetryQueryService:
 
     def get_measurements(
         self,
-        user: User,
+        organization_id: UUID,
         object_id: UUID,
         query: GetMeasurementsRequest,
     ) -> MeasurementsResponse:
@@ -287,7 +278,7 @@ class TelemetryQueryService:
         `truncated` tells the client the series was cut at `limit` mid-range,
         so a chart does not silently render a partial window as complete.
         """
-        self._resolve_object(user, object_id)
+        self._resolve_object(organization_id, object_id)
 
         end = query.end
         if end is None:

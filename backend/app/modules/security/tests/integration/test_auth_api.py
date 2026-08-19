@@ -1,4 +1,5 @@
 from collections.abc import Generator
+from datetime import datetime
 from unittest.mock import MagicMock
 
 import pytest
@@ -9,10 +10,12 @@ from sqlalchemy.orm import Session
 from app.core.dependencies import get_db
 from app.core.errors import register_error_handlers
 from app.core.rate_limit import register_rate_limiting
+from app.modules.core_data.models import User
 from app.modules.core_data.repositories import UserRepository
 from app.modules.security.api import router
 from app.modules.security.permission_catalog import STAFF_GROUP_KEY
 from app.modules.security.repositories import PermissionRepository
+from app.modules.security.services.password import hash_password
 from app.modules.security.services.permissions import PermissionService
 
 
@@ -50,31 +53,28 @@ def auth_client(db_session: Session) -> Generator[TestClient]:
     app.dependency_overrides.clear()
 
 
-def test_register_login_refresh_and_current_user(
+def test_login_refresh_and_current_user(
     auth_client: TestClient,
     db_session: Session,
 ) -> None:
-    register_response = auth_client.post(
-        "/auth/register",
-        json={
-            "username": "NewUser",
-            "email": "NewUser@example.com",
-            "password": "StrongPass123",
-            "first_name": "Jan",
-            "last_name": "Kowalski",
-        },
+    # Create a test user directly in DB (registration via /register removed)
+    test_user = User(
+        username="testuser",
+        email="test@example.com",
+        first_name="Test",
+        last_name="User",
+        hashed_password=hash_password("StrongPass123"),
+        is_active=True,
+        created_at=datetime(2026, 1, 1),
+        updated_at=datetime(2026, 1, 1),
     )
-    assert register_response.status_code == 200
-    assert register_response.json()["username"] == "newuser"
-    assert register_response.json()["email"] == "newuser@example.com"
-    assert register_response.json()["status"] == "regular"
-    registered_id = register_response.json()["id"]
-    assert len(permission_service(db_session).group_ids_for_user(registered_id)) == 1
+    db_session.add(test_user)
+    db_session.commit()
 
     login_response = auth_client.post(
         "/auth/token",
         json={
-            "username": "newuser@example.com",
+            "username": "testuser",
             "password": "StrongPass123",
         },
     )
@@ -96,20 +96,26 @@ def test_register_login_refresh_and_current_user(
     )
     assert current_user_response.status_code == 200
     user_data = current_user_response.json()
-    assert user_data["email"] == "newuser@example.com"
-    assert "organization_id" in user_data
-    assert user_data["organization_id"] is None  # New user has no organization
+    assert user_data["email"] == "test@example.com"
 
 
-def test_login_rejects_wrong_password(auth_client: TestClient) -> None:
-    auth_client.post(
-        "/auth/register",
-        json={
-            "username": "login-user",
-            "email": "login@example.com",
-            "password": "StrongPass123",
-        },
+def test_login_rejects_wrong_password(
+    auth_client: TestClient,
+    db_session: Session,
+) -> None:
+    # Create a test user directly in DB
+    test_user = User(
+        username="login-user",
+        email="login@example.com",
+        first_name="",
+        last_name="",
+        hashed_password=hash_password("StrongPass123"),
+        is_active=True,
+        created_at=datetime(2026, 1, 1),
+        updated_at=datetime(2026, 1, 1),
     )
+    db_session.add(test_user)
+    db_session.commit()
 
     response = auth_client.post(
         "/auth/token",

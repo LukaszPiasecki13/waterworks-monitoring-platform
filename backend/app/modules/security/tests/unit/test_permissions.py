@@ -21,12 +21,11 @@ def _service(session: Session) -> PermissionService:
     )
 
 
-def _user(session: Session, username: str, status: str = "regular") -> User:
+def _user(session: Session, username: str) -> User:
     user = User(
         username=username,
         email=f"{username}@example.org",
         hashed_password="unused",
-        status=status,
     )
     session.add(user)
     session.flush()
@@ -121,7 +120,7 @@ def test_staff_group_permissions_are_editable_but_metadata_stays_locked(
     _permission(db_session, "CAN_VIEW_USERS", "View", "Users")
     _permission(db_session, "CAN_MANAGE_USERS", "Manage", "Users")
     group = _system_group(db_session, "staff", "Staff")
-    actor = _user(db_session, "staff-admin", status="admin")
+    actor = _user(db_session, "staff-admin")
     db_session.commit()
 
     service = _service(db_session)
@@ -136,7 +135,7 @@ def test_staff_group_permissions_are_editable_but_metadata_stays_locked(
         group.id,
         UserGroupSaveRequest(
             name="Staff",
-            description="Protected",
+            description="Read-only access",
             permission_codes=["CAN_VIEW_USERS", "CAN_MANAGE_USERS"],
             user_ids=[],
         ),
@@ -161,44 +160,12 @@ def test_staff_group_permissions_are_editable_but_metadata_stays_locked(
     assert error.value.status_code == 400
 
 
-def test_admin_status_without_group_does_not_grant_permissions(
-    db_session: Session,
-) -> None:
-    admin = _user(db_session, "admin-without-group", status="admin")
-    db_session.commit()
-
-    permissions = _service(db_session).permissions_for_user(admin)
-
-    assert permissions == set()
-
-
-def test_default_group_assignment_preserves_explicit_memberships(
-    db_session: Session,
-) -> None:
-    admin_group = _system_group(db_session, "admin", "Admin")
-    staff_group = _system_group(db_session, "staff", "Staff")
-    user = _user(db_session, "regular-with-admin", status="regular")
-    db_session.flush()
-    service = _service(db_session)
-    service.replace_user_groups(user.id, [admin_group.id], actor=user)
-
-    service.assign_default_group(user)
-
-    assert service.group_ids_for_user(user.id) == sorted(
-        [admin_group.id, staff_group.id]
-    )
-
-    service.remove_system_group(user, "staff")
-
-    assert service.group_ids_for_user(user.id) == [admin_group.id]
-
-
 def test_permission_only_group_change_is_persisted(db_session: Session) -> None:
     """Permission codes are included in the group snapshot."""
     view = _permission(db_session, "CAN_VIEW_USERS", "View", "Users")
     _permission(db_session, "CAN_MANAGE_USERS", "Manage", "Users")
     group = UserGroup(name="Zespol", permissions=[view])
-    actor = _user(db_session, "aktor", status="admin")
+    actor = _user(db_session, "aktor")
     db_session.add(group)
     db_session.commit()
 

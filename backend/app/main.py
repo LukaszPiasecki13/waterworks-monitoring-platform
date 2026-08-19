@@ -11,12 +11,17 @@ from app.core.errors import register_error_handlers
 from app.core.health import router as health_router
 from app.core.logging import configure_logging
 from app.core.rate_limit import register_rate_limiting
-from app.modules.core_data.api import router as core_data_router
+from app.modules.core_data.api.devices import router as devices_router
+from app.modules.core_data.api.measurement_points import (
+    router as measurement_points_router,
+)
+from app.modules.core_data.api.organizations import router as organizations_router
+from app.modules.core_data.api.users import router as users_router
+from app.modules.core_data.api.water_objects import router as water_objects_router
 from app.modules.security.api import router as security_router
 from app.modules.security.dependencies import get_permission_repo
 from app.modules.security.services.seed import SecuritySeedService
-from app.modules.telemetry.api import query_router as telemetry_query_router
-from app.modules.telemetry.api import router as telemetry_router
+from app.modules.telemetry.api.query import router as telemetry_query_router
 
 API_V1_PREFIX = "/api/v1"
 
@@ -77,8 +82,16 @@ app.include_router(health_router)
 app.include_router(security_router)
 
 # Ingest endpoint (unprefixed: /telemetry/ingest)
-app.include_router(telemetry_router)
+app.include_router(telemetry_query_router, prefix="/telemetry")
 
-# API v1 endpoints
-app.include_router(telemetry_query_router, prefix=API_V1_PREFIX)
-app.include_router(core_data_router, prefix=API_V1_PREFIX)
+# API v1 endpoints - platform level
+app.include_router(users_router, prefix=f"{API_V1_PREFIX}/platform")
+app.include_router(organizations_router, prefix=f"{API_V1_PREFIX}/platform")
+
+# API v1 endpoints - organization level
+app.include_router(water_objects_router, prefix=f"{API_V1_PREFIX}/orgs/{{org_id}}")
+app.include_router(devices_router, prefix=f"{API_V1_PREFIX}/orgs/{{org_id}}")
+app.include_router(measurement_points_router, prefix=f"{API_V1_PREFIX}/orgs/{{org_id}}")
+app.include_router(
+    telemetry_query_router, prefix=f"{API_V1_PREFIX}/orgs/{{org_id}}/telemetry"
+)

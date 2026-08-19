@@ -16,7 +16,8 @@ from app.modules.core_data.schemas.users import PaginatedResponse
 from app.modules.core_data.services.organizations import OrganizationService
 from app.modules.security.dependencies import (
     get_current_user,
-    require_permission,
+    require_any_permission,
+    require_org_permission,
 )
 from app.modules.security.permission_catalog import (
     CAN_MANAGE_ORGANIZATIONS,
@@ -26,7 +27,15 @@ from app.modules.security.permission_catalog import (
 router = APIRouter(prefix="/organizations", tags=["organizations"])
 
 
-@router.get("", response_model=PaginatedResponse[OrganizationResponse])
+@router.get(
+    "",
+    response_model=PaginatedResponse[OrganizationResponse],
+    dependencies=[
+        Depends(
+            require_any_permission(CAN_VIEW_ORGANIZATIONS, CAN_MANAGE_ORGANIZATIONS)
+        )
+    ],
+)
 def list_organizations(
     query: ListOrganizationsRequest = Depends(),
     service: OrganizationService = Depends(get_organization_service),
@@ -42,42 +51,57 @@ def list_organizations(
     )
 
 
-@router.post("", response_model=OrganizationResponse)
+@router.post(
+    "",
+    response_model=OrganizationResponse,
+    dependencies=[Depends(require_any_permission(CAN_MANAGE_ORGANIZATIONS))],
+)
 def create_organization(
     request: OrganizationCreateRequest,
     service: OrganizationService = Depends(get_organization_service),
-    user: User = Depends(require_permission(CAN_MANAGE_ORGANIZATIONS)),
+    user: User = Depends(get_current_user),
 ):
     """Create organization."""
     return service.create(request, actor=user)
 
 
-@router.get("/{org_id}", response_model=OrganizationResponse)
+@router.get(
+    "/{org_id}",
+    response_model=OrganizationResponse,
+    dependencies=[Depends(require_org_permission(CAN_VIEW_ORGANIZATIONS))],
+)
 def get_organization(
     org_id: UUID,
     service: OrganizationService = Depends(get_organization_service),
-    user: User = Depends(require_permission(CAN_VIEW_ORGANIZATIONS)),
+    user: User = Depends(get_current_user),
 ):
     """Get organization by ID."""
     return service.get_by_id(org_id, actor=user)
 
 
-@router.patch("/{org_id}", response_model=OrganizationResponse)
+@router.patch(
+    "/{org_id}",
+    response_model=OrganizationResponse,
+    dependencies=[Depends(require_org_permission(CAN_MANAGE_ORGANIZATIONS))],
+)
 def update_organization(
     org_id: UUID,
     request: OrganizationUpdateRequest,
     service: OrganizationService = Depends(get_organization_service),
-    user: User = Depends(require_permission(CAN_MANAGE_ORGANIZATIONS)),
+    user: User = Depends(get_current_user),
 ):
     """Update organization."""
     return service.update(org_id, request, actor=user)
 
 
-@router.delete("/{org_id}")
+@router.delete(
+    "/{org_id}",
+    dependencies=[Depends(require_org_permission(CAN_MANAGE_ORGANIZATIONS))],
+)
 def delete_organization(
     org_id: UUID,
     service: OrganizationService = Depends(get_organization_service),
-    user: User = Depends(require_permission(CAN_MANAGE_ORGANIZATIONS)),
+    user: User = Depends(get_current_user),
 ):
     """Delete organization."""
     service.delete(org_id, actor=user)

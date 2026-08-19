@@ -28,6 +28,26 @@ class DeviceRepository(SQLRepository):
             raise NotFoundError("Device not found")
         return device
 
+    def get_in_organization(
+        self, device_id: UUID, organization_id: UUID
+    ) -> Device | None:
+        """Get device by ID within organization scope."""
+        return (
+            self.session.query(Device)
+            .join(WaterObject, Device.water_object_id == WaterObject.id)
+            .filter(
+                Device.id == device_id, WaterObject.organization_id == organization_id
+            )
+            .first()
+        )
+
+    def find_in_organization(self, device_id: UUID, organization_id: UUID) -> Device:
+        """Find device by ID within organization or raise NotFoundError."""
+        device = self.get_in_organization(device_id, organization_id)
+        if not device:
+            raise NotFoundError("Device not found")
+        return device
+
     def get_by_external_id(self, external_id: str) -> Device | None:
         """Get device by external ID."""
         return (

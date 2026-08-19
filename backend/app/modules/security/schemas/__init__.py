@@ -1,12 +1,12 @@
 """Security schemas."""
 
+from app.modules.core_data.schemas.users import UserResponse
+
 from .auth import (
     LoginRequest,
     ProfileUpdateRequest,
-    RegisterRequest,
     TokenRefreshRequest,
     TokenResponse,
-    UserResponse,
 )
 from .permissions import (
     GroupIdsRequest,
@@ -27,7 +27,6 @@ __all__ = [
     "PermissionCodesRequest",
     "PermissionResponse",
     "ProfileUpdateRequest",
-    "RegisterRequest",
     "TokenRefreshRequest",
     "TokenResponse",
     "UserGroupCreateRequest",

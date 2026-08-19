@@ -6,17 +6,13 @@ from sqlalchemy.exc import IntegrityError
 
 from app.core.audit import AuditEntry, AuditPort, EntityType, calculate_delta
 from app.core.errors import ConflictError
-from app.modules.core_data.models.user import User
 from app.modules.core_data.repositories.organizations import OrganizationRepository
 from app.modules.core_data.repositories.water_objects import WaterObjectRepository
 from app.modules.core_data.schemas.water_objects import (
     WaterObjectCreateRequest,
     WaterObjectUpdateRequest,
 )
-from app.modules.core_data.utils.org_scope import (
-    assert_same_organization,
-    resolve_organization_id,
-)
+from app.modules.security.access import OrganizationAccess
 
 
 class WaterObjectService:
@@ -41,44 +37,46 @@ class WaterObjectService:
         }
 
     def _record_audit(
-        self, action: str, obj, actor: User, old_state: dict, new_state: dict
+        self,
+        action: str,
+        obj,
+        org_access: OrganizationAccess,
+        old_state: dict,
+        new_state: dict,
     ) -> None:
         self.audit.record(
             AuditEntry(
                 entity_type=EntityType.CORE_DATA_WATER_OBJECT.value,
                 entity_id=str(obj.id),
                 action=action,
-                actor_id=str(actor.id),
-                actor_display_name=actor.email,
+                actor_id=str(org_access.actor.id),
+                actor_display_name=org_access.actor.email,
                 changes=calculate_delta(old_state, new_state),
             )
         )
 
-    def get_by_id(self, obj_id: UUID, actor: User):
-        """Get water object by ID with org isolation."""
-        obj = self.repo.find_by_id(obj_id)
-        assert_same_organization(actor, obj.organization_id)
-        return obj
+    def get_by_id(self, obj_id: UUID, org_access: OrganizationAccess):
+        """Get water object by ID."""
+        return self.repo.find_in_organization(obj_id, org_access.organization_id)
 
-    def list_all(self, query, *, actor: User):
-        """List water objects with org isolation."""
-        if actor.organization_id is not None:
-            org_id = actor.organization_id
-        else:
-            org_id = getattr(query, "organization_id", None)
+    def list_all(self, query, org_access: OrganizationAccess):
+        """List water objects in organization."""
         objs = self.repo.list_all(
-            organization_id=org_id, skip=query.skip, limit=query.limit
+            organization_id=org_access.organization_id,
+            skip=query.skip,
+            limit=query.limit,
         )
-        count = self.repo.count(organization_id=org_id)
+        count = self.repo.count(organization_id=org_access.organization_id)
         return objs, count
 
-    def create(self, request: WaterObjectCreateRequest, *, actor: User):
-        """Create water object."""
+    def create(self, request: WaterObjectCreateRequest, org_access: OrganizationAccess):
+        """Create water object in organization."""
         with self.repo.transaction():
-            org_id = resolve_organization_id(actor, request.organization_id)
-            self.org_repo.find_by_id(org_id)
+            self.org_repo.find_by_id(
+                org_access.organization_id
+            )  # Validates org exists, raises NotFoundError if not
             obj = self.repo.create(
-                organization_id=org_id,
+                organization_id=org_access.organization_id,
                 name=request.name,
                 object_type=request.object_type,
                 location_description=request.location_description,
@@ -87,13 +85,18 @@ class WaterObjectService:
             )
             self.repo.flush()
             self.repo.refresh(obj)
-            self._record_audit("CREATE", obj, actor, {}, self._state(obj))
+            self._record_audit("CREATE", obj, org_access, {}, self._state(obj))
             return obj
 
-    def update(self, obj_id: UUID, request: WaterObjectUpdateRequest, actor: User):
+    def update(
+        self,
+        obj_id: UUID,
+        request: WaterObjectUpdateRequest,
+        org_access: OrganizationAccess,
+    ):
         """Update water object."""
         with self.repo.transaction() as tx:
-            obj = self.get_by_id(obj_id, actor)
+            obj = self.repo.find_in_organization(obj_id, org_access.organization_id)
             old_state = self._state(obj)
             self.repo.update(obj, **request.model_dump(exclude_unset=True))
             self.repo.flush()
@@ -102,17 +105,17 @@ class WaterObjectService:
             if not calculate_delta(old_state, new_state):
                 tx.skip_audit()
                 return obj
-            self._record_audit("UPDATE", obj, actor, old_state, new_state)
+            self._record_audit("UPDATE", obj, org_access, old_state, new_state)
             return obj
 
-    def delete(self, obj_id: UUID, actor: User) -> None:
+    def delete(self, obj_id: UUID, org_access: OrganizationAccess) -> None:
         """Delete water object."""
         try:
             with self.repo.transaction():
-                obj = self.get_by_id(obj_id, actor)
+                obj = self.repo.find_in_organization(obj_id, org_access.organization_id)
                 old_state = self._state(obj)
                 self.repo.delete(obj)
-                self._record_audit("DELETE", obj, actor, old_state, {})
+                self._record_audit("DELETE", obj, org_access, old_state, {})
         except IntegrityError as err:
             raise ConflictError(
                 "Cannot delete water object with related devices"

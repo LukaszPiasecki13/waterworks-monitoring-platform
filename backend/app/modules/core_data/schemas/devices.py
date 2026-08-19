@@ -37,10 +37,22 @@ class DeviceResponse(BaseSchema):
     model_config = ConfigDict(from_attributes=True)
 
 
+class DeviceCreateResponse(BaseSchema):
+    """Device creation response (includes plaintext secret for operator setup)."""
+
+    id: UUID
+    water_object_id: UUID
+    external_id: str
+    firmware_version: str | None
+    secret: str  # Plaintext secret shown only at creation time
+    is_active: bool
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 class ListDevicesRequest(BaseSchema):
     """List devices query parameters."""
 
     skip: int = Field(0, ge=0)
     limit: int = Field(100, ge=1, le=1000)
     water_object_id: UUID | None = None
-    organization_id: UUID | None = None

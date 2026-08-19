@@ -4,7 +4,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from app.core.errors import AuthenticationError, BadRequestError, ConflictError
+from app.core.errors import AuthenticationError, BadRequestError
 from app.infrastructure.sql.repository import SQLRepository
 from app.modules.security.schemas import LoginRequest, ProfileUpdateRequest
 from app.modules.security.services.auth import AuthService
@@ -43,26 +43,6 @@ def service(
     permissions = MagicMock()
     permissions.group_ids_for_user.return_value = []
     return AuthService(repo, token_service, permissions, MagicMock())
-
-
-def test_register_rolls_back_when_username_exists(
-    service: AuthService,
-    repo: MagicMock,
-    session: MagicMock,
-) -> None:
-    repo.get_by_username.return_value = SimpleNamespace(id=1)
-
-    with pytest.raises(ConflictError) as exc_info:
-        service.register(
-            username="existing",
-            email="new@example.com",
-            password="StrongPass123",
-        )
-
-    assert exc_info.value.status_code == 409
-    repo.create.assert_not_called()
-    session.commit.assert_not_called()
-    session.rollback.assert_called_once()
 
 
 def test_login_uses_username_then_email_and_issues_tokens(

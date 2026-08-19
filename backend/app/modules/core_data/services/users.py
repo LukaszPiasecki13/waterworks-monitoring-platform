@@ -8,7 +8,6 @@ from app.modules.core_data.audit_state import user_audit_state
 from app.modules.core_data.models.user import User
 from app.modules.core_data.repositories.users import UserRepository
 from app.modules.core_data.schemas.users import UserCreateRequest, UserUpdateRequest
-from app.modules.core_data.utils.org_scope import assert_same_organization
 from app.modules.security.services.password import hash_password
 from app.modules.security.services.permissions import PermissionService
 
@@ -54,34 +53,19 @@ class UserService:
         )
 
     def get_user_by_id(self, user_id: UUID, *, actor: User) -> User:
-        """Get user by ID with org isolation, or raise NotFoundError."""
-        user = self.user_repo.find_by_id(user_id)
-        assert_same_organization(actor, user.organization_id)
-        return user
+        """Get user by ID."""
+        return self.user_repo.find_by_id(user_id)
 
     def list_users(self, query, *, actor: User):
-        """List users with pagination and filters.
-
-        Non-admin is pinned to their own organization and query.organization_id
-        is ignored; a platform admin may filter by any org, or none for all.
-        """
-        if actor.organization_id is not None:
-            org_id = actor.organization_id
-        else:
-            org_id = query.organization_id
-
+        """List users with pagination and filters."""
         users = self.user_repo.list_all(
             skip=query.skip,
             limit=query.limit,
-            organization_id=org_id,
             search=query.search,
-            status=query.status,
             is_active=query.is_active,
         )
         count = self.user_repo.count(
-            organization_id=org_id,
             search=query.search,
-            status=query.status,
             is_active=query.is_active,
         )
         return users, count
@@ -102,20 +86,13 @@ class UserService:
             if self.user_repo.get_by_email(normalized_email):
                 raise ConflictError(f"Email '{request.email}' already exists")
 
-            if actor.organization_id is not None:
-                org_id = actor.organization_id
-            else:
-                org_id = request.organization_id
-
             user = self.user_repo.create(
                 username=normalized_username,
                 email=normalized_email,
                 hashed_password=hash_password(request.password),
                 first_name=request.first_name,
                 last_name=request.last_name,
-                status=request.status,
                 is_active=request.is_active,
-                organization_id=org_id,
             )
             self.user_repo.flush()
             self.user_repo.refresh(user)
@@ -153,28 +130,14 @@ class UserService:
 
             password = request.password
 
-            if request.organization_id is not None:
-                if (
-                    actor.organization_id is not None
-                    and actor.organization_id != request.organization_id
-                ):
-                    raise ConflictError(
-                        "Non-admin cannot change user to another organization"
-                    )
-                new_org_id = request.organization_id
-            else:
-                new_org_id = None
-
             user = self.user_repo.update(
                 user,
                 username=username,
                 email=email,
                 first_name=request.first_name,
                 last_name=request.last_name,
-                status=request.status,
                 is_active=request.is_active,
                 hashed_password=hash_password(password) if password else None,
-                organization_id=new_org_id,
             )
             self.user_repo.flush()
             self.user_repo.refresh(user)

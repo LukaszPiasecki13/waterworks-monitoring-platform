@@ -8,7 +8,6 @@ import pytest
 from app.core.errors import BadRequestError, ConflictError, NotFoundError
 from app.infrastructure.sql.repository import SQLRepository
 from app.modules.core_data.schemas.users import (
-    ListUsersRequest,
     UserCreateRequest,
     UserUpdateRequest,
 )
@@ -48,7 +47,7 @@ def service(session: MagicMock, repo: MagicMock) -> UserService:
 def actor(user_id: UUID | None = None) -> SimpleNamespace:
     if user_id is None:
         user_id = uuid4()
-    return SimpleNamespace(id=user_id, email="admin@example.com", organization_id=None)
+    return SimpleNamespace(id=user_id, email="admin@example.com")
 
 
 def test_create_user_normalizes_credentials_hashes_password_and_commits(
@@ -63,9 +62,7 @@ def test_create_user_normalizes_credentials_hashes_password_and_commits(
         email="admin@example.com",
         first_name="Ala",
         last_name="Admin",
-        status="admin",
         is_active=False,
-        organization_id=None,
     )
     repo.get_by_username.return_value = None
     repo.get_by_email.return_value = None
@@ -82,7 +79,6 @@ def test_create_user_normalizes_credentials_hashes_password_and_commits(
             password="StrongPass123",
             first_name="Ala",
             last_name="Admin",
-            status="admin",
             is_active=False,
         ),
         actor=actor(),
@@ -97,9 +93,7 @@ def test_create_user_normalizes_credentials_hashes_password_and_commits(
         hashed_password="hashed:StrongPass123",
         first_name="Ala",
         last_name="Admin",
-        status="admin",
         is_active=False,
-        organization_id=None,
     )
     session.flush.assert_called_once()
     session.refresh.assert_called_once_with(created_user)
@@ -141,9 +135,7 @@ def test_update_user_normalizes_unique_fields_and_hashes_password(
         email="old@example.com",
         first_name="",
         last_name="",
-        status="regular",
         is_active=True,
-        organization_id=None,
     )
     repo.find_by_id.return_value = user
     repo.get_by_username.return_value = None
@@ -171,10 +163,8 @@ def test_update_user_normalizes_unique_fields_and_hashes_password(
         email="new@example.com",
         first_name=None,
         last_name=None,
-        status=None,
         is_active=None,
         hashed_password="hashed:NewStrongPass123",
-        organization_id=None,
     )
     session.commit.assert_called_once()
 
@@ -231,70 +221,3 @@ def test_get_user_by_id_raises_not_found_when_missing(
 
     with pytest.raises(NotFoundError):
         service.get_user_by_id(uuid4(), actor=actor())
-
-
-def test_get_user_by_id_hides_user_from_another_organization(
-    service: UserService,
-    repo: MagicMock,
-) -> None:
-    repo.find_by_id.return_value = SimpleNamespace(
-        id=uuid4(),
-        organization_id=uuid4(),
-    )
-    tenant_actor = SimpleNamespace(
-        id=uuid4(),
-        email="tenant@example.com",
-        organization_id=uuid4(),
-    )
-
-    with pytest.raises(NotFoundError):
-        service.get_user_by_id(uuid4(), actor=tenant_actor)
-
-
-def test_update_user_cannot_target_another_organization(
-    service: UserService,
-    repo: MagicMock,
-    session: MagicMock,
-) -> None:
-    """A tenant admin must not be able to reset a foreign user's password."""
-    repo.find_by_id.return_value = SimpleNamespace(
-        id=uuid4(),
-        organization_id=uuid4(),
-    )
-    tenant_actor = SimpleNamespace(
-        id=uuid4(),
-        email="tenant@example.com",
-        organization_id=uuid4(),
-    )
-
-    with pytest.raises(NotFoundError):
-        service.update_user(
-            uuid4(),
-            UserUpdateRequest(password="TakeoverPass123"),
-            actor=tenant_actor,
-        )
-
-    repo.update.assert_not_called()
-    session.rollback.assert_called_once()
-
-
-def test_list_users_pins_non_admin_to_own_organization(
-    service: UserService,
-    repo: MagicMock,
-) -> None:
-    own_org = uuid4()
-    tenant_actor = SimpleNamespace(
-        id=uuid4(),
-        email="tenant@example.com",
-        organization_id=own_org,
-    )
-    repo.list_all.return_value = []
-    repo.count.return_value = 0
-
-    service.list_users(
-        ListUsersRequest(organization_id=uuid4()),
-        actor=tenant_actor,
-    )
-
-    assert repo.list_all.call_args.kwargs["organization_id"] == own_org
-    assert repo.count.call_args.kwargs["organization_id"] == own_org

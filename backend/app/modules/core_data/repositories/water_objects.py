@@ -27,6 +27,25 @@ class WaterObjectRepository(SQLRepository):
             raise NotFoundError("Water object not found")
         return obj
 
+    def get_in_organization(
+        self, obj_id: UUID, organization_id: UUID
+    ) -> WaterObject | None:
+        """Get water object by ID within organization scope."""
+        return (
+            self.session.query(WaterObject)
+            .filter(
+                WaterObject.id == obj_id, WaterObject.organization_id == organization_id
+            )
+            .first()
+        )
+
+    def find_in_organization(self, obj_id: UUID, organization_id: UUID) -> WaterObject:
+        """Find water object by ID within organization or raise NotFoundError."""
+        obj = self.get_in_organization(obj_id, organization_id)
+        if not obj:
+            raise NotFoundError("Water object not found")
+        return obj
+
     def list_all(
         self,
         organization_id: UUID | None = None,

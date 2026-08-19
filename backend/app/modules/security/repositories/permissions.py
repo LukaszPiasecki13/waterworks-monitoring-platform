@@ -101,6 +101,26 @@ class PermissionRepository(SQLRepository):
         )
         return set(self.session.execute(statement).scalars().all())
 
+    def permission_codes_for_user_in_org(
+        self, user_id: UUID, organization_id: UUID
+    ) -> set[str]:
+        """Get permission codes for user in specific organization.
+
+        Union of platform-level groups (organization_id IS NULL)
+        and organization-specific groups (organization_id == provided org).
+        """
+        statement = (
+            select(Permission.code)
+            .join(UserGroup.permissions)
+            .join(security_user_groups, security_user_groups.c.group_id == UserGroup.id)
+            .where(
+                security_user_groups.c.user_id == user_id,
+                (UserGroup.organization_id.is_(None))
+                | (UserGroup.organization_id == organization_id),
+            )
+        )
+        return set(self.session.execute(statement).scalars().all())
+
     def group_ids_for_user(self, user_id: UUID) -> list[UUID]:
         statement = select(security_user_groups.c.group_id).where(
             security_user_groups.c.user_id == user_id
