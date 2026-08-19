@@ -277,6 +277,57 @@ class ResourceService:
 - Zwraca modele domenowe lub ORM, nigdy obiekty sesji/kursorów
 - **Nie importuje** nic z warstwy `api/` ani `services/`
 
+#### Konwencja `get_` vs `find_`
+
+Repozytorium powinno udostępniać dwie metody odczytania obiektu:
+
+| Metoda | Zachowanie | Użycie |
+|---|---|---|
+| `get_by_id(id)` | Zwraca `None` jeśli nie znaleziono | Wewnętrzne sprawdzenia, gdy brak = stan poprawny |
+| `find_by_id(id)` | Rzuca `NotFoundError` jeśli nie znaleziono | Publiczne API, gdy brak = błąd |
+
+**Implementacja w repozytorium:**
+
+```python
+def get_by_id(self, item_id: UUID) -> Item | None:
+    """Low-level read — returns None if not found."""
+    return self.session.query(Item).filter(Item.id == item_id).first()
+
+def find_by_id(self, item_id: UUID) -> Item:
+    """High-level read — raises NotFoundError if not found."""
+    item = self.get_by_id(item_id)
+    if not item:
+        raise NotFoundError(f"Item {item_id} not found")
+    return item
+```
+
+**Użycie w serwisach:**
+
+```python
+class ItemService:
+    def get_by_id(self, item_id: UUID) -> Item:
+        """Publiczna metoda — jeśli nie znaleziono, to błąd."""
+        # ✅ Używaj find_by_id — wyrzuci NotFoundError automatycznie
+        item = self.repo.find_by_id(item_id)
+        # Nie trzeba sprawdzać: if not item: raise NotFoundError()
+        return item
+    
+    def update(self, item_id: UUID, data: UpdateRequest) -> Item:
+        """Aktualizacja — brak obiektu to błąd."""
+        # ✅ find_by_id automatycznie wyrzuci NotFoundError
+        item = self.repo.find_by_id(item_id)
+        # ... logika aktualizacji ...
+        return item
+    
+    def internal_check(self, item_id: UUID) -> bool:
+        """Wewnętrze sprawdzenie — brak = stan normalny."""
+        # ✅ Używaj get_by_id — zwraca None bez wyjątków
+        item = self.repo.get_by_id(item_id)
+        return item is not None
+```
+
+**Zasada:** W serwisach **prawie nigdy nie sprawdzamy wyniku `find_by_id`** — jeśli wywoływanie go jest konieczne, oznacza to, że brak obiektu to błąd. `find_by_id` wyrzuca automatycznie, zatem nie duplikujemy logiki sprawdzania w każdej metodzie serwisu.
+
 ### `schemas/<resource>.py`
 
 - Definiuje schematy Pydantic do walidacji danych wejściowych i wyjściowych
