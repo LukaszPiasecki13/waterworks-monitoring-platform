@@ -6,12 +6,21 @@ from sqlalchemy.exc import IntegrityError
 
 from app.core.audit import AuditEntry, AuditPort, EntityType, calculate_delta
 from app.core.errors import ConflictError
+from app.modules.core_data.models.organization import Organization
 from app.modules.core_data.models.user import User
 from app.modules.core_data.repositories.organizations import OrganizationRepository
 from app.modules.core_data.schemas.organizations import (
     OrganizationCreateRequest,
     OrganizationUpdateRequest,
 )
+from app.modules.security.permission_catalog import (
+    ORG_ADMIN_GROUP_KEY,
+    ORG_OPERATOR_GROUP_KEY,
+    ORG_PLANE_PERMISSION_CODES,
+    ORG_VIEWER_GROUP_KEY,
+    VIEW_PERMISSIONS,
+)
+from app.modules.security.services.permissions import PermissionService
 
 
 class OrganizationService:
@@ -20,9 +29,11 @@ class OrganizationService:
     def __init__(
         self,
         repo: OrganizationRepository,
+        perm_service: PermissionService,
         audit: AuditPort,
     ):
         self.repo = repo
+        self.perm_service = perm_service
         self.audit = audit
 
     def _state(self, org) -> dict:
@@ -58,15 +69,28 @@ class OrganizationService:
         return orgs, count
 
     def create(self, request: OrganizationCreateRequest, *, actor: User):
-        """Create organization."""
+        """Create organization with 3 starter security groups."""
         with self.repo.transaction():
             if self.repo.get_by_name(request.name):
                 raise ConflictError(f"Organization '{request.name}' already exists")
             org = self.repo.create(name=request.name)
             self.repo.flush()
             self.repo.refresh(org)
+            self._seed_starter_groups(org, actor)
             self._record_audit("CREATE", org, actor, {}, self._state(org))
             return org
+
+    def _seed_starter_groups(self, org: Organization, actor: User) -> None:
+        """Create 3 starter groups for organization."""
+        self.perm_service.seed_organization_groups(
+            organization_id=org.id,
+            org_plane_codes=ORG_PLANE_PERMISSION_CODES,
+            view_codes=VIEW_PERMISSIONS,
+            admin_key=ORG_ADMIN_GROUP_KEY,
+            operator_key=ORG_OPERATOR_GROUP_KEY,
+            viewer_key=ORG_VIEWER_GROUP_KEY,
+            actor=actor,
+        )
 
     def update(self, org_id: UUID, request: OrganizationUpdateRequest, actor: User):
         """Update organization."""

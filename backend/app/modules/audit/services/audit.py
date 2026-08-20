@@ -65,3 +65,11 @@ class SqlAuditService:
             limit=limit,
             offset=offset,
         )
+
+    def list_all(
+        self, limit: int = 100, offset: int = 0, entity_type: str | None = None
+    ) -> list[AuditEvent]:
+        """List all audit events, optionally filtered by entity type."""
+        return self.repository.list_all(
+            limit=limit, offset=offset, entity_type=entity_type
+        )

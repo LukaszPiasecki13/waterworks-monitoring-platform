@@ -2,9 +2,9 @@
 
 from uuid import UUID
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Path
 
-from app.modules.security.dependencies import require_org_permission
+from app.modules.security.dependencies import require_org_access
 from app.modules.security.permission_catalog import CAN_VIEW_ASSETS
 from app.modules.telemetry.dependencies import get_telemetry_query_service
 from app.modules.telemetry.schemas.query import (
@@ -26,10 +26,10 @@ router = APIRouter(
 @router.get(
     "",
     response_model=PaginatedResponse[ObjectSummaryResponse],
-    dependencies=[Depends(require_org_permission(CAN_VIEW_ASSETS))],
+    dependencies=[Depends(require_org_access(CAN_VIEW_ASSETS))],
 )
 def list_objects(
-    org_id: UUID,
+    org_id: UUID = Path(...),
     query: ListObjectsRequest = Depends(),
     service: TelemetryQueryService = Depends(get_telemetry_query_service),
 ) -> PaginatedResponse[ObjectSummaryResponse]:
@@ -40,11 +40,11 @@ def list_objects(
 @router.get(
     "/{object_id}",
     response_model=ObjectDetailResponse,
-    dependencies=[Depends(require_org_permission(CAN_VIEW_ASSETS))],
+    dependencies=[Depends(require_org_access(CAN_VIEW_ASSETS))],
 )
 def get_object_detail(
-    org_id: UUID,
-    object_id: UUID,
+    org_id: UUID = Path(...),
+    object_id: UUID = Path(...),
     service: TelemetryQueryService = Depends(get_telemetry_query_service),
 ) -> ObjectDetailResponse:
     """Get detailed view of a single object with its latest readings and
@@ -56,11 +56,11 @@ def get_object_detail(
 @router.get(
     "/{object_id}/measurements",
     response_model=MeasurementsResponse,
-    dependencies=[Depends(require_org_permission(CAN_VIEW_ASSETS))],
+    dependencies=[Depends(require_org_access(CAN_VIEW_ASSETS))],
 )
 def get_measurements(
-    org_id: UUID,
-    object_id: UUID,
+    org_id: UUID = Path(...),
+    object_id: UUID = Path(...),
     query: GetMeasurementsRequest = Depends(),
     service: TelemetryQueryService = Depends(get_telemetry_query_service),
 ) -> MeasurementsResponse:

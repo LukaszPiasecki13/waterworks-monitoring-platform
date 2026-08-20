@@ -1,4 +1,4 @@
-"""Admin users API endpoints."""
+"""Admin users API endpoints (platform-level)."""
 
 from uuid import UUID
 
@@ -8,7 +8,6 @@ from app.core.audit import AuditReaderPort, EntityType
 from app.modules.audit.dependencies import get_audit_reader
 from app.modules.audit.schemas import AuditEventResponse, AuditHistoryQuery
 from app.modules.core_data.dependencies import get_user_service
-from app.modules.core_data.models import User
 from app.modules.core_data.schemas.users import (
     ListUsersRequest,
     PaginatedResponse,
@@ -17,15 +16,13 @@ from app.modules.core_data.schemas.users import (
     UserUpdateRequest,
 )
 from app.modules.core_data.services.users import UserService
+from app.modules.security.access import PlatformContext
 from app.modules.security.dependencies import (
-    get_current_user,
-    require_any_permission,
-    require_permission,
+    require_platform_permission,
 )
 from app.modules.security.permission_catalog import (
-    CAN_MANAGE_USERS,
-    CAN_VIEW_SECURITY,
-    CAN_VIEW_USERS,
+    PLATFORM_MANAGE_USERS,
+    PLATFORM_VIEW_USERS,
 )
 
 router = APIRouter(prefix="/users", tags=["users"])
@@ -34,15 +31,16 @@ router = APIRouter(prefix="/users", tags=["users"])
 @router.get(
     "",
     response_model=PaginatedResponse[UserResponse],
-    dependencies=[Depends(require_any_permission(CAN_VIEW_USERS, CAN_VIEW_SECURITY))],
 )
 def list_users(
     query: ListUsersRequest = Depends(),
     service: UserService = Depends(get_user_service),
-    user: User = Depends(get_current_user),
+    context: PlatformContext = Depends(
+        require_platform_permission(PLATFORM_VIEW_USERS)
+    ),
 ):
     """List users with optional filters."""
-    users, total = service.list_users(query, actor=user)
+    users, total = service.list_users(query, actor=context.actor)
     return PaginatedResponse(
         items=users,
         total=total,
@@ -54,73 +52,78 @@ def list_users(
 @router.post(
     "",
     response_model=UserResponse,
-    dependencies=[Depends(require_permission(CAN_MANAGE_USERS))],
 )
 def create_user(
     request: UserCreateRequest,
     service: UserService = Depends(get_user_service),
-    user: User = Depends(get_current_user),
+    context: PlatformContext = Depends(
+        require_platform_permission(PLATFORM_MANAGE_USERS)
+    ),
 ):
     """Create new user."""
-    return service.create_user(request, actor=user)
+    return service.create_user(request, actor=context.actor)
 
 
 @router.get(
     "/{user_id}",
     response_model=UserResponse,
-    dependencies=[Depends(require_any_permission(CAN_VIEW_USERS, CAN_VIEW_SECURITY))],
 )
 def get_user(
     user_id: UUID,
     service: UserService = Depends(get_user_service),
-    user: User = Depends(get_current_user),
+    context: PlatformContext = Depends(
+        require_platform_permission(PLATFORM_VIEW_USERS)
+    ),
 ):
     """Get user by ID."""
-    return service.get_user_by_id(user_id, actor=user)
+    return service.get_user_by_id(user_id, actor=context.actor)
 
 
 @router.patch(
     "/{user_id}",
     response_model=UserResponse,
-    dependencies=[Depends(require_permission(CAN_MANAGE_USERS))],
 )
 def update_user(
     user_id: UUID,
     request: UserUpdateRequest,
     service: UserService = Depends(get_user_service),
-    user: User = Depends(get_current_user),
+    context: PlatformContext = Depends(
+        require_platform_permission(PLATFORM_MANAGE_USERS)
+    ),
 ):
     """Update user."""
-    return service.update_user(user_id, request, actor=user)
+    return service.update_user(user_id, request, actor=context.actor)
 
 
 @router.delete(
     "/{user_id}",
-    dependencies=[Depends(require_permission(CAN_MANAGE_USERS))],
 )
 def delete_user(
     user_id: UUID,
     service: UserService = Depends(get_user_service),
-    admin: User = Depends(get_current_user),
+    context: PlatformContext = Depends(
+        require_platform_permission(PLATFORM_MANAGE_USERS)
+    ),
 ):
     """Delete user."""
-    service.delete_user(user_id, actor=admin)
+    service.delete_user(user_id, actor=context.actor)
     return {"message": "User deleted successfully"}
 
 
 @router.get(
     "/{user_id}/audit",
     response_model=list[AuditEventResponse],
-    dependencies=[Depends(require_any_permission(CAN_VIEW_USERS, CAN_VIEW_SECURITY))],
 )
 def user_audit_history(
     user_id: UUID,
     query: AuditHistoryQuery = Depends(),
     service: UserService = Depends(get_user_service),
     audit: AuditReaderPort = Depends(get_audit_reader),
-    user: User = Depends(get_current_user),
+    context: PlatformContext = Depends(
+        require_platform_permission(PLATFORM_VIEW_USERS)
+    ),
 ):
-    service.get_user_by_id(user_id, actor=user)
+    service.get_user_by_id(user_id, actor=context.actor)
     return audit.get_logs_for_entity(
         EntityType.CORE_DATA_USER.value,
         str(user_id),

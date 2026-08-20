@@ -58,3 +58,10 @@ class ListUsersRequest(BaseSchema):
     limit: int = Field(100, ge=1, le=1000)
     search: str | None = None
     is_active: bool | None = None
+
+
+class ListMembersRequest(BaseSchema):
+    """List organization members query parameters."""
+
+    skip: int = Field(0, ge=0)
+    limit: int = Field(100, ge=1, le=1000)

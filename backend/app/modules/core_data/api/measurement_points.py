@@ -2,12 +2,9 @@
 
 from uuid import UUID
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Body, Depends, Path
 
-from app.modules.core_data.dependencies import (
-    get_measurement_point_service,
-    require_org_access,
-)
+from app.modules.core_data.dependencies import get_measurement_point_service
 from app.modules.core_data.schemas.measurement_points import (
     ListMeasurementPointsRequest,
     MeasurementPointCreateRequest,
@@ -19,16 +16,20 @@ from app.modules.core_data.services.measurement_points import (
     MeasurementPointService,
 )
 from app.modules.security.access import OrganizationAccess
+from app.modules.security.dependencies import require_org_access
 from app.modules.security.permission_catalog import (
     CAN_MANAGE_ASSETS,
     CAN_VIEW_ASSETS,
 )
 
-router = APIRouter(prefix="/measurement-points", tags=["measurement-points"])
+router = APIRouter(
+    prefix="/orgs/{org_id}/measurement-points", tags=["measurement-points"]
+)
 
 
 @router.get("", response_model=PaginatedResponse[MeasurementPointResponse])
 def list_measurement_points(
+    org_id: UUID = Path(...),
     query: ListMeasurementPointsRequest = Depends(),
     org_access: OrganizationAccess = Depends(require_org_access(CAN_VIEW_ASSETS)),
     service: MeasurementPointService = Depends(get_measurement_point_service),
@@ -45,7 +46,8 @@ def list_measurement_points(
 
 @router.post("", response_model=MeasurementPointResponse)
 def create_measurement_point(
-    request: MeasurementPointCreateRequest,
+    org_id: UUID = Path(...),
+    request: MeasurementPointCreateRequest = Body(...),
     org_access: OrganizationAccess = Depends(require_org_access(CAN_MANAGE_ASSETS)),
     service: MeasurementPointService = Depends(get_measurement_point_service),
 ):
@@ -55,7 +57,8 @@ def create_measurement_point(
 
 @router.get("/{point_id}", response_model=MeasurementPointResponse)
 def get_measurement_point(
-    point_id: UUID,
+    org_id: UUID = Path(...),
+    point_id: UUID = Path(...),
     org_access: OrganizationAccess = Depends(require_org_access(CAN_VIEW_ASSETS)),
     service: MeasurementPointService = Depends(get_measurement_point_service),
 ):
@@ -65,8 +68,9 @@ def get_measurement_point(
 
 @router.patch("/{point_id}", response_model=MeasurementPointResponse)
 def update_measurement_point(
-    point_id: UUID,
-    request: MeasurementPointUpdateRequest,
+    org_id: UUID = Path(...),
+    point_id: UUID = Path(...),
+    request: MeasurementPointUpdateRequest = Body(...),
     org_access: OrganizationAccess = Depends(require_org_access(CAN_MANAGE_ASSETS)),
     service: MeasurementPointService = Depends(get_measurement_point_service),
 ):
@@ -76,7 +80,8 @@ def update_measurement_point(
 
 @router.delete("/{point_id}")
 def delete_measurement_point(
-    point_id: UUID,
+    org_id: UUID = Path(...),
+    point_id: UUID = Path(...),
     org_access: OrganizationAccess = Depends(require_org_access(CAN_MANAGE_ASSETS)),
     service: MeasurementPointService = Depends(get_measurement_point_service),
 ):

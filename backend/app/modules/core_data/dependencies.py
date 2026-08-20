@@ -12,15 +12,23 @@ from app.modules.core_data.repositories.measurement_points import (
 )
 from app.modules.core_data.repositories.organizations import OrganizationRepository
 from app.modules.core_data.repositories.users import UserRepository
+from app.modules.core_data.repositories.users_organizations import (
+    UsersOrganizationsRepository,
+)
 from app.modules.core_data.repositories.water_objects import WaterObjectRepository
 from app.modules.core_data.services.devices import DeviceService
 from app.modules.core_data.services.measurement_points import (
     MeasurementPointService,
 )
+from app.modules.core_data.services.members import MembersService
 from app.modules.core_data.services.organizations import OrganizationService
 from app.modules.core_data.services.users import UserService
 from app.modules.core_data.services.water_objects import WaterObjectService
-from app.modules.security.dependencies import get_permission_service
+from app.modules.security.dependencies import (
+    get_permission_repo,
+    get_permission_service,
+)
+from app.modules.security.repositories import PermissionRepository
 from app.modules.security.services.permissions import PermissionService
 
 
@@ -45,10 +53,11 @@ def get_organization_repo(session: Session = Depends(get_db)) -> OrganizationRep
 
 def get_organization_service(
     repo: OrganizationRepository = Depends(get_organization_repo),
+    perm_service: PermissionService = Depends(get_permission_service),
     audit: AuditPort = Depends(get_audit_service),
 ) -> OrganizationService:
     """Get organization service dependency."""
-    return OrganizationService(repo, audit)
+    return OrganizationService(repo, perm_service, audit)
 
 
 def get_water_object_repo(session: Session = Depends(get_db)) -> WaterObjectRepository:
@@ -89,8 +98,24 @@ def get_measurement_point_repo(
 def get_measurement_point_service(
     repo: MeasurementPointRepository = Depends(get_measurement_point_repo),
     device_repo: DeviceRepository = Depends(get_device_repo),
-    water_object_repo: WaterObjectRepository = Depends(get_water_object_repo),
     audit: AuditPort = Depends(get_audit_service),
 ) -> MeasurementPointService:
     """Get measurement point service dependency."""
-    return MeasurementPointService(repo, device_repo, water_object_repo, audit)
+    return MeasurementPointService(repo, device_repo, audit)
+
+
+def get_users_organizations_repo(
+    session: Session = Depends(get_db),
+) -> UsersOrganizationsRepository:
+    """Get users-organizations repository dependency."""
+    return UsersOrganizationsRepository(session)
+
+
+def get_members_service(
+    repo: UsersOrganizationsRepository = Depends(get_users_organizations_repo),
+    user_service: UserService = Depends(get_user_service),
+    perm_repo: PermissionRepository = Depends(get_permission_repo),
+    audit: AuditPort = Depends(get_audit_service),
+) -> MembersService:
+    """Get members service dependency."""
+    return MembersService(repo, user_service, perm_repo, audit)

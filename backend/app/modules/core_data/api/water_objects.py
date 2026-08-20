@@ -2,12 +2,9 @@
 
 from uuid import UUID
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Body, Depends, Path
 
-from app.modules.core_data.dependencies import (
-    get_water_object_service,
-    require_org_access,
-)
+from app.modules.core_data.dependencies import get_water_object_service
 from app.modules.core_data.schemas.users import PaginatedResponse
 from app.modules.core_data.schemas.water_objects import (
     ListWaterObjectsRequest,
@@ -17,16 +14,18 @@ from app.modules.core_data.schemas.water_objects import (
 )
 from app.modules.core_data.services.water_objects import WaterObjectService
 from app.modules.security.access import OrganizationAccess
+from app.modules.security.dependencies import require_org_access
 from app.modules.security.permission_catalog import (
     CAN_MANAGE_ASSETS,
     CAN_VIEW_ASSETS,
 )
 
-router = APIRouter(prefix="/objects", tags=["objects"])
+router = APIRouter(prefix="/orgs/{org_id}/objects", tags=["objects"])
 
 
 @router.get("", response_model=PaginatedResponse[WaterObjectResponse])
 def list_water_objects(
+    org_id: UUID = Path(...),
     query: ListWaterObjectsRequest = Depends(),
     org_access: OrganizationAccess = Depends(require_org_access(CAN_VIEW_ASSETS)),
     service: WaterObjectService = Depends(get_water_object_service),
@@ -43,7 +42,8 @@ def list_water_objects(
 
 @router.post("", response_model=WaterObjectResponse)
 def create_water_object(
-    request: WaterObjectCreateRequest,
+    org_id: UUID = Path(...),
+    request: WaterObjectCreateRequest = Body(...),
     org_access: OrganizationAccess = Depends(require_org_access(CAN_MANAGE_ASSETS)),
     service: WaterObjectService = Depends(get_water_object_service),
 ):
@@ -53,7 +53,8 @@ def create_water_object(
 
 @router.get("/{obj_id}", response_model=WaterObjectResponse)
 def get_water_object(
-    obj_id: UUID,
+    org_id: UUID = Path(...),
+    obj_id: UUID = Path(...),
     org_access: OrganizationAccess = Depends(require_org_access(CAN_VIEW_ASSETS)),
     service: WaterObjectService = Depends(get_water_object_service),
 ):
@@ -63,8 +64,9 @@ def get_water_object(
 
 @router.patch("/{obj_id}", response_model=WaterObjectResponse)
 def update_water_object(
-    obj_id: UUID,
-    request: WaterObjectUpdateRequest,
+    org_id: UUID = Path(...),
+    obj_id: UUID = Path(...),
+    request: WaterObjectUpdateRequest = Body(...),
     org_access: OrganizationAccess = Depends(require_org_access(CAN_MANAGE_ASSETS)),
     service: WaterObjectService = Depends(get_water_object_service),
 ):
@@ -74,7 +76,8 @@ def update_water_object(
 
 @router.delete("/{obj_id}")
 def delete_water_object(
-    obj_id: UUID,
+    org_id: UUID = Path(...),
+    obj_id: UUID = Path(...),
     org_access: OrganizationAccess = Depends(require_org_access(CAN_MANAGE_ASSETS)),
     service: WaterObjectService = Depends(get_water_object_service),
 ):

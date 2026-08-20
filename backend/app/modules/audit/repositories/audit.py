@@ -81,3 +81,17 @@ class AuditRepository(SQLRepository):
             .limit(limit)
             .all()
         )
+
+    def list_all(
+        self, limit: int = 100, offset: int = 0, entity_type: str | None = None
+    ) -> list[AuditEvent]:
+        """List all audit events, optionally filtered by entity type."""
+        query = self.session.query(AuditEvent)
+        if entity_type:
+            query = query.filter(AuditEvent.entity_type == entity_type)
+        return (
+            query.order_by(AuditEvent.created_at.desc(), AuditEvent.id.desc())
+            .offset(offset)
+            .limit(limit)
+            .all()
+        )

@@ -2,10 +2,12 @@
 
 from uuid import UUID
 
-from sqlalchemy import func
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.infrastructure.sql.repository import SQLRepository
+from app.modules.core_data.models.organization import Organization
+from app.modules.core_data.models.user import User
 from app.modules.core_data.models.users_organizations import UsersOrganizations
 
 
@@ -58,4 +60,26 @@ class UsersOrganizationsRepository(SQLRepository):
             .filter(UsersOrganizations.organization_id == organization_id)
             .scalar()
             or 0
+        )
+
+    def list_members(
+        self, organization_id: UUID, skip: int = 0, limit: int = 100
+    ) -> list[User]:
+        """List users who are members of the given organization."""
+        stmt = (
+            select(User)
+            .join(UsersOrganizations, UsersOrganizations.user_id == User.id)
+            .where(UsersOrganizations.organization_id == organization_id)
+            .order_by(User.last_name, User.first_name, User.email)
+            .offset(skip)
+            .limit(limit)
+        )
+        return list(self.session.execute(stmt).scalars().all())
+
+    def get_organization(self, organization_id: UUID) -> Organization | None:
+        """Get organization by ID."""
+        return (
+            self.session.query(Organization)
+            .filter(Organization.id == organization_id)
+            .first()
         )

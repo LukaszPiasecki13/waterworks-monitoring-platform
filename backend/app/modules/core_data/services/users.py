@@ -96,7 +96,6 @@ class UserService:
             )
             self.user_repo.flush()
             self.user_repo.refresh(user)
-            self.permissions.assign_default_group(user, actor=actor)
             self._record_audit("CREATE", user, actor, {}, self._state(user))
             return user
 

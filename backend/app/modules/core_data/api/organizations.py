@@ -1,11 +1,10 @@
-"""Organizations API endpoints."""
+"""Organizations API endpoints (platform-level)."""
 
 from uuid import UUID
 
 from fastapi import APIRouter, Depends
 
 from app.modules.core_data.dependencies import get_organization_service
-from app.modules.core_data.models import User
 from app.modules.core_data.schemas.organizations import (
     ListOrganizationsRequest,
     OrganizationCreateRequest,
@@ -14,14 +13,13 @@ from app.modules.core_data.schemas.organizations import (
 )
 from app.modules.core_data.schemas.users import PaginatedResponse
 from app.modules.core_data.services.organizations import OrganizationService
+from app.modules.security.access import PlatformContext
 from app.modules.security.dependencies import (
-    get_current_user,
-    require_any_permission,
-    require_org_permission,
+    require_platform_permission,
 )
 from app.modules.security.permission_catalog import (
-    CAN_MANAGE_ORGANIZATIONS,
-    CAN_VIEW_ORGANIZATIONS,
+    PLATFORM_MANAGE_ORGANIZATIONS,
+    PLATFORM_VIEW_ORGANIZATIONS,
 )
 
 router = APIRouter(prefix="/organizations", tags=["organizations"])
@@ -30,19 +28,16 @@ router = APIRouter(prefix="/organizations", tags=["organizations"])
 @router.get(
     "",
     response_model=PaginatedResponse[OrganizationResponse],
-    dependencies=[
-        Depends(
-            require_any_permission(CAN_VIEW_ORGANIZATIONS, CAN_MANAGE_ORGANIZATIONS)
-        )
-    ],
 )
 def list_organizations(
     query: ListOrganizationsRequest = Depends(),
     service: OrganizationService = Depends(get_organization_service),
-    user: User = Depends(get_current_user),
+    context: PlatformContext = Depends(
+        require_platform_permission(PLATFORM_VIEW_ORGANIZATIONS)
+    ),
 ):
     """List organizations."""
-    orgs, total = service.list_all(query, actor=user)
+    orgs, total = service.list_all(query, actor=context.actor)
     return PaginatedResponse(
         items=orgs,
         total=total,
@@ -54,55 +49,59 @@ def list_organizations(
 @router.post(
     "",
     response_model=OrganizationResponse,
-    dependencies=[Depends(require_any_permission(CAN_MANAGE_ORGANIZATIONS))],
 )
 def create_organization(
     request: OrganizationCreateRequest,
     service: OrganizationService = Depends(get_organization_service),
-    user: User = Depends(get_current_user),
+    context: PlatformContext = Depends(
+        require_platform_permission(PLATFORM_MANAGE_ORGANIZATIONS)
+    ),
 ):
     """Create organization."""
-    return service.create(request, actor=user)
+    return service.create(request, actor=context.actor)
 
 
 @router.get(
     "/{org_id}",
     response_model=OrganizationResponse,
-    dependencies=[Depends(require_org_permission(CAN_VIEW_ORGANIZATIONS))],
 )
 def get_organization(
     org_id: UUID,
     service: OrganizationService = Depends(get_organization_service),
-    user: User = Depends(get_current_user),
+    context: PlatformContext = Depends(
+        require_platform_permission(PLATFORM_VIEW_ORGANIZATIONS)
+    ),
 ):
     """Get organization by ID."""
-    return service.get_by_id(org_id, actor=user)
+    return service.get_by_id(org_id, actor=context.actor)
 
 
 @router.patch(
     "/{org_id}",
     response_model=OrganizationResponse,
-    dependencies=[Depends(require_org_permission(CAN_MANAGE_ORGANIZATIONS))],
 )
 def update_organization(
     org_id: UUID,
     request: OrganizationUpdateRequest,
     service: OrganizationService = Depends(get_organization_service),
-    user: User = Depends(get_current_user),
+    context: PlatformContext = Depends(
+        require_platform_permission(PLATFORM_MANAGE_ORGANIZATIONS)
+    ),
 ):
     """Update organization."""
-    return service.update(org_id, request, actor=user)
+    return service.update(org_id, request, actor=context.actor)
 
 
 @router.delete(
     "/{org_id}",
-    dependencies=[Depends(require_org_permission(CAN_MANAGE_ORGANIZATIONS))],
 )
 def delete_organization(
     org_id: UUID,
     service: OrganizationService = Depends(get_organization_service),
-    user: User = Depends(get_current_user),
+    context: PlatformContext = Depends(
+        require_platform_permission(PLATFORM_MANAGE_ORGANIZATIONS)
+    ),
 ):
     """Delete organization."""
-    service.delete(org_id, actor=user)
+    service.delete(org_id, actor=context.actor)
     return {"message": "Organization deleted successfully"}

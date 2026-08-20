@@ -66,6 +66,10 @@ class AuditReaderPort(Protocol):
         offset: int = 0,
     ) -> list[Any]: ...
 
+    def list_all(
+        self, limit: int = 100, offset: int = 0, entity_type: str | None = None
+    ) -> list[Any]: ...
+
 
 def audit_value(value: Any) -> Any:
     """Convert common domain values into deterministic JSON-compatible values."""

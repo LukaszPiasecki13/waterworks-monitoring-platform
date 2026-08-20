@@ -106,6 +106,9 @@ class PermissionService:
     ) -> set[str]:
         return self.repo.permission_codes_for_user_in_org(user.id, organization_id)
 
+    def permissions_for_user_at_platform_level(self, user: User) -> set[str]:
+        return self.repo.permission_codes_for_user_at_platform_level(user.id)
+
     def has_permission(self, user: User, permission_code: str) -> bool:
         return permission_code in self.permissions_for_user(user)
 
@@ -114,6 +117,19 @@ class PermissionService:
 
     def list_groups(self) -> list[dict]:
         return [self._serialize_group(group) for group in self.repo.list_groups()]
+
+    def list_platform_groups(self) -> list[dict]:
+        """List platform-level groups (organization_id IS NULL)."""
+        return [
+            self._serialize_group(group) for group in self.repo.list_platform_groups()
+        ]
+
+    def list_org_groups(self, organization_id: UUID) -> list[dict]:
+        """List groups for a specific organization."""
+        return [
+            self._serialize_group(group)
+            for group in self.repo.list_org_groups(organization_id)
+        ]
 
     def get_group(self, group_id: UUID) -> UserGroup:
         group = self.repo.get_group(group_id)
@@ -137,7 +153,9 @@ class PermissionService:
                 name=request.name,
                 description=request.description,
             )
-            group.permissions = self._resolve_permissions(request.permission_codes)
+            group.permissions = self._resolve_permissions(
+                request.permission_codes, organization_id=group.organization_id
+            )
             self.repo.flush()
             self.repo.refresh(group)
             self._record_group("CREATE", group, actor, {}, self._group_state(group))
@@ -181,7 +199,9 @@ class PermissionService:
             group = self.get_group(group_id)
             old_state = self._group_state(group)
             self._ensure_permissions_editable(group)
-            group.permissions = self._resolve_permissions(codes)
+            group.permissions = self._resolve_permissions(
+                codes, organization_id=group.organization_id
+            )
             self.repo.flush()
             self.repo.refresh(group)
             new_state = self._group_state(group)
@@ -223,7 +243,7 @@ class PermissionService:
                 if set(request.permission_codes) != current_codes:
                     self._ensure_permissions_editable(group)
                     group.permissions = self._resolve_permissions(
-                        request.permission_codes
+                        request.permission_codes, organization_id=group.organization_id
                     )
             else:
                 duplicate = any(
@@ -235,7 +255,9 @@ class PermissionService:
                     raise ConflictError("Grupa o tej nazwie już istnieje")
                 group.name = request.name
                 group.description = request.description
-                group.permissions = self._resolve_permissions(request.permission_codes)
+                group.permissions = self._resolve_permissions(
+                    request.permission_codes, organization_id=group.organization_id
+                )
 
             self.repo.replace_group_users(group.id, member_ids)
             self.repo.flush()
@@ -287,7 +309,9 @@ class PermissionService:
             }
             for group_id in ids:
                 self.get_group(group_id)
-            admin_group = self.repo.get_group_by_system_key_for_update(ADMIN_GROUP_KEY)
+            admin_group = self.repo.get_group_by_system_key_for_update(
+                ADMIN_GROUP_KEY, organization_id=None
+            )
             if admin_group:
                 existing_admins = set(self.repo.user_ids_for_group(admin_group.id))
                 if (
@@ -315,26 +339,6 @@ class PermissionService:
                     self._group_state(group),
                 )
             return sorted(ids)
-
-    def assign_default_group(self, user: User, actor: User | None = None) -> None:
-        """Add the default Staff group without replacing explicit memberships."""
-        staff_group = self.repo.get_group_by_system_key(STAFF_GROUP_KEY)
-        if staff_group is None:
-            return
-        current = set(self.repo.group_ids_for_user(user.id))
-        if staff_group.id not in current:
-            old_state = self._group_state(staff_group) if actor else None
-            current.add(staff_group.id)
-            self.repo.replace_user_groups(user.id, current)
-            if actor and old_state:
-                self.repo.flush()
-                self._record_group(
-                    "MEMBERS_UPDATE",
-                    staff_group,
-                    actor,
-                    old_state,
-                    self._group_state(staff_group),
-                )
 
     def remove_system_group(
         self, user: User, system_key: str, actor: User | None = None
@@ -375,7 +379,72 @@ class PermissionService:
             raise NotFoundError("Użytkownik nie istnieje")
         return sorted(self.repo.group_ids_for_user(user_id))
 
-    def _resolve_permissions(self, codes: list[str]):
+    def seed_organization_groups(
+        self,
+        organization_id: UUID,
+        org_plane_codes: set[str],
+        view_codes: set[str],
+        admin_key: str,
+        operator_key: str,
+        viewer_key: str,
+        actor: User,
+    ) -> None:
+        """Create 3 starter groups for organization during creation."""
+        all_perms = self.repo.list_permissions()
+        org_perms = [p for p in all_perms if p.code in org_plane_codes]
+        view_perms = [p for p in org_perms if p.code in view_codes]
+        manage_assets_code = next(
+            (c for c in org_plane_codes if "MANAGE_ASSETS" in c), None
+        )
+        operator_perms = [
+            p for p in org_perms if p.code in view_codes or p.code == manage_assets_code
+        ]
+
+        groups = [
+            self.repo.create_system_group(
+                name="Administrator organizacji",
+                description="Pełny dostęp do zarządzania gminą",
+                system_key=admin_key,
+                organization_id=organization_id,
+                permissions=org_perms,
+            ),
+            self.repo.create_system_group(
+                name="Operator",
+                description="Zarządzanie obiektami i urządzeniami, podgląd reszty",
+                system_key=operator_key,
+                organization_id=organization_id,
+                permissions=operator_perms,
+            ),
+            self.repo.create_system_group(
+                name="Podgląd",
+                description="Dostęp wyłącznie do podglądu",
+                system_key=viewer_key,
+                organization_id=organization_id,
+                permissions=view_perms,
+            ),
+        ]
+        self.repo.flush()
+        for group in groups:
+            self.repo.refresh(group)
+            self.audit.record(
+                AuditEntry(
+                    entity_type=EntityType.SECURITY_USER_GROUP.value,
+                    entity_id=str(group.id),
+                    action="CREATE",
+                    actor_id=str(actor.id),
+                    actor_display_name=actor.email,
+                    changes={"name": {"old": None, "new": group.name}},
+                    context_type="core_data_organization",
+                    context_id=str(organization_id),
+                )
+            )
+
+    def _resolve_permissions(self, codes: list[str], *, organization_id: UUID | None):
+        """Resolve permission codes and validate plane membership.
+
+        Platform groups (organization_id IS NULL) may only contain PLATFORM_* codes.
+        Organization groups must only contain CAN_* codes.
+        """
         unique_codes = set(codes)
         permissions = self.repo.get_permissions_by_codes(unique_codes)
         found_codes = {permission.code for permission in permissions}
@@ -384,6 +453,22 @@ class PermissionService:
             raise ValidationException(
                 f"Nieznane uprawnienia: {', '.join(sorted(unknown))}"
             )
+
+        if organization_id is None:
+            invalid = {c for c in found_codes if not c.startswith("PLATFORM_")}
+            if invalid:
+                raise ValidationException(
+                    f"Grupy platformowe mogą zawierać wyłącznie uprawnienia "
+                    f"PLATFORM_*. Niedozwolone kody: {', '.join(sorted(invalid))}"
+                )
+        else:
+            invalid = {c for c in found_codes if c.startswith("PLATFORM_")}
+            if invalid:
+                raise ValidationException(
+                    f"Grupy organizacyjne mogą zawierać wyłącznie uprawnienia CAN_*. "
+                    f"Niedozwolone kody: {', '.join(sorted(invalid))}"
+                )
+
         return permissions
 
     def _validate_users(self, user_ids: set[UUID]) -> None:

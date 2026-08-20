@@ -12,7 +12,7 @@ from app.modules.core_data.api.users import router as users_router
 from app.modules.core_data.repositories.users import UserRepository
 from app.modules.security.dependencies import get_current_user
 from app.modules.security.models import UserGroup, security_user_groups
-from app.modules.security.permission_catalog import CAN_VIEW_SECURITY
+from app.modules.security.permission_catalog import PLATFORM_VIEW_USERS
 from app.modules.security.repositories import PermissionRepository
 
 
@@ -115,12 +115,12 @@ def test_security_group_viewer_can_list_users_for_membership_management(
         is_active=True,
     )
     repo = PermissionRepository(db_session)
-    permission = repo.get_permission_by_code(CAN_VIEW_SECURITY)
+    permission = repo.get_permission_by_code(PLATFORM_VIEW_USERS)
     if not permission:
         permission = repo.create_permission(
-            code=CAN_VIEW_SECURITY,
-            name="View security",
-            category="Security",
+            code=PLATFORM_VIEW_USERS,
+            name="View users",
+            category="Platform",
         )
     group = UserGroup(name="Security viewers", permissions=[permission])
     db_session.add(group)

@@ -31,6 +31,7 @@ class PermissionRepository(SQLRepository):
         name: str,
         description: str,
         system_key: str,
+        organization_id: UUID | None = None,
         permissions: list[Permission] | None = None,
     ) -> UserGroup:
         group = UserGroup(
@@ -38,6 +39,7 @@ class PermissionRepository(SQLRepository):
             description=description,
             is_system=True,
             system_key=system_key,
+            organization_id=organization_id,
             permissions=permissions or [],
         )
         self.session.add(group)
@@ -62,6 +64,24 @@ class PermissionRepository(SQLRepository):
             .all()
         )
 
+    def list_platform_groups(self) -> list[UserGroup]:
+        """List platform-level groups only (organization_id IS NULL)."""
+        return (
+            self.session.query(UserGroup)
+            .filter(UserGroup.organization_id.is_(None))
+            .order_by(UserGroup.is_system.desc(), UserGroup.name)
+            .all()
+        )
+
+    def list_org_groups(self, organization_id: UUID) -> list[UserGroup]:
+        """List groups for a specific organization."""
+        return (
+            self.session.query(UserGroup)
+            .filter(UserGroup.organization_id == organization_id)
+            .order_by(UserGroup.is_system.desc(), UserGroup.name)
+            .all()
+        )
+
     def get_group(self, group_id: UUID) -> UserGroup | None:
         return self.session.query(UserGroup).filter_by(id=group_id).first()
 
@@ -73,16 +93,25 @@ class PermissionRepository(SQLRepository):
             .first()
         )
 
-    def get_group_by_system_key(self, system_key: str) -> UserGroup | None:
-        return self.session.query(UserGroup).filter_by(system_key=system_key).first()
+    def get_group_by_system_key(
+        self, system_key: str, organization_id: UUID | None = None
+    ) -> UserGroup | None:
+        query = self.session.query(UserGroup).filter_by(system_key=system_key)
+        if organization_id is None:
+            query = query.filter(UserGroup.organization_id.is_(None))
+        else:
+            query = query.filter(UserGroup.organization_id == organization_id)
+        return query.first()
 
-    def get_group_by_system_key_for_update(self, system_key: str) -> UserGroup | None:
-        return (
-            self.session.query(UserGroup)
-            .filter_by(system_key=system_key)
-            .with_for_update()
-            .first()
-        )
+    def get_group_by_system_key_for_update(
+        self, system_key: str, organization_id: UUID | None = None
+    ) -> UserGroup | None:
+        query = self.session.query(UserGroup).filter_by(system_key=system_key)
+        if organization_id is None:
+            query = query.filter(UserGroup.organization_id.is_(None))
+        else:
+            query = query.filter(UserGroup.organization_id == organization_id)
+        return query.with_for_update().first()
 
     def create_group(self, *, name: str, description: str) -> UserGroup:
         group = UserGroup(name=name, description=description)
@@ -91,6 +120,13 @@ class PermissionRepository(SQLRepository):
 
     def delete_group(self, group: UserGroup) -> None:
         self.session.delete(group)
+
+    def group_ids_for_organization(self, organization_id: UUID) -> list[UUID]:
+        """IDs grup należących do danej organizacji (nie platformowych)."""
+        statement = select(UserGroup.id).where(
+            UserGroup.organization_id == organization_id
+        )
+        return list(self.session.execute(statement).scalars().all())
 
     def permission_codes_for_user(self, user_id: UUID) -> set[str]:
         statement = (
@@ -117,6 +153,22 @@ class PermissionRepository(SQLRepository):
                 security_user_groups.c.user_id == user_id,
                 (UserGroup.organization_id.is_(None))
                 | (UserGroup.organization_id == organization_id),
+            )
+        )
+        return set(self.session.execute(statement).scalars().all())
+
+    def permission_codes_for_user_at_platform_level(self, user_id: UUID) -> set[str]:
+        """Get platform-level permission codes for user.
+
+        Only returns permissions from groups where organization_id IS NULL.
+        """
+        statement = (
+            select(Permission.code)
+            .join(UserGroup.permissions)
+            .join(security_user_groups, security_user_groups.c.group_id == UserGroup.id)
+            .where(
+                security_user_groups.c.user_id == user_id,
+                UserGroup.organization_id.is_(None),
             )
         )
         return set(self.session.execute(statement).scalars().all())

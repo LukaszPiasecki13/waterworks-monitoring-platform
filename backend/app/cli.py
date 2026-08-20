@@ -7,6 +7,7 @@ from sqlalchemy.exc import IntegrityError
 
 from app.core.dependencies import create_session
 from app.modules.core_data.repositories.users import UserRepository
+from app.modules.security.permission_catalog import ADMIN_GROUP_KEY
 from app.modules.security.repositories.permissions import PermissionRepository
 from app.modules.security.services.password import hash_password
 
@@ -31,7 +32,9 @@ def create_superadmin(username: str, email: str):
         perm_repo = PermissionRepository(session)
 
         # Ensure Super Admin group exists (should be seeded at startup)
-        super_admin_group = perm_repo.get_group_by_system_key("super_admin")
+        super_admin_group = perm_repo.get_group_by_system_key(
+            ADMIN_GROUP_KEY, organization_id=None
+        )
         if not super_admin_group:
             click.echo(
                 "Error: Super Admin group not found. Run application once to seed it.",
