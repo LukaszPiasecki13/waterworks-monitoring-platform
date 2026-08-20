@@ -1,5 +1,5 @@
 import { Menu } from 'lucide-react';
-import { OrganizationSwitcher } from './OrganizationSwitcher';
+import { EnvironmentSwitcher } from './EnvironmentSwitcher';
 
 interface TopbarProps {
   onMenuClick?: () => void;
@@ -25,7 +25,7 @@ export function Topbar({ onMenuClick }: TopbarProps) {
         </div>
 
         <div className="flex items-center gap-4">
-          <OrganizationSwitcher />
+          <EnvironmentSwitcher />
         </div>
       </div>
     </header>

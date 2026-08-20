@@ -1,0 +1,40 @@
+import { useState } from 'react'
+import { Navigate } from 'react-router-dom'
+import { useActiveEnvironmentStore } from '@/stores/activeEnvironmentStore'
+import { Topbar } from './Topbar'
+import { PlatformSidebar } from './PlatformSidebar'
+
+interface PlatformShellProps {
+  children: React.ReactNode
+}
+
+export function PlatformShell({ children }: PlatformShellProps) {
+  const [sidebarOpen, setSidebarOpen] = useState(false)
+  const environment = useActiveEnvironmentStore((s) => s.environment)
+
+  // Guard: Only redirect if environment is null (not set)
+  // DO NOT redirect just because environment.type !== 'platform' - that's a transient state
+  // during normal switching and React Router will handle route matching correctly
+  if (!environment) {
+    return <Navigate to="/environment-picker" replace />
+  }
+
+  return (
+    <div className="flex h-screen bg-neutral-50">
+      <PlatformSidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+
+      {sidebarOpen && (
+        <div
+          className="fixed inset-0 z-30 bg-black/50 lg:hidden"
+          onClick={() => setSidebarOpen(false)}
+          aria-hidden="true"
+        />
+      )}
+
+      <div className="flex flex-1 flex-col">
+        <Topbar onMenuClick={() => setSidebarOpen(!sidebarOpen)} />
+        <main className="flex-1 overflow-auto">{children}</main>
+      </div>
+    </div>
+  )
+}

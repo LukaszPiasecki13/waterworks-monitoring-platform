@@ -3,21 +3,18 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useUser } from '@/hooks/useUsers';
-import { useOrganizations } from '@/hooks/useOrganizations';
 import { Button } from '@/components/ui/Button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogBody } from '@/components/ui/Dialog';
 import { FormField } from '@/components/ui/FormField';
 import { Input } from '@/components/ui/Input';
-import { Select } from '@/components/ui/Select';
 
 const userSchema = z.object({
   username: z.string().min(1, 'Nazwa użytkownika jest wymagana').min(3, 'Minimum 3 znaki'),
   email: z.string().email('Podaj prawidłowy email'),
   first_name: z.string().optional(),
   last_name: z.string().optional(),
-  status: z.enum(['regular', 'admin']).optional(),
   is_active: z.boolean().optional(),
-  organization_id: z.string().optional(),
+  password: z.string().optional(),
 });
 
 export type UserFormData = z.infer<typeof userSchema>;
@@ -25,7 +22,7 @@ export type UserFormData = z.infer<typeof userSchema>;
 interface UserFormDialogProps {
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
-  userId?: number | null;
+  userId?: string | null;
   onSubmit: (data: UserFormData) => void;
   isLoading?: boolean;
   serverFieldErrors?: Record<string, string> | null;
@@ -39,8 +36,7 @@ export function UserFormDialog({
   isLoading = false,
   serverFieldErrors,
 }: UserFormDialogProps) {
-  const { data: user } = useUser(userId || 0);
-  const { data: organizations = [] } = useOrganizations();
+  const { data: user } = useUser(userId || '');
   const {
     register,
     handleSubmit,
@@ -50,7 +46,6 @@ export function UserFormDialog({
   } = useForm<UserFormData>({
     resolver: zodResolver(userSchema),
     defaultValues: {
-      status: 'regular',
       is_active: true,
     },
   });
@@ -62,9 +57,7 @@ export function UserFormDialog({
         email: user.email || '',
         first_name: user.first_name || '',
         last_name: user.last_name || '',
-        status: (user.status as 'regular' | 'admin') || 'regular',
         is_active: user.is_active,
-        organization_id: user.organization_id || '',
       });
     } else {
       reset();
@@ -79,6 +72,11 @@ export function UserFormDialog({
   }, [serverFieldErrors, setError]);
 
   const handleFormSubmit = (data: UserFormData) => {
+    // Password is required for new users (create), optional for updates
+    if (!userId && !data.password) {
+      setError('password', { type: 'required', message: 'Hasło jest wymagane' });
+      return;
+    }
     onSubmit(data);
   };
 
@@ -120,22 +118,12 @@ export function UserFormDialog({
               />
             </FormField>
 
-            <FormField label="Status" error={errors.status?.message}>
-              <Select {...register('status')}>
-                <option value="regular">Zwykły użytkownik</option>
-                <option value="admin">Administrator</option>
-              </Select>
-            </FormField>
-
-            <FormField label="Organizacja" error={errors.organization_id?.message}>
-              <Select {...register('organization_id')}>
-                <option value="">Brak (Platform admin)</option>
-                {organizations.map((org) => (
-                  <option key={org.id} value={org.id}>
-                    {org.name}
-                  </option>
-                ))}
-              </Select>
+            <FormField label="Hasło" error={errors.password?.message} required={!userId}>
+              <Input
+                {...register('password')}
+                type="password"
+                placeholder={userId ? 'Pozostaw puste, aby nie zmieniać' : 'Hasło'}
+              />
             </FormField>
           </form>
         </DialogBody>

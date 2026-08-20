@@ -8,13 +8,12 @@ import type {
 interface ListParams {
   skip?: number
   limit?: number
-  organization_id?: string
   water_object_id?: string
 }
 
 export const devicesService = {
-  async list(params?: ListParams): Promise<Device[]> {
-    const response = await apiClient.get('/api/v1/devices', { params });
+  async list(orgId: string, params?: ListParams): Promise<Device[]> {
+    const response = await apiClient.get(`/api/v1/orgs/${orgId}/devices`, { params });
     // Backend returns PaginatedResponse, extract items
     if (response.data && Array.isArray(response.data.items)) {
       return response.data.items;
@@ -26,22 +25,22 @@ export const devicesService = {
     return [];
   },
 
-  async get(id: string): Promise<Device> {
-    const response = await apiClient.get(`/api/v1/devices/${id}`);
+  async get(orgId: string, id: string): Promise<Device> {
+    const response = await apiClient.get(`/api/v1/orgs/${orgId}/devices/${id}`);
     return response.data;
   },
 
-  async create(data: DeviceCreateRequest): Promise<Device> {
-    const response = await apiClient.post('/api/v1/devices', data);
+  async create(orgId: string, data: DeviceCreateRequest): Promise<Device> {
+    const response = await apiClient.post(`/api/v1/orgs/${orgId}/devices`, data);
     return response.data;
   },
 
-  async update(id: string, data: DeviceUpdateRequest): Promise<Device> {
-    const response = await apiClient.patch(`/api/v1/devices/${id}`, data);
+  async update(orgId: string, id: string, data: DeviceUpdateRequest): Promise<Device> {
+    const response = await apiClient.patch(`/api/v1/orgs/${orgId}/devices/${id}`, data);
     return response.data;
   },
 
-  async delete(id: string): Promise<void> {
-    await apiClient.delete(`/api/v1/devices/${id}`);
+  async delete(orgId: string, id: string): Promise<void> {
+    await apiClient.delete(`/api/v1/orgs/${orgId}/devices/${id}`);
   },
 };

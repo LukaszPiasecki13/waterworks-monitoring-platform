@@ -1,5 +1,5 @@
 import { Navigate } from 'react-router-dom';
-import { useAuthStore } from '@/stores/authStore';
+import { useActivePermissions } from '@/hooks/useActivePermissions';
 import type { PermissionCode } from '@/types/permissions';
 
 interface RequirePermissionProps {
@@ -15,7 +15,7 @@ export function RequirePermission({
   permissions,
   requireAll = false,
 }: RequirePermissionProps) {
-  const { hasPermission, hasAnyPermission } = useAuthStore();
+  const { hasPermission, hasAnyPermission } = useActivePermissions();
 
   if (permission) {
     if (!hasPermission(permission)) {

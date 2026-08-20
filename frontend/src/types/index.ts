@@ -1,12 +1,11 @@
 /* Auth endpoint — /auth/user */
 export interface AuthUser {
-  id: number;
+  id: string;
   username: string;
   email: string;
   first_name: string;
   last_name: string;
-  status: string;
-  organization_id: string | null;
+  is_active: boolean;
 }
 
 export interface LoginResponse {

@@ -35,8 +35,28 @@ export const queryKeys = {
   users: {
     all: ['users'] as const,
     list: (params?: object) => ['users', 'list', params] as const,
-    detail: (id: number) => ['users', 'detail', id] as const,
-    audit: (id: number) => ['users', 'audit', id] as const,
+    detail: (id: string) => ['users', 'detail', id] as const,
+    audit: (id: string) => ['users', 'audit', id] as const,
+  },
+
+  members: {
+    all: ['members'] as const,
+    list: (orgId: string) => ['members', orgId] as const,
+  },
+
+  orgGroups: {
+    all: ['orgGroups'] as const,
+    list: (orgId: string) => ['orgGroups', orgId] as const,
+  },
+
+  platformGroups: {
+    all: ['platformGroups'] as const,
+    list: () => ['platformGroups'] as const,
+  },
+
+  platformAudit: {
+    all: ['platformAudit'] as const,
+    list: (params?: { skip?: number; limit?: number }) => ['platformAudit', params] as const,
   },
 
   telemetry: {

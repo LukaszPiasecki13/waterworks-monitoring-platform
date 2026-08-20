@@ -1,12 +1,14 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { useAuthStore } from '@/stores/authStore'
 import { authService } from '@/services/authService'
 import { Button } from '@/components/ui/Button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/Tabs'
 import { FormField } from '@/components/ui/FormField'
 import { Input } from '@/components/ui/Input'
 import { toast } from '@/components/ui/Toast'
+import { Shield, Building2 } from 'lucide-react'
 
 interface AccountFormData {
   username: string
@@ -16,7 +18,9 @@ interface AccountFormData {
 }
 
 export function AccountPage() {
+  const [activeTab, setActiveTab] = useState<'profile' | 'permissions'>('profile')
   const user = useAuthStore((s) => s.user)
+  const userContext = useAuthStore((s) => s.userContext)
   const {
     register,
     handleSubmit,
@@ -66,65 +70,144 @@ export function AccountPage() {
   }
 
   return (
-    <div className="px-6 py-8 max-w-2xl">
+    <div className="px-6 py-8 max-w-4xl">
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-neutral-900">Mój profil</h1>
         <p className="text-neutral-600 mt-2">Zarządzanie swoim kontem i ustawieniami</p>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Dane profilu</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-            <FormField label="Nazwa użytkownika" error={errors.username?.message} required>
-              <Input {...register('username')} disabled placeholder="Nazwa użytkownika" />
-            </FormField>
+      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'profile' | 'permissions')}>
+        <TabsList>
+          <TabsTrigger value="profile">Profil</TabsTrigger>
+          <TabsTrigger value="permissions">Dostęp</TabsTrigger>
+        </TabsList>
 
-            <FormField label="Email" error={errors.email?.message} required>
-              <Input
-                {...register('email', { required: 'Email jest wymagany' })}
-                type="email"
-                placeholder="Email"
-              />
-            </FormField>
+        <TabsContent value="profile" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Dane profilu</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+                <FormField label="Nazwa użytkownika" error={errors.username?.message} required>
+                  <Input {...register('username')} disabled placeholder="Nazwa użytkownika" />
+                </FormField>
 
-            <FormField label="Imię" error={errors.first_name?.message}>
-              <Input {...register('first_name')} placeholder="Imię" />
-            </FormField>
+                <FormField label="Email" error={errors.email?.message} required>
+                  <Input
+                    {...register('email', { required: 'Email jest wymagany' })}
+                    type="email"
+                    placeholder="Email"
+                  />
+                </FormField>
 
-            <FormField label="Nazwisko" error={errors.last_name?.message}>
-              <Input {...register('last_name')} placeholder="Nazwisko" />
-            </FormField>
+                <FormField label="Imię" error={errors.first_name?.message}>
+                  <Input {...register('first_name')} placeholder="Imię" />
+                </FormField>
 
-            <div className="pt-4 flex gap-3 justify-end">
-              <Button variant="outline" type="button">
-                Anuluj
-              </Button>
-              <Button type="submit" isLoading={isSubmitting}>
-                Zapisz zmiany
-              </Button>
-            </div>
-          </form>
-        </CardContent>
-      </Card>
+                <FormField label="Nazwisko" error={errors.last_name?.message}>
+                  <Input {...register('last_name')} placeholder="Nazwisko" />
+                </FormField>
 
-      <Card className="mt-6">
-        <CardHeader>
-          <CardTitle>Uprawnienia</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="text-sm text-neutral-600">
-            <p>
-              Status: <span className="font-semibold text-neutral-900">{user.status}</span>
-            </p>
-            <p className="mt-2 text-xs text-neutral-500">
-              Twoje uprawnienia do zasobów są zarządzane przez administratora systemu.
-            </p>
-          </div>
-        </CardContent>
-      </Card>
+                <div className="pt-4 flex gap-3 justify-end">
+                  <Button variant="outline" type="button">
+                    Anuluj
+                  </Button>
+                  <Button type="submit" isLoading={isSubmitting}>
+                    Zapisz zmiany
+                  </Button>
+                </div>
+              </form>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="permissions" className="space-y-6">
+          {userContext ? (
+            <>
+              {userContext.organizations.length > 0 && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Building2 className="h-5 w-5" />
+                      Dostęp do organizacji
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-4">
+                      {userContext.organizations.map((org) => (
+                        <div
+                          key={org.organization_id}
+                          className="border border-neutral-200 rounded-lg p-4"
+                        >
+                          <h3 className="font-semibold text-neutral-900">{org.organization_name}</h3>
+                          <div className="mt-2 flex flex-wrap gap-2">
+                            {org.permissions.length > 0 ? (
+                              org.permissions.map((perm) => (
+                                <span
+                                  key={perm}
+                                  className="inline-block px-2 py-1 text-xs rounded bg-blue-50 text-blue-700 border border-blue-200"
+                                >
+                                  {perm}
+                                </span>
+                              ))
+                            ) : (
+                              <span className="text-sm text-neutral-500">Brak uprawnień</span>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {userContext.platform && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Shield className="h-5 w-5" />
+                      Dostęp do platformy
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="flex flex-wrap gap-2">
+                      {userContext.platform.permissions.length > 0 ? (
+                        userContext.platform.permissions.map((perm) => (
+                          <span
+                            key={perm}
+                            className="inline-block px-3 py-1 text-xs rounded bg-purple-50 text-purple-700 border border-purple-200"
+                          >
+                            {perm}
+                          </span>
+                        ))
+                      ) : (
+                        <span className="text-sm text-neutral-500">Brak uprawnień</span>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {userContext.organizations.length === 0 && !userContext.platform && (
+                <Card>
+                  <CardContent className="pt-6">
+                    <p className="text-sm text-neutral-500">
+                      Nie masz dostępu do żadnego środowiska
+                    </p>
+                  </CardContent>
+                </Card>
+              )}
+            </>
+          ) : (
+            <Card>
+              <CardContent className="pt-6">
+                <p className="text-sm text-neutral-500">Ładowanie uprawnień...</p>
+              </CardContent>
+            </Card>
+          )}
+        </TabsContent>
+      </Tabs>
     </div>
   )
 }

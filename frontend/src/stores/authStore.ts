@@ -1,42 +1,38 @@
 import type { AuthUser } from '@/types'
-import type { PermissionCode } from '@/types/permissions'
+import type { UserContextResponse } from '@/types/context'
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { markSessionChanged } from '@/lib/sessionLifecycle'
 import { queryClient } from '@/lib/queryClient'
 import { resetBackendWakeupNotice } from '@/lib/backendWakeup'
-import { useActiveOrganizationStore } from './activeOrganizationStore'
+import { useActiveEnvironmentStore } from './activeEnvironmentStore'
 
 interface AuthState {
   user: AuthUser | null
-  permissions: PermissionCode[]
-  groupIds: number[]
+  userContext: UserContextResponse | null
   accessToken: string | null
   refreshToken: string | null
   isAuthenticated: boolean
-  login: (accessToken: string, refreshToken: string, user: AuthUser, permissions?: PermissionCode[], groupIds?: number[]) => void
+  login: (accessToken: string, refreshToken: string, user: AuthUser, userContext: UserContextResponse) => void
   logout: () => void
   updateUser: (user: AuthUser) => void
+  setUserContext: (userContext: UserContextResponse) => void
   setTokens: (accessToken: string, refreshToken: string) => void
-  hasPermission: (permission: PermissionCode) => boolean
-  hasAnyPermission: (permissions: PermissionCode[]) => boolean
 }
 
 export const useAuthStore = create<AuthState>()(
   persist(
-    (set, get) => ({
+    (set) => ({
       user: null,
-      permissions: [],
-      groupIds: [],
+      userContext: null,
       accessToken: null,
       refreshToken: null,
       isAuthenticated: false,
 
-      login: (accessToken, refreshToken, user, permissions = [], groupIds = []) => {
+      login: (accessToken, refreshToken, user, userContext) => {
         set({
           user,
-          permissions,
-          groupIds,
+          userContext,
           accessToken,
           refreshToken,
           isAuthenticated: true,
@@ -47,31 +43,26 @@ export const useAuthStore = create<AuthState>()(
         markSessionChanged()
         set({
           user: null,
-          permissions: [],
-          groupIds: [],
+          userContext: null,
           accessToken: null,
           refreshToken: null,
           isAuthenticated: false,
         })
         queryClient.clear()
         resetBackendWakeupNotice()
-        useActiveOrganizationStore.getState().clear()
+        useActiveEnvironmentStore.getState().clear()
       },
 
       updateUser: (user) => {
         set({ user })
       },
 
+      setUserContext: (userContext) => {
+        set({ userContext })
+      },
+
       setTokens: (accessToken, refreshToken) => {
         set({ accessToken, refreshToken })
-      },
-
-      hasPermission: (permission: PermissionCode) => {
-        return get().permissions.includes(permission)
-      },
-
-      hasAnyPermission: (permissions: PermissionCode[]) => {
-        return permissions.some((p) => get().permissions.includes(p))
       },
     }),
     {
@@ -80,8 +71,7 @@ export const useAuthStore = create<AuthState>()(
         accessToken: state.accessToken,
         refreshToken: state.refreshToken,
         user: state.user,
-        permissions: state.permissions,
-        groupIds: state.groupIds,
+        userContext: state.userContext,
       }),
       onRehydrateStorage: () => (state) => {
         if (state) {

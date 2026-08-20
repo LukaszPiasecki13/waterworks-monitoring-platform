@@ -99,15 +99,13 @@ export interface MeasurementPointUpdateRequest {
   max_technical?: number;
 }
 
-/* Managed User (z /api/v1/users, inny od AuthUser z /auth/user) */
+/* Managed User (z /api/v1/platform/users) */
 export interface ManagedUser {
-  id: number;
-  organization_id: string | null;
+  id: string;
   username: string;
   email: string;
   first_name: string;
   last_name: string;
-  status: 'regular' | 'admin';
   is_active: boolean;
   created_at: string;
   updated_at: string;
@@ -118,8 +116,7 @@ export interface ManagedUserCreateRequest {
   email: string;
   first_name: string;
   last_name: string;
-  status: 'regular' | 'admin';
-  organization_id?: string;
+  password: string;
 }
 
 export interface ManagedUserUpdateRequest {
@@ -127,7 +124,7 @@ export interface ManagedUserUpdateRequest {
   email?: string;
   first_name?: string;
   last_name?: string;
-  status?: 'regular' | 'admin';
+  password?: string;
   is_active?: boolean;
 }
 
@@ -139,5 +136,46 @@ export interface AuditLogEntry {
   resource_type: string;
   resource_id?: string;
   details?: Record<string, unknown>;
+  created_at: string;
+}
+
+/* Organization Member (user in specific organization) */
+export interface OrganizationMember {
+  id: string;
+  username: string;
+  email: string;
+  first_name: string;
+  last_name: string;
+  is_active: boolean;
+}
+
+/* Security Group Summary (read-only) */
+export interface SecurityPermission {
+  id: string;
+  code: string;
+  name: string;
+  category: string;
+}
+
+export interface SecurityGroupSummary {
+  id: string;
+  name: string;
+  description: string | null;
+  is_system: boolean;
+  system_key: string | null;
+  permissions: SecurityPermission[];
+  user_ids: string[];
+  created_at: string;
+  updated_at: string;
+}
+
+/* Audit Event */
+export interface AuditEvent {
+  id: string;
+  actor_id: string;
+  action: string;
+  context_type: string | null;
+  context_id: string | null;
+  changes: Record<string, unknown> | null;
   created_at: string;
 }

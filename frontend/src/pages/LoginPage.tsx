@@ -1,9 +1,11 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { AxiosError } from 'axios'
 import { useAuthStore } from '@/stores/authStore'
+import { useActiveEnvironmentStore } from '@/stores/activeEnvironmentStore'
 import { authService } from '@/services/authService'
+import { resolveInitialEnvironment } from '@/lib/resolveEnvironment'
 
 interface LoginFormData {
   username: string
@@ -13,8 +15,10 @@ interface LoginFormData {
 export function LoginPage() {
   const navigate = useNavigate()
   const { login, isAuthenticated } = useAuthStore()
+  const { setOrganization, setPlatform } = useActiveEnvironmentStore()
   const [error, setError] = useState<string>('')
   const [isLoading, setIsLoading] = useState(false)
+  const navigationAttemptedRef = useRef(false)
 
   const {
     register,
@@ -23,9 +27,9 @@ export function LoginPage() {
   } = useForm<LoginFormData>()
 
   useEffect(() => {
-    if (isAuthenticated) {
-      navigate('/', { replace: true })
-    }
+    if (navigationAttemptedRef.current || !isAuthenticated) return
+    navigationAttemptedRef.current = true
+    navigate('/', { replace: true })
   }, [isAuthenticated, navigate])
 
   const onSubmit = async (data: LoginFormData) => {
@@ -35,10 +39,27 @@ export function LoginPage() {
     try {
       const { access, refresh } = await authService.login(data)
       const userProfile = await authService.getUserProfile(access)
-      const { permissions, group_ids } = await authService.getUserPermissions(access)
+      const userContext = await authService.getMyContext(access)
 
-      login(access, refresh, userProfile, permissions, group_ids)
-      navigate('/', { replace: true })
+      login(access, refresh, userProfile, userContext)
+
+      const resolution = resolveInitialEnvironment(userContext)
+
+      if (resolution.type === 'single-environment') {
+        if (resolution.environment?.type === 'platform') {
+          setPlatform()
+        } else if (resolution.environment?.type === 'organization') {
+          setOrganization({
+            id: resolution.environment.organizationId,
+            name: resolution.environment.organizationName,
+          })
+        }
+        navigate('/', { replace: true })
+      } else if (resolution.type === 'choose-environment') {
+        navigate('/environment-picker', { replace: true })
+      } else {
+        navigate('/no-access', { replace: true })
+      }
     } catch (err) {
       console.error('Login error:', err)
       const axiosErr = err as AxiosError<{ detail?: string }>

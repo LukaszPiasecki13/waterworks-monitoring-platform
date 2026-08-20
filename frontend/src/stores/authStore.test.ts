@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { queryClient } from '@/lib/queryClient'
 import { resetBackendWakeupNotice } from '@/lib/backendWakeup'
+import type { UserContextResponse } from '@/types/context'
 
 vi.mock('@/lib/queryClient')
 vi.mock('@/lib/backendWakeup')
@@ -27,13 +28,17 @@ Object.defineProperty(window, 'localStorage', {
 })
 
 const mockUser = {
-  id: 1,
+  id: '550e8400-e29b-41d4-a716-446655440000',
   username: 'testuser',
   email: 'test@example.com',
   first_name: 'Test',
   last_name: 'User',
-  status: 'active',
-  organization_id: null,
+  is_active: true,
+}
+
+const mockUserContext: UserContextResponse = {
+  organizations: [],
+  platform: null,
 }
 
 describe('authStore', () => {
@@ -46,7 +51,7 @@ describe('authStore', () => {
     const { useAuthStore } = await import('./authStore')
     const store = useAuthStore.getState()
 
-    store.login('access_token', 'refresh_token', mockUser)
+    store.login('access_token', 'refresh_token', mockUser, mockUserContext)
     store.logout()
 
     expect(queryClient.clear).toHaveBeenCalled()

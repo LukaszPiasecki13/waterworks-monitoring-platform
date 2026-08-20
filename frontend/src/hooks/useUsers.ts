@@ -10,7 +10,7 @@ export function useUsers() {
   });
 }
 
-export function useUser(id: number) {
+export function useUser(id: string) {
   return useQuery({
     queryKey: queryKeys.users.detail(id),
     queryFn: () => usersService.get(id),
@@ -18,7 +18,7 @@ export function useUser(id: number) {
   });
 }
 
-export function useUserAudit(id: number) {
+export function useUserAudit(id: string) {
   return useQuery({
     queryKey: queryKeys.users.audit(id),
     queryFn: () => usersService.getAudit(id),
@@ -40,7 +40,7 @@ export function useUpdateUser() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ id, data }: { id: number; data: ManagedUserUpdateRequest }) =>
+    mutationFn: ({ id, data }: { id: string; data: ManagedUserUpdateRequest }) =>
       usersService.update(id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.users.all });
@@ -52,7 +52,7 @@ export function useDeleteUser() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (id: number) => usersService.delete(id),
+    mutationFn: (id: string) => usersService.delete(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.users.all });
     },

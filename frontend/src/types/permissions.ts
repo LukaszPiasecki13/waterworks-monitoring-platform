@@ -10,7 +10,13 @@ export type PermissionCode =
   | 'CAN_VIEW_ORGANIZATIONS'
   | 'CAN_MANAGE_ORGANIZATIONS'
   | 'CAN_VIEW_ASSETS'
-  | 'CAN_MANAGE_ASSETS';
+  | 'CAN_MANAGE_ASSETS'
+  | 'PLATFORM_VIEW_ORGANIZATIONS'
+  | 'PLATFORM_MANAGE_ORGANIZATIONS'
+  | 'PLATFORM_VIEW_USERS'
+  | 'PLATFORM_MANAGE_USERS'
+  | 'PLATFORM_MANAGE_MEMBERSHIPS'
+  | 'PLATFORM_VIEW_AUDIT';
 
 export const PERMISSIONS: Record<PermissionCode, string> = {
   CAN_VIEW_USERS: 'View users',
@@ -23,4 +29,10 @@ export const PERMISSIONS: Record<PermissionCode, string> = {
   CAN_MANAGE_ORGANIZATIONS: 'Manage organizations',
   CAN_VIEW_ASSETS: 'View assets',
   CAN_MANAGE_ASSETS: 'Manage assets',
+  PLATFORM_VIEW_ORGANIZATIONS: 'View organizations (platform)',
+  PLATFORM_MANAGE_ORGANIZATIONS: 'Manage organizations (platform)',
+  PLATFORM_VIEW_USERS: 'View users (platform)',
+  PLATFORM_MANAGE_USERS: 'Manage users (platform)',
+  PLATFORM_MANAGE_MEMBERSHIPS: 'Manage memberships (platform)',
+  PLATFORM_VIEW_AUDIT: 'View audit log (platform)',
 };

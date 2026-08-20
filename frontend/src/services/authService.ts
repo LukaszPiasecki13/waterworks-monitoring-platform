@@ -1,5 +1,6 @@
 import type { AuthUser, LoginResponse } from '@/types'
 import type { PermissionCode } from '@/types/permissions'
+import type { UserContextResponse } from '@/types/context'
 import { authClient } from '@/lib/api'
 
 interface UserPermissions {
@@ -33,6 +34,16 @@ export const authService = {
 
   async updateProfile(data: Partial<AuthUser>): Promise<AuthUser> {
     const response = await authClient.patch('/auth/user', data)
+    return response.data
+  },
+
+  async getMyContext(accessToken?: string): Promise<UserContextResponse> {
+    const config = accessToken ? {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    } : {}
+    const response = await authClient.get('/auth/me/context', config)
     return response.data
   },
 }

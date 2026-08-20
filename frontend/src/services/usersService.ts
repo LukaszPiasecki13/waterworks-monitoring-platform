@@ -8,7 +8,7 @@ import type {
 
 export const usersService = {
   async list(): Promise<ManagedUser[]> {
-    const response = await apiClient.get('/api/v1/users');
+    const response = await apiClient.get('/api/v1/platform/users');
     // Backend returns PaginatedResponse, extract items
     if (response.data && Array.isArray(response.data.items)) {
       return response.data.items;
@@ -20,27 +20,27 @@ export const usersService = {
     return [];
   },
 
-  async get(id: number): Promise<ManagedUser> {
-    const response = await apiClient.get(`/api/v1/users/${id}`);
+  async get(id: string): Promise<ManagedUser> {
+    const response = await apiClient.get(`/api/v1/platform/users/${id}`);
     return response.data;
   },
 
   async create(data: ManagedUserCreateRequest): Promise<ManagedUser> {
-    const response = await apiClient.post('/api/v1/users', data);
+    const response = await apiClient.post('/api/v1/platform/users', data);
     return response.data;
   },
 
-  async update(id: number, data: ManagedUserUpdateRequest): Promise<ManagedUser> {
-    const response = await apiClient.patch(`/api/v1/users/${id}`, data);
+  async update(id: string, data: ManagedUserUpdateRequest): Promise<ManagedUser> {
+    const response = await apiClient.patch(`/api/v1/platform/users/${id}`, data);
     return response.data;
   },
 
-  async delete(id: number): Promise<void> {
-    await apiClient.delete(`/api/v1/users/${id}`);
+  async delete(id: string): Promise<void> {
+    await apiClient.delete(`/api/v1/platform/users/${id}`);
   },
 
-  async getAudit(id: number): Promise<AuditLogEntry[]> {
-    const response = await apiClient.get(`/api/v1/users/${id}/audit`);
+  async getAudit(id: string): Promise<AuditLogEntry[]> {
+    const response = await apiClient.get(`/api/v1/platform/users/${id}/audit`);
     return response.data;
   },
 };

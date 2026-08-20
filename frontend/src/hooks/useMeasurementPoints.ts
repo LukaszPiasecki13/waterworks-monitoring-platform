@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { measurementPointsService } from '@/services/measurementPointsService';
 import { queryKeys } from './queryKeys';
-import { useActiveOrganizationStore } from '@/stores/activeOrganizationStore';
+import { useActiveEnvironmentStore } from '@/stores/activeEnvironmentStore';
 import type {
   MeasurementPointCreateRequest,
   MeasurementPointUpdateRequest,
@@ -10,31 +10,36 @@ import type {
 interface ListParams {
   skip?: number
   limit?: number
-  organization_id?: string
   device_id?: string
 }
 
 export function useMeasurementPoints(params?: ListParams) {
-  const activeOrgId = useActiveOrganizationStore((state) => state.activeOrganizationId)
-
-  const queryParams = {
-    ...params,
-    organization_id: activeOrgId ?? undefined,
-  }
+  const activeOrgId = useActiveEnvironmentStore((state) => {
+    if (state.environment?.type === 'organization') {
+      return state.environment.organizationId
+    }
+    return null
+  })
 
   return useQuery({
-    queryKey: queryKeys.measurementPoints.list(queryParams),
-    queryFn: () => measurementPointsService.list(queryParams),
+    queryKey: queryKeys.measurementPoints.list(params),
+    queryFn: () => measurementPointsService.list(activeOrgId!, params),
     enabled: !!activeOrgId,
   });
 }
 
 export function useCreateMeasurementPoint() {
   const queryClient = useQueryClient();
+  const activeOrgId = useActiveEnvironmentStore((state) => {
+    if (state.environment?.type === 'organization') {
+      return state.environment.organizationId
+    }
+    return null
+  })
 
   return useMutation({
     mutationFn: (data: MeasurementPointCreateRequest) =>
-      measurementPointsService.create(data),
+      measurementPointsService.create(activeOrgId!, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.measurementPoints.all });
       queryClient.invalidateQueries({ queryKey: queryKeys.devices.all });
@@ -44,10 +49,16 @@ export function useCreateMeasurementPoint() {
 
 export function useUpdateMeasurementPoint() {
   const queryClient = useQueryClient();
+  const activeOrgId = useActiveEnvironmentStore((state) => {
+    if (state.environment?.type === 'organization') {
+      return state.environment.organizationId
+    }
+    return null
+  })
 
   return useMutation({
     mutationFn: ({ id, data }: { id: string; data: MeasurementPointUpdateRequest }) =>
-      measurementPointsService.update(id, data),
+      measurementPointsService.update(activeOrgId!, id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.measurementPoints.all });
     },
@@ -56,9 +67,15 @@ export function useUpdateMeasurementPoint() {
 
 export function useDeleteMeasurementPoint() {
   const queryClient = useQueryClient();
+  const activeOrgId = useActiveEnvironmentStore((state) => {
+    if (state.environment?.type === 'organization') {
+      return state.environment.organizationId
+    }
+    return null
+  })
 
   return useMutation({
-    mutationFn: (id: string) => measurementPointsService.delete(id),
+    mutationFn: (id: string) => measurementPointsService.delete(activeOrgId!, id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.measurementPoints.all });
     },

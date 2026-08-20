@@ -3,7 +3,6 @@ import type { ObjectSummary, ObjectDetail, MeasurementsResponse, PaginatedRespon
 
 interface ListObjectsParams {
   limit?: number
-  org_id?: string
 }
 
 interface GetMeasurementsParams {
@@ -14,21 +13,21 @@ interface GetMeasurementsParams {
 }
 
 export const telemetryService = {
-  async listObjects(params: ListObjectsParams): Promise<PaginatedResponse<ObjectSummary>> {
-    const { data } = await apiClient.get('/api/v1/telemetry/objects', { params })
+  async listObjects(orgId: string, params?: ListObjectsParams): Promise<PaginatedResponse<ObjectSummary>> {
+    const { data } = await apiClient.get(`/api/v1/orgs/${orgId}/telemetry/objects`, { params })
     if (!data || typeof data !== 'object' || !Array.isArray(data.items)) {
       throw new Error('Invalid response format')
     }
     return data
   },
 
-  async getObject(objectId: string): Promise<ObjectDetail> {
-    const { data } = await apiClient.get(`/api/v1/telemetry/objects/${objectId}`)
+  async getObject(orgId: string, objectId: string): Promise<ObjectDetail> {
+    const { data } = await apiClient.get(`/api/v1/orgs/${orgId}/telemetry/objects/${objectId}`)
     return data
   },
 
-  async getMeasurements(objectId: string, params: GetMeasurementsParams): Promise<MeasurementsResponse> {
-    const { data } = await apiClient.get(`/api/v1/telemetry/objects/${objectId}/measurements`, { params })
+  async getMeasurements(orgId: string, objectId: string, params: GetMeasurementsParams): Promise<MeasurementsResponse> {
+    const { data } = await apiClient.get(`/api/v1/orgs/${orgId}/telemetry/objects/${objectId}/measurements`, { params })
     return data
   },
 }
