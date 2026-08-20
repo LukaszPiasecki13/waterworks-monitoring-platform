@@ -25,7 +25,6 @@ from app.modules.security.permission_catalog import (
 )
 from app.modules.security.repositories import PermissionRepository
 from app.modules.security.services.auth import AuthService
-from app.modules.security.services.context import UserContextService
 from app.modules.security.services.permissions import PermissionService
 from app.modules.security.services.token import TokenService
 
@@ -68,21 +67,6 @@ def get_auth_service(
     audit: AuditPort = Depends(get_audit_service),
 ) -> AuthService:
     return AuthService(repo, token_service, permissions, audit)
-
-
-def get_user_context_service(
-    permissions: PermissionService = Depends(get_permission_service),
-) -> UserContextService:
-    """Build user context service.
-
-    MembersService injected via lazy import to break circular dependency:
-    core_data.dependencies imports from security.dependencies, so we cannot
-    import get_members_service at module load time.
-    """
-    from app.modules.core_data.dependencies import get_members_service
-
-    members_service = get_members_service()
-    return UserContextService(members_service, permissions)
 
 
 def get_current_user(

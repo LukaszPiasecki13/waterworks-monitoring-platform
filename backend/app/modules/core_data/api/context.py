@@ -2,13 +2,11 @@
 
 from fastapi import APIRouter, Depends
 
+from app.modules.core_data.dependencies import get_user_context_service
 from app.modules.core_data.models import User
-from app.modules.security.dependencies import (
-    get_current_user,
-    get_user_context_service,
-)
-from app.modules.security.schemas.context import UserContextResponse
-from app.modules.security.services.context import UserContextService
+from app.modules.core_data.schemas.context import UserContextResponse
+from app.modules.core_data.services.context import UserContextService
+from app.modules.security.dependencies import get_current_user
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 

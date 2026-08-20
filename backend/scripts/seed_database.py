@@ -99,6 +99,7 @@ def _seed_security(session: Session) -> tuple[int, int, UserGroup, UserGroup]:
     """
     # Create permissions from catalog
     permissions_created = 0
+    platform_permission_codes = set()
     for perm_def in PERMISSION_CATALOG:
         existing = session.query(Permission).filter_by(code=perm_def.code).first()
         if not existing:
@@ -109,14 +110,21 @@ def _seed_security(session: Session) -> tuple[int, int, UserGroup, UserGroup]:
             )
             session.add(perm)
             permissions_created += 1
+        # Collect platform permission codes
+        if perm_def.plane == "platform":
+            platform_permission_codes.add(perm_def.code)
 
     session.flush()
     session.commit()
 
-    # Get all permissions for admin group
-    all_permissions = session.query(Permission).all()
+    # Get platform-level permissions only (organization_id IS NULL)
+    platform_permissions = (
+        session.query(Permission)
+        .filter(Permission.code.in_(platform_permission_codes))
+        .all()
+    )
 
-    # Create admin group
+    # Create admin group (platform-level, organization_id = NULL)
     admin_group = session.query(UserGroup).filter_by(system_key=ADMIN_GROUP_KEY).first()
     if not admin_group:
         admin_group = UserGroup(
@@ -124,12 +132,13 @@ def _seed_security(session: Session) -> tuple[int, int, UserGroup, UserGroup]:
             description="Full system access",
             is_system=True,
             system_key=ADMIN_GROUP_KEY,
-            permissions=all_permissions,
+            organization_id=None,
+            permissions=platform_permissions,
         )
         session.add(admin_group)
         session.flush()
 
-    # Create staff group
+    # Create staff group (kept for backwards compatibility, but deprecated)
     staff_group = session.query(UserGroup).filter_by(system_key=STAFF_GROUP_KEY).first()
     if not staff_group:
         view_permissions = (

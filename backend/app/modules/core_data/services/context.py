@@ -1,12 +1,12 @@
 """User context service — environments and permissions."""
 
 from app.modules.core_data.models import User
-from app.modules.core_data.services.members import MembersService
-from app.modules.security.schemas.context import (
+from app.modules.core_data.schemas.context import (
     OrganizationEnvironment,
     PlatformEnvironment,
     UserContextResponse,
 )
+from app.modules.core_data.services.members import MembersService
 from app.modules.security.services.permissions import PermissionService
 
 

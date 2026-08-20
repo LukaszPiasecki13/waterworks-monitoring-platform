@@ -8,11 +8,6 @@ from .auth import (
     TokenRefreshRequest,
     TokenResponse,
 )
-from .context import (
-    OrganizationEnvironment,
-    PlatformEnvironment,
-    UserContextResponse,
-)
 from .permissions import (
     GroupIdsRequest,
     MyPermissionsResponse,
@@ -29,14 +24,11 @@ __all__ = [
     "GroupIdsRequest",
     "LoginRequest",
     "MyPermissionsResponse",
-    "OrganizationEnvironment",
     "PermissionCodesRequest",
     "PermissionResponse",
-    "PlatformEnvironment",
     "ProfileUpdateRequest",
     "TokenRefreshRequest",
     "TokenResponse",
-    "UserContextResponse",
     "UserGroupCreateRequest",
     "UserGroupResponse",
     "UserGroupSaveRequest",

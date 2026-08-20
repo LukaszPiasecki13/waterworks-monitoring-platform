@@ -16,6 +16,7 @@ from app.modules.core_data.repositories.users_organizations import (
     UsersOrganizationsRepository,
 )
 from app.modules.core_data.repositories.water_objects import WaterObjectRepository
+from app.modules.core_data.services.context import UserContextService
 from app.modules.core_data.services.devices import DeviceService
 from app.modules.core_data.services.measurement_points import (
     MeasurementPointService,
@@ -119,3 +120,11 @@ def get_members_service(
 ) -> MembersService:
     """Get members service dependency."""
     return MembersService(repo, user_service, perm_repo, audit)
+
+
+def get_user_context_service(
+    members_service: MembersService = Depends(get_members_service),
+    permissions: PermissionService = Depends(get_permission_service),
+) -> UserContextService:
+    """Get user context service dependency."""
+    return UserContextService(members_service, permissions)

@@ -11,6 +11,7 @@ from app.core.errors import register_error_handlers
 from app.core.health import router as health_router
 from app.core.logging import configure_logging
 from app.core.rate_limit import register_rate_limiting
+from app.modules.core_data.api.context import router as context_router
 from app.modules.core_data.api.devices import router as devices_router
 from app.modules.core_data.api.measurement_points import (
     router as measurement_points_router,
@@ -85,6 +86,7 @@ app.include_router(health_router)
 
 # Auth endpoints (unprefixed: /auth/*)
 app.include_router(security_router)
+app.include_router(context_router)
 
 # Ingest endpoint (unprefixed: /telemetry/ingest)
 app.include_router(telemetry_ingest_router)
