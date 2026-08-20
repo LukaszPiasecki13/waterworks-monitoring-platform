@@ -4,7 +4,7 @@
 
 ## 1. Cel modułu
 
-`telemetry` przyjmuje pakiety pomiarowe z gatewayów terenowych i wystawia zapytania szeregów czasowych dla dashboardu. Dwie wyraźnie oddzielone ścieżki: **ingest** (write, autoryzacja kluczem urządzenia) i **query** (read, autoryzacja JWT).
+`telemetry` przyjmuje pakiety pomiarowe z gatewayów terenowych i wystawia zapytania szeregów czasowych dla dashboardu. Dwie wyraźnie oddzielone ścieżki: **ingest** (write, autoryzacja kluczem urządzenia, `/telemetry/ingest`) i **query** (read, autoryzacja JWT, `/api/v1/orgs/{org_id}/telemetry/...`).
 
 ## 2. Model domenowy
 

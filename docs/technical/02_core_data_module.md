@@ -15,7 +15,10 @@ Organization
        └─ Device (water_object_id)
             └─ MeasurementPoint (device_id)
 
-User (organization_id, nullable — NULL = platform admin, widzi wszystkie organizacje)
+User (bez organization_id, bez status — uprawnienia wyłącznie z grup)
+  ↔ UsersOrganizations (M:N membership, brak kolumny roli)
+     └─ SecurityGroup (z organization_id=NULL dla grup platformowych,
+                        lub organization_id<UUID> dla grup gminy)
 ```
 
 | Encja | Reprezentuje |
@@ -24,32 +27,38 @@ User (organization_id, nullable — NULL = platform admin, widzi wszystkie organ
 | `WaterObject` | Fizyczny obiekt infrastruktury: przepompownia, hydrofornia, stacja uzdatniania, pomiar na sieci |
 | `Device` | Gateway terenowy (ESP32 + modem) zainstalowany na obiekcie |
 | `MeasurementPoint` | Kanał pomiarowy podłączony do urządzenia |
-| `User` | Konto z dostępem do platformy |
+| `User` | Konto z dostępem do platformy (bez przypisania do organizacji) |
+| `UsersOrganizations` | Członkostwo M:N — użytkownik należy do gminy, uprawnienia z grup |
 
 ## 3. Kluczowe reguły i niezmienniki
 
-**Org-scoping** (`utils/org_scope.py`):
+**Org-scoping i 404 zamiast 403** — Endpointy `/api/v1/orgs/{org_id}/...` wstrzykują `OrganizationAccess` (patrz [`01_backend-architecture.md`](./01_backend-architecture.md#72-autoryzacja-organizationaccess-i-platformcontext) §7.2):
 
 ```python
-def assert_same_organization(actor: User, resource_organization_id: UUID) -> None:
-    if actor.organization_id is not None and actor.organization_id != resource_organization_id:
-        raise NotFoundError("Resource not found")
+# FastAPI dependency
+@router.get("/")
+async def list_objects(access: OrganizationAccess = Depends(require_org_membership)):
+    # access.organization_id zawsze pokrywa się z {org_id} z URL
+    # access.actor to zalogowany użytkownik
+    # access.permissions to kody uprawnień tego usera w tej gminie
 ```
 
-- Non-admin (`actor.organization_id is not None`) jest przypięty do własnej organizacji — próba dostępu do zasobu innej organizacji kończy się `404`, **nie `403`**: to świadomy wybór, żeby nie zdradzać samego istnienia zasobu w cudzej organizacji.
-- `resolve_organization_id` — dla non-admina zawsze zwraca `actor.organization_id` (ignoruje to, co przyszło z klienta); platform admin (`organization_id is None`) dostaje to, co faktycznie zażądał.
+- Użytkownik, który nie jest członkiem gminy, dostaje `NotFoundError(404)` już na poziomie `require_org_membership`, **zanim serwis w ogóle wejdzie w grę** — to świadomy wybór anty-enumeracyjny: `404` nie zdradza, czy gmina istnieje; `403` potwierdzałoby jej istnienie.
+- Członkostwo sprawdzane na żywo przez `OrganizationAccess` na każde żądanie, niezależnie od JWT. Revoking dostępu (usunięcie z gminy) działa natychmiast, bez czekania na wygaśnięcie tokenu.
 
 **`find_by_id` vs `get_by_id`** — `DeviceService.get_by_id` celowo woła `water_object_repo.find_by_id` (zwraca `None`), nie `get_by_id` (rzuca):
 
 ```python
-def get_by_id(self, device_id: UUID, actor: User):
+def get_by_id(self, device_id: UUID, access: OrganizationAccess):
     device = self.repo.find_by_id(device_id)
     water_obj = self.water_object_repo.find_by_id(device.water_object_id)
-    assert_same_organization(actor, water_obj.organization_id)
+    # Jeśli water_obj jest None, AttributeError zamknęła by lukę: nie przepuszczamy
+    # urządzenia bez sprawdzenia, że jego obiekt należy do tej gminy
+    assert_same_organization(access.organization_id, water_obj.organization_id)
     return device
 ```
 
-Jeśli `water_object_id` urządzenia nie da się rozwiązać, `water_obj` jest `None` i `assert_same_organization(actor, None.organization_id)` rzuci `AttributeError` zamiast po cichu przepuścić urządzenie bez sprawdzenia organizacji — awaria zamknięta (fail-closed), nie otwarta.
+Fail-closed (awaria zamknięta): jeśli relacja danych jest uszkodzona, rzucamy błąd zamiast pomijać weryfikację.
 
 ## 4. Nieoczywiste decyzje projektowe
 

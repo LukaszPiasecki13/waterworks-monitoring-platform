@@ -4,17 +4,18 @@
 
 ## Spis treści
 
-1. [Stack technologiczny](#1-stack-technologiczny)
-2. [Struktura katalogów](#2-struktura-katalogów)
-3. [Routing i ochrona dostępu](#3-routing-i-ochrona-dostępu)
-4. [Zarządzanie stanem klienta](#4-zarządzanie-stanem-klienta)
-5. [Warstwa danych: services → hooks → React Query](#5-warstwa-danych-services--hooks--react-query)
-6. [Wspólny stan formularzy CRUD — `useCrudPageState`](#6-wspólny-stan-formularzy-crud--usecrudpagestate)
-7. [Stan serwerowy i cache](#7-stan-serwerowy-i-cache)
-8. [Cykl sesji użytkownika](#8-cykl-sesji-użytkownika)
-9. [Obsługa zimnego startu backendu](#9-obsługa-zimnego-startu-backendu)
-10. [Responsywność i dostępność](#10-responsywność-i-dostępność)
-11. [Testowanie](#11-testowanie)
+- [Architektura Frontendu — Dokumentacja Techniczna](#architektura-frontendu--dokumentacja-techniczna)
+  - [Spis treści](#spis-treści)
+  - [1. Stack technologiczny](#1-stack-technologiczny)
+  - [2. Struktura katalogów](#2-struktura-katalogów)
+  - [4. Zarządzanie stanem klienta](#4-zarządzanie-stanem-klienta)
+  - [5. Warstwa danych: services → hooks → React Query](#5-warstwa-danych-services--hooks--react-query)
+  - [6. Wspólny stan formularzy CRUD — `useCrudPageState`](#6-wspólny-stan-formularzy-crud--usecrudpagestate)
+  - [7. Stan serwerowy i cache](#7-stan-serwerowy-i-cache)
+  - [8. Cykl sesji użytkownika](#8-cykl-sesji-użytkownika)
+  - [9. Obsługa zimnego startu backendu](#9-obsługa-zimnego-startu-backendu)
+  - [10. Responsywność i dostępność](#10-responsywność-i-dostępność)
+  - [11. Testowanie](#11-testowanie)
 
 ---
 
@@ -37,44 +38,49 @@ frontend/src/
 ├─ pages/                  # widoki tras — jeden plik na stronę
 ├─ components/
 │  ├─ ui/                  # prymitywy design systemu: Button, Dialog, DataTable, Toast...
-│  ├─ layout/              # AppShell, Sidebar, Topbar, OrganizationSwitcher
+│  ├─ layout/              
+│  │  ├─ OrgShell.tsx       # shell dla płaszczyzny organizacji (zawiera Topbar+OrgSidebar+main)
+│  │  ├─ PlatformShell.tsx  # shell dla płaszczyzny platformy (lazy-loaded, React.lazy)
+│  │  ├─ OrgSidebar.tsx     # sidebar organizacyjny (Monitoring, Konfiguracja, Admin z Członkami/Grupami)
+│  │  ├─ PlatformSidebar.tsx # sidebar platformowy (Organizacje, Użytkownicy, Grupy, Audyt)
+│  │  ├─ EnvironmentSwitcher.tsx  # switcher gminy/platformy (ukryty gdy tylko 1 środowisko)
+│  │  ├─ Topbar.tsx         # wspólny topbar dla obu płaszczyzn
 │  ├─ dialogs/              # formularze create/edit per encja (DeviceFormDialog, UserFormDialog...)
 │  ├─ dashboard/, objects/, security/   # komponenty domenowe per obszar
 │  ├─ ProtectedRoute.tsx, RequirePermission.tsx   # guardy tras
 │  └─ BackendWakeupPopup.tsx
 ├─ hooks/                   # useQuery/useMutation per zasób (useDevices, useUsers, ...)
 │  ├─ queryKeys.ts           # centralna fabryka kluczy React Query
+│  ├─ useActivePermissions.ts   # jedyne źródło prawdy: uprawnienia w aktywnym środowisku
+│  ├─ useMembers.ts, useOrgGroups.ts, usePlatformGroups.ts, usePlatformAudit.ts   # org/platform hooks
 │  └─ useCrudPageState.ts     # wspólny stan formularzy CRUD (sekcja 6)
 ├─ services/                  # cienkie wrappery Axios per zasób REST
-├─ stores/                     # Zustand: authStore, activeOrganizationStore
+├─ stores/                     
+│  ├─ authStore.ts             # użytkownik, tokeny, userContext (M:N członkostw + uprawnienia per gmina)
+│  └─ activeEnvironmentStore.ts # wybrane środowisko: org {id, name} czy platform
 ├─ lib/                         # api.ts, queryClient.ts, sessionLifecycle.ts, backendWakeup.ts, errors.ts
-├─ types/                        # typy DTO (coreData, telemetry, security, permissions)
+├─ types/                        # typy DTO (coreData, telemetry, security, permissions, context)
 └─ styles/                        # tokens.css
 ```
 
-Konwencja warstw danych: `pages/` konsumują `hooks/`, `hooks/` opakowują `services/` w React Query, `services/` jako jedyna warstwa woła `apiClient`/`authClient` z `lib/api.ts`. Wyjątek: `LoginPage` i `AccountPage` wołają `authService` bezpośrednio — logowanie i edycja profilu to akcje sesyjne, nie dane cache'owane przez React Query.
+Konwencja warstw danych: `pages/` konsumują `hooks/`, `hooks/` opakowują `services/` w React Query, `services/` jako jedyna warstwa woła `apiClient`/`authClient` z `lib/api.ts`. Wyjątek: `LoginPage` wołuje `authService.getMyContext()` bezpośrednio — zalogowanie wymagapobrania kontekstu użytkownika (mamy środowiska).
 
-## 3. Routing i ochrona dostępu
+**Lazy loading płaszczyzn**: `OrgShell` i `PlatformShell` są owinięte w `React.lazy()` w `App.tsx` — kod mapy, telemetrii, widoków organizacyjnych (org-plane) nie trafia do bundla super admina wchodzącego tylko na `/platform/...`.
 
-`App.tsx` definiuje drzewo tras przez `createBrowserRouter`/`createRoutesFromElements`:
-
-- `/login`, `/forbidden` — publiczne, poza ochroną.
-- Wszystkie pozostałe trasy owinięte w `<ProtectedRoute>`: gdy `authStore.isAuthenticated` jest `false`, przekierowuje na `/login`. Chronione trasy renderują się wewnątrz layoutu `AppShell`.
-- Trasy administracyjne (`/admin/organizations`, `/admin/objects`, `/admin/devices`, `/admin/devices/:deviceId`, `/admin/users`) dodatkowo owinięte w `<RequirePermission>`: przyjmuje pojedyncze `permission` albo listę `permissions` (z opcjonalnym `requireAll`), sprawdza `authStore.hasPermission`/`hasAnyPermission`, przy braku dostępu przekierowuje na `/forbidden`.
-- Nieznane ścieżki (`*`) renderują `NotFoundPage`.
 
 ## 4. Zarządzanie stanem klienta
 
 Dwa store'y Zustand, oba z middleware `persist`:
 
-- **`authStore`** — `user`, `permissions`, `groupIds`, `accessToken`/`refreshToken`, `isAuthenticated`. `logout()` jest jedynym poprawnym punktem czyszczenia sesji (patrz sekcja 8).
-- **`activeOrganizationStore`** — wybrana organizacja w kontekście widoków admina (`activeOrganizationId`/`activeOrganizationName`); hooki listujące zasoby (np. `useDevices`) filtrują po niej automatycznie i są `enabled` tylko, gdy organizacja jest wybrana. Czyszczony przez `authStore.logout()`.
+- **`authStore`** — `user` (id, username, email, first/last name), `userContext` (środowiska + uprawnienia per gmina, moje grupy na platformie), `accessToken`/`refreshToken`, `isAuthenticated`. Uprawnienia NIE są przechowywane jako płaska lista (`permissions`/`groupIds`) — tylko w `userContext` per-środowisko. `logout()` jest jedynym poprawnym punktem czyszczenia sesji (patrz sekcja 8). `setUserContext()` wywoływane po `/auth/me/context` lub refreshu tokenu.
+- **`activeEnvironmentStore`** — wybrane środowisko (discriminated union): `{ type: 'organization'; organizationId: string; organizationName: string }` albo `{ type: 'platform' }`. `setOrganization({id, name})`, `setPlatform()`, `clear()`. Czyszczony przez `authStore.logout()`. Persystowany pod kluczem `active-environment` (stary klucz `active-organization` jest historyczny relikt).
 
 ## 5. Warstwa danych: services → hooks → React Query
 
-- **`services/<resource>Service.ts`** — cienkie wrappery `apiClient` per zasób REST (`devicesService`, `usersService`, `organizationsService`, `waterObjectsService`, `measurementPointsService`, `securityService`, `telemetryService`, `authService`). Zwracają już rozpakowane dane — np. wyciągają `items` z paginowanej odpowiedzi backendu, nie surowy obiekt odpowiedzi Axios.
-- **`hooks/use<Resource>.ts`** — opakowują `services/` w `useQuery`/`useMutation`. Klucze zapytań scentralizowane w `hooks/queryKeys.ts`, żeby inwalidacja po mutacji trafiała we właściwe zapytania (np. `useCreateDevice` inwaliduje zarówno `devices.all`, jak i `waterObjects.all`, bo nowe urządzenie zmienia też widok obiektu wodociągowego, do którego należy).
-- `lib/api.ts` eksportuje dwa klienty Axios: `authClient` (bez interceptora autoryzacji — używany do logowania i odświeżania tokenu) i `apiClient` (z interceptorami: śledzenie zimnego startu backendu — sekcja 9, wstrzykiwanie nagłówka `Authorization`, automatyczny refresh tokenu przy `401` — sekcja 8).
+- **`services/<resource>Service.ts`** — cienkie wrappery `apiClient` per zasób REST. Nowe serwisy dla modelu dwupłaszczyznowego: `membersService`, `orgGroupsService`, `platformAuditService`, `platformGroupsService`. Istniejące serwisy (`usersService`, `organizationsService`, `waterObjectsService`, itd.) zostały naprawione — URL-e wskazują na `/api/v1/platform/` (użytkownicy/organizacje) albo `/api/v1/orgs/{orgId}/` (zasoby gmin). Zwracają rozpakowane dane (wyciągają `items` z paginowanej odpowiedzi).
+- **`hooks/use<Resource>.ts`** — opakowują `services/` w `useQuery`/`useMutation`. Nowe hooki dla dwupłaszczyznowości: `useMembers(orgId)`, `useOrgGroups(orgId)`, `usePlatformGroups()`, `usePlatformAudit(params)`. Hooki org-plane i platform-plane żyją w **osobnych plikach** (bez barrel-exportu razem), żeby `React.lazy(OrgShell)`/`React.lazy(PlatformShell)` faktycznie rozdzieliły bundle.
+- **`hooks/useActivePermissions()`** — jedyne źródło prawdy o uprawnieniach w aktywnym środowisku. Czyta `authStore.userContext` + `activeEnvironmentStore.environment`, zwraca `{ permissions, hasPermission(p), hasAnyPermission(ps) }`. Fail-closed: brak środowiska lub brak `userContext` = pusta lista uprawnień (→ `/forbidden`).
+- `lib/api.ts` eksportuje dwa klienty Axios: `authClient` (bez interceptora — logowanie, refresh) i `apiClient` (z interceptorami: zimny start backendu, nagłówek `Authorization`, refresh 401, 404 na `/api/v1/orgs/*` → `NotFoundPage`).
 
 ## 6. Wspólny stan formularzy CRUD — `useCrudPageState`
 

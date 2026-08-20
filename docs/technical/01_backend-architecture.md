@@ -4,23 +4,44 @@
 
 ## Spis treści
 
-1. [Przegląd architektury](#1-przegląd-architektury)
-2. [Zasady architektury](#2-zasady-architektury)
-3. [Struktura projektu](#3-struktura-projektu)
-4. [Warstwy współdzielone](#4-warstwy-współdzielone)
-   - 4.1 [core/](#41-core)
-   - 4.2 [infrastructure/](#42-infrastructure)
-5. [Template modułu domenowego](#5-template-modułu-domenowego)
-   - 5.1 [Struktura katalogów](#51-struktura-katalogów)
-   - 5.2 [Odpowiedzialność każdej warstwy](#52-odpowiedzialność-każdej-warstwy)
-   - 5.3 [Wiring zależności — dependencies.py](#53-wiring-zależności--dependenciespy)
-6. [Moduły biznesowe](#6-moduły-biznesowe)
-   - 6.1 [core_data/](#61-core_data)
-   - 6.2 [security/](#62-security)
-   - 6.3 [telemetry/](#63-telemetry)
-   - 6.4 [audit/](#64-audit)
-7. [Obsługa błędów](#7-obsługa-błędów)
-8. [Strategia testowania](#8-strategia-testowania)
+- [Architektura Backendu — Dokumentacja Techniczna](#architektura-backendu--dokumentacja-techniczna)
+  - [Spis treści](#spis-treści)
+- [1. Przegląd architektury](#1-przegląd-architektury)
+- [2. Zasady architektury](#2-zasady-architektury)
+  - [2.1. Dozwolone zależności między warstwami](#21-dozwolone-zależności-między-warstwami)
+  - [2.2. Zakaz przeskakiwania warstw](#22-zakaz-przeskakiwania-warstw)
+  - [2.3. Komunikacja między modułami](#23-komunikacja-między-modułami)
+  - [2.4. Zakaz zależności cyklicznych](#24-zakaz-zależności-cyklicznych)
+- [3. Struktura projektu](#3-struktura-projektu)
+- [4. Warstwy współdzielone](#4-warstwy-współdzielone)
+  - [4.1. `core/`](#41-core)
+  - [4.2. `infrastructure/`](#42-infrastructure)
+    - [`infrastructure/sql/`](#infrastructuresql)
+- [5. Template modułu domenowego](#5-template-modułu-domenowego)
+  - [5.1. Struktura katalogów](#51-struktura-katalogów)
+  - [5.2. Odpowiedzialność każdej warstwy](#52-odpowiedzialność-każdej-warstwy)
+    - [`api/<resource>.py`](#apiresourcepy)
+    - [`services/<resource>.py`](#servicesresourcepy)
+    - [`repositories/<resource>.py`](#repositoriesresourcepy)
+      - [Konwencja `get_` vs `find_`](#konwencja-get_-vs-find_)
+    - [`schemas/<resource>.py`](#schemasresourcepy)
+    - [`models/<resource>.py`](#modelsresourcepy)
+    - [`exceptions.py`](#exceptionspy)
+  - [5.3. Wiring zależności — `dependencies.py`](#53-wiring-zależności--dependenciespy)
+- [6. Moduły biznesowe](#6-moduły-biznesowe)
+  - [6.1. `core_data/`](#61-core_data)
+  - [6.2. `security/`](#62-security)
+  - [6.3. `telemetry/`](#63-telemetry)
+  - [6.4. `audit/`](#64-audit)
+- [7. Płaszczyzny dostępu i routing API](#7-płaszczyzny-dostępu-i-routing-api)
+- [8. Obsługa błędów](#8-obsługa-błędów)
+  - [7.1. Przepływ wyjątków](#71-przepływ-wyjątków)
+  - [7.2. Hierarchia wyjątków (`core/errors.py`)](#72-hierarchia-wyjątków-coreerrorspy)
+  - [7.3. Globalny handler wyjątków (`main.py`)](#73-globalny-handler-wyjątków-mainpy)
+- [9. Strategia testowania](#9-strategia-testowania)
+  - [9.1. Poziomy testów](#91-poziomy-testów)
+  - [9.2. Testy jednostkowe serwisów](#92-testy-jednostkowe-serwisów)
+  - [9.3. Testy integracyjne endpointów](#93-testy-integracyjne-endpointów)
 
 ---
 
@@ -417,7 +438,18 @@ Niezmienny, append-only log zmian biznesowych. Nie ma własnej warstwy `api/` �
 
 ---
 
-# 7. Obsługa błędów
+# 7. Płaszczyzny dostępu i routing API
+
+System wykorzystuje **dwie niezależne płaszczyzny dostępu**:
+
+| Płaszczyzna | Użytkownik | Dostęp | Routing | Autoryzacja |
+|---|---|---|---|---|
+| **Organizacji** | Członek gminy | Do danych tej gminy: obiekty, urządzenia, punkty, członkowie | `/api/v1/orgs/{org_id}/...` | `CAN_*` kody, scoped per organizacja |
+| **Platformy** | Super admin | Rejestr gmin, globalny rejestr kont, audyt | `/api/v1/platform/...` | `PLATFORM_*` kody, globalne |
+
+Użytkownik może należeć do wielu gmin (pierwszy plan) i/lub być super adminem (drugi plan) — dwie niezależne roli. Super admin bez członkostwa w gminie nie widzi jej danych pomiarowych.
+
+# 8. Obsługa błędów
 
 ## 7.1. Przepływ wyjątków
 
@@ -485,9 +517,9 @@ async def app_exception_handler(request: Request, exc: BaseAppException):
 
 ---
 
-# 8. Strategia testowania
+# 9. Strategia testowania
 
-## 8.1. Poziomy testów
+## 9.1. Poziomy testów
 
 | Poziom | Co testujemy | Narzędzia | Izolacja |
 |---|---|---|---|
@@ -495,7 +527,7 @@ async def app_exception_handler(request: Request, exc: BaseAppException):
 | **Integration** | Endpointy API + baza danych | `pytest`, `TestClient`, baza testowa | Prawdziwa baza (rollback transakcji) |
 | **E2E** | Pełny flow HTTP | `httpx`, zewnętrzna baza | Brak izolacji |
 
-## 8.2. Testy jednostkowe serwisów
+## 9.2. Testy jednostkowe serwisów
 
 Serwisy testujemy **bez bazy danych** — repozytoria są mockowane przez `AsyncMock`:
 
@@ -520,6 +552,6 @@ async def test_get_resource_not_found(service, mock_repo):
         await service.get_by_id(resource_id=999)
 ```
 
-## 8.3. Testy integracyjne endpointów
+## 9.3. Testy integracyjne endpointów
 
 Używają `TestClient` z FastAPI. Każdy test weryfikuje jeden endpoint z nagłówkami autoryzacji i sprawdza kod statusu oraz kształt odpowiedzi.
