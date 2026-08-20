@@ -37,6 +37,7 @@ export const queryKeys = {
     list: (params?: object) => ['users', 'list', params] as const,
     detail: (id: string) => ['users', 'detail', id] as const,
     audit: (id: string) => ['users', 'audit', id] as const,
+    organizations: (id: string) => ['users', 'organizations', id] as const,
   },
 
   members: {

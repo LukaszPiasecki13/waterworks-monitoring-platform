@@ -5,6 +5,7 @@ from uuid import UUID
 from pydantic import ConfigDict, EmailStr, Field
 
 from app.core.schemas import BaseSchema
+from app.modules.core_data.schemas.organizations import OrganizationResponse
 
 
 class PaginatedResponse[T](BaseSchema):
@@ -65,3 +66,9 @@ class ListMembersRequest(BaseSchema):
 
     skip: int = Field(0, ge=0)
     limit: int = Field(100, ge=1, le=1000)
+
+
+class UserOrganizationsResponse(BaseSchema):
+    """List of organizations a user belongs to (platform-admin view)."""
+
+    organizations: list[OrganizationResponse]

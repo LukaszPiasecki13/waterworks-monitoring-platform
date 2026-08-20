@@ -128,6 +128,10 @@ export interface ManagedUserUpdateRequest {
   is_active?: boolean;
 }
 
+export interface UserOrganizationsResponse {
+  organizations: Organization[];
+}
+
 /* Audit log entry */
 export interface AuditLogEntry {
   id: string;

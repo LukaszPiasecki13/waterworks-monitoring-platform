@@ -107,3 +107,69 @@ class MembersService:
             if org:
                 organizations.append(org)
         return organizations
+
+    def assign_user_to_organization(
+        self, user_id: UUID, organization_id: UUID, actor: User
+    ) -> None:
+        """Assign a user to an organization (platform-admin perspective)."""
+        self.user_service.get_user_by_id(user_id, actor=actor)  # 404 if not found
+        if self.repo.is_member(user_id, organization_id):
+            raise ConflictError("User is already a member of this organization")
+
+        with self.repo.transaction():
+            self.repo.add_member(user_id, organization_id)
+            self.repo.flush()
+            self.audit.record(
+                AuditEntry(
+                    entity_type=EntityType.CORE_DATA_USER.value,
+                    entity_id=str(user_id),
+                    action="ORGANIZATION_MEMBER_ADD",
+                    actor_id=str(actor.id),
+                    actor_display_name=actor.email,
+                    changes={
+                        "organization_id": {
+                            "old": None,
+                            "new": str(organization_id),
+                        }
+                    },
+                    context_type="core_data_organization",
+                    context_id=str(organization_id),
+                )
+            )
+
+    def remove_user_from_organization(
+        self, user_id: UUID, organization_id: UUID, actor: User
+    ) -> None:
+        """Remove a user from an organization (platform-admin perspective)."""
+        if not self.repo.is_member(user_id, organization_id):
+            raise NotFoundError("User is not a member of this organization")
+
+        with self.repo.transaction():
+            org_group_ids = set(
+                self.perm_repo.group_ids_for_organization(organization_id)
+            )
+            if org_group_ids:
+                current_groups = set(self.perm_repo.group_ids_for_user(user_id))
+                remaining = current_groups - org_group_ids
+                if remaining != current_groups:
+                    self.perm_repo.replace_user_groups(user_id, remaining)
+
+            self.repo.remove_member(user_id, organization_id)
+            self.repo.flush()
+            self.audit.record(
+                AuditEntry(
+                    entity_type=EntityType.CORE_DATA_USER.value,
+                    entity_id=str(user_id),
+                    action="ORGANIZATION_MEMBER_REMOVE",
+                    actor_id=str(actor.id),
+                    actor_display_name=actor.email,
+                    changes={
+                        "organization_id": {
+                            "old": str(organization_id),
+                            "new": None,
+                        },
+                    },
+                    context_type="core_data_organization",
+                    context_id=str(organization_id),
+                )
+            )

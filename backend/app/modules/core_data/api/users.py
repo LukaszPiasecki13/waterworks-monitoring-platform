@@ -7,14 +7,16 @@ from fastapi import APIRouter, Depends
 from app.core.audit import AuditReaderPort, EntityType
 from app.modules.audit.dependencies import get_audit_reader
 from app.modules.audit.schemas import AuditEventResponse, AuditHistoryQuery
-from app.modules.core_data.dependencies import get_user_service
+from app.modules.core_data.dependencies import get_members_service, get_user_service
 from app.modules.core_data.schemas.users import (
     ListUsersRequest,
     PaginatedResponse,
     UserCreateRequest,
+    UserOrganizationsResponse,
     UserResponse,
     UserUpdateRequest,
 )
+from app.modules.core_data.services.members import MembersService
 from app.modules.core_data.services.users import UserService
 from app.modules.security.access import PlatformContext
 from app.modules.security.dependencies import (
@@ -130,3 +132,51 @@ def user_audit_history(
         limit=query.limit,
         offset=query.offset,
     )
+
+
+@router.get(
+    "/{user_id}/organizations",
+    response_model=UserOrganizationsResponse,
+)
+def get_user_organizations(
+    user_id: UUID,
+    service: MembersService = Depends(get_members_service),
+    context: PlatformContext = Depends(
+        require_platform_permission(PLATFORM_VIEW_USERS)
+    ),
+):
+    """List organizations the user belongs to."""
+    organizations = service.get_organizations_for_user(user_id)
+    return UserOrganizationsResponse(organizations=organizations)
+
+
+@router.post(
+    "/{user_id}/organizations/{org_id}",
+    status_code=204,
+)
+def assign_user_organization(
+    user_id: UUID,
+    org_id: UUID,
+    service: MembersService = Depends(get_members_service),
+    context: PlatformContext = Depends(
+        require_platform_permission(PLATFORM_MANAGE_USERS)
+    ),
+):
+    """Assign a user to an organization."""
+    service.assign_user_to_organization(user_id, org_id, actor=context.actor)
+
+
+@router.delete(
+    "/{user_id}/organizations/{org_id}",
+    status_code=204,
+)
+def remove_user_organization(
+    user_id: UUID,
+    org_id: UUID,
+    service: MembersService = Depends(get_members_service),
+    context: PlatformContext = Depends(
+        require_platform_permission(PLATFORM_MANAGE_USERS)
+    ),
+):
+    """Remove a user from an organization."""
+    service.remove_user_from_organization(user_id, org_id, actor=context.actor)

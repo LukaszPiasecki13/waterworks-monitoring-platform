@@ -4,6 +4,7 @@ import type {
   ManagedUserCreateRequest,
   ManagedUserUpdateRequest,
   AuditLogEntry,
+  UserOrganizationsResponse,
 } from '@/types/coreData';
 
 export const usersService = {
@@ -42,5 +43,18 @@ export const usersService = {
   async getAudit(id: string): Promise<AuditLogEntry[]> {
     const response = await apiClient.get(`/api/v1/platform/users/${id}/audit`);
     return response.data;
+  },
+
+  async getOrganizations(userId: string): Promise<UserOrganizationsResponse> {
+    const response = await apiClient.get(`/api/v1/platform/users/${userId}/organizations`);
+    return response.data;
+  },
+
+  async assignOrganization(userId: string, orgId: string): Promise<void> {
+    await apiClient.post(`/api/v1/platform/users/${userId}/organizations/${orgId}`);
+  },
+
+  async removeOrganization(userId: string, orgId: string): Promise<void> {
+    await apiClient.delete(`/api/v1/platform/users/${userId}/organizations/${orgId}`);
   },
 };

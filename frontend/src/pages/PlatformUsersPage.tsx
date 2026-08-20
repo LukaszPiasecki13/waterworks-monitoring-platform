@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { useActivePermissions } from '@/hooks/useActivePermissions'
 import { useCrudPageState } from '@/hooks/useCrudPageState'
 import { useUsers, useCreateUser, useUpdateUser, useDeleteUser } from '@/hooks/useUsers'
@@ -5,9 +6,10 @@ import { Button } from '@/components/ui/Button'
 import { Card, CardContent } from '@/components/ui/Card'
 import { DataTable } from '@/components/ui/DataTable'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
-import { Plus, Pencil, Trash2 } from 'lucide-react'
+import { Plus, Pencil, Trash2, Building2 } from 'lucide-react'
 import type { ManagedUser, ManagedUserCreateRequest, ManagedUserUpdateRequest } from '@/types/coreData'
 import { UserFormDialog, type UserFormData } from '@/components/dialogs/UserFormDialog'
+import { ManageUserOrganizationsDialog } from '@/components/dialogs/ManageUserOrganizationsDialog'
 
 export function PlatformUsersPage() {
   const { data: users = [], isLoading } = useUsers()
@@ -15,6 +17,7 @@ export function PlatformUsersPage() {
   const updateMutation = useUpdateUser()
   const deleteMutation = useDeleteUser()
   const { hasPermission } = useActivePermissions()
+  const [orgDialogUser, setOrgDialogUser] = useState<ManagedUser | null>(null)
 
   const canManageUsers = hasPermission('PLATFORM_MANAGE_USERS')
 
@@ -55,6 +58,14 @@ export function PlatformUsersPage() {
             label: 'Akcje',
             render: (row: ManagedUser) => (
               <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setOrgDialogUser(row)}
+                  title="Zarządzaj organizacjami"
+                >
+                  <Building2 className="h-4 w-4" />
+                </Button>
                 <Button
                   variant="outline"
                   size="sm"
@@ -119,6 +130,13 @@ export function PlatformUsersPage() {
             isDestructive
             isLoading={crud.isDeleting}
             onConfirm={crud.confirmDelete}
+          />
+
+          <ManageUserOrganizationsDialog
+            userId={orgDialogUser?.id ?? null}
+            username={orgDialogUser?.username}
+            open={!!orgDialogUser}
+            onOpenChange={(open) => !open && setOrgDialogUser(null)}
           />
         </>
       )}
