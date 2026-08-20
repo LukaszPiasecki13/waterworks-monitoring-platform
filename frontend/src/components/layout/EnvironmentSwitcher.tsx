@@ -9,12 +9,12 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/DropdownMenu'
-import { Building2, Shield, LogOut, ChevronDown } from 'lucide-react'
+import { Building2, Shield, ChevronDown } from 'lucide-react'
 
 export function EnvironmentSwitcher() {
   const navigate = useNavigate()
   const { userContext } = useAuthStore()
-  const { environment, setOrganization, setPlatform, clear } = useActiveEnvironmentStore()
+  const { environment, setOrganization, setPlatform } = useActiveEnvironmentStore()
 
   if (!userContext || !environment) {
     return null
@@ -32,13 +32,6 @@ export function EnvironmentSwitcher() {
 
   const handleSwitchEnvironment = () => {
     navigate('/environment-picker', { replace: true })
-  }
-
-  const handleLogout = () => {
-    const { logout } = useAuthStore.getState()
-    logout()
-    clear()
-    navigate('/login', { replace: true })
   }
 
   const getDisplayLabel = () => {
@@ -108,11 +101,6 @@ export function EnvironmentSwitcher() {
         <DropdownMenuSeparator />
         <DropdownMenuItem onClick={handleSwitchEnvironment}>
           Zmień środowisko
-        </DropdownMenuItem>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem onClick={handleLogout} className="text-red-600 focus:text-red-600 focus:bg-red-50">
-          <LogOut className="h-4 w-4 mr-2" />
-          Wyloguj się
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

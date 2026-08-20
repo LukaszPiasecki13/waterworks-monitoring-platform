@@ -11,6 +11,7 @@ interface OrgShellProps {
 
 export function OrgShell({ children }: OrgShellProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [collapsed, setCollapsed] = useState(false)
   const environment = useActiveEnvironmentStore((s) => s.environment)
   const userContext = useAuthStore((s) => s.userContext)
 
@@ -31,7 +32,7 @@ export function OrgShell({ children }: OrgShellProps) {
 
   return (
     <div className="flex h-screen bg-neutral-50">
-      <OrgSidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+      <OrgSidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} collapsed={collapsed} />
 
       {sidebarOpen && (
         <div
@@ -42,7 +43,7 @@ export function OrgShell({ children }: OrgShellProps) {
       )}
 
       <div className="flex flex-1 flex-col">
-        <Topbar onMenuClick={() => setSidebarOpen(!sidebarOpen)} />
+        <Topbar onMenuClick={() => setSidebarOpen(!sidebarOpen)} collapsed={collapsed} onToggleSidebar={() => setCollapsed((c) => !c)} />
         <main className="flex-1 overflow-auto">{children}</main>
       </div>
     </div>

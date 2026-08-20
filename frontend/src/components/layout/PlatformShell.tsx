@@ -10,6 +10,7 @@ interface PlatformShellProps {
 
 export function PlatformShell({ children }: PlatformShellProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [collapsed, setCollapsed] = useState(false)
   const environment = useActiveEnvironmentStore((s) => s.environment)
 
   // Guard: Only redirect if environment is null (not set)
@@ -21,7 +22,7 @@ export function PlatformShell({ children }: PlatformShellProps) {
 
   return (
     <div className="flex h-screen bg-neutral-50">
-      <PlatformSidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+      <PlatformSidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} collapsed={collapsed} />
 
       {sidebarOpen && (
         <div
@@ -32,7 +33,7 @@ export function PlatformShell({ children }: PlatformShellProps) {
       )}
 
       <div className="flex flex-1 flex-col">
-        <Topbar onMenuClick={() => setSidebarOpen(!sidebarOpen)} />
+        <Topbar onMenuClick={() => setSidebarOpen(!sidebarOpen)} collapsed={collapsed} onToggleSidebar={() => setCollapsed((c) => !c)} />
         <main className="flex-1 overflow-auto">{children}</main>
       </div>
     </div>

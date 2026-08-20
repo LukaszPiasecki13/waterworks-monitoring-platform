@@ -1,9 +1,8 @@
-import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { useAuthStore } from '@/stores/authStore'
-import { useActiveEnvironmentStore } from '@/stores/activeEnvironmentStore'
+import { Link, useLocation } from 'react-router-dom'
 import { useActivePermissions } from '@/hooks/useActivePermissions'
 import { cn } from '@/lib/cn'
-import { Building2, Users, Lock, FileText, ChevronLeft } from 'lucide-react'
+import { Building2, Users, Lock, FileText } from 'lucide-react'
+import { UserMenu } from './UserMenu'
 import type { PermissionCode } from '@/types/permissions'
 
 interface NavItem {
@@ -17,23 +16,12 @@ interface NavItem {
 interface PlatformSidebarProps {
   isOpen?: boolean
   onClose?: () => void
+  collapsed?: boolean
 }
 
-export function PlatformSidebar({ isOpen = true, onClose }: PlatformSidebarProps) {
-  const navigate = useNavigate()
+export function PlatformSidebar({ isOpen = true, onClose, collapsed = false }: PlatformSidebarProps) {
   const location = useLocation()
-  const userContext = useAuthStore((s) => s.userContext)
   const { hasPermission, hasAnyPermission } = useActivePermissions()
-  const { setOrganization } = useActiveEnvironmentStore()
-
-  const handleBackToOrganization = () => {
-    if (userContext?.organizations.length && userContext.organizations.length > 0) {
-      const firstOrg = userContext.organizations[0]
-      setOrganization({ id: firstOrg.organization_id, name: firstOrg.organization_name })
-      navigate('/dashboard', { replace: true })
-      if (onClose) onClose()
-    }
-  }
 
   const navItems: NavItem[] = [
     {
@@ -87,16 +75,19 @@ export function PlatformSidebar({ isOpen = true, onClose }: PlatformSidebarProps
   return (
     <aside
       className={cn(
-        'fixed inset-y-16 left-0 z-40 w-64 bg-surface border-r border-neutral-200 overflow-y-auto transition-transform duration-300 lg:static lg:inset-auto flex flex-col',
-        isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
+        'fixed inset-y-16 left-0 z-40 w-64 bg-surface border-r border-neutral-200 overflow-y-auto transition-all duration-300 lg:static lg:inset-auto flex flex-col',
+        isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0',
+        collapsed ? 'lg:w-16' : 'lg:w-64'
       )}
     >
-      <nav className="space-y-6 px-2 py-4 flex-1">
+      <nav className={cn('space-y-6 py-4 flex-1', collapsed ? 'px-1' : 'px-2')}>
         <div>
           <div className="px-3 py-2">
-            <p className="text-xs font-semibold uppercase tracking-wide text-neutral-500">
-              Platforma
-            </p>
+            {!collapsed && (
+              <p className="text-xs font-semibold uppercase tracking-wide text-neutral-500">
+                Platforma
+              </p>
+            )}
           </div>
           <div className="space-y-1">
             {visibleItems.map((item) => {
@@ -107,8 +98,10 @@ export function PlatformSidebar({ isOpen = true, onClose }: PlatformSidebarProps
                   key={item.path}
                   to={item.path}
                   onClick={handleLinkClick}
+                  title={collapsed ? item.label : undefined}
                   className={cn(
                     'flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors',
+                    collapsed && 'lg:justify-center',
                     isActive
                       ? 'bg-brand-50 text-brand-700 font-semibold'
                       : 'text-neutral-700 hover:bg-neutral-100'
@@ -122,7 +115,7 @@ export function PlatformSidebar({ isOpen = true, onClose }: PlatformSidebarProps
                   >
                     {item.icon}
                   </div>
-                  {item.label}
+                  {!collapsed && item.label}
                 </Link>
               )
             })}
@@ -130,20 +123,7 @@ export function PlatformSidebar({ isOpen = true, onClose }: PlatformSidebarProps
         </div>
       </nav>
 
-      {userContext?.organizations && userContext.organizations.length > 0 && (
-        <div className="border-t border-neutral-200 px-2 py-4">
-          <button
-            onClick={handleBackToOrganization}
-            className={cn(
-              'flex items-center gap-3 w-full px-3 py-2 rounded-lg text-sm font-medium transition-colors',
-              'text-neutral-700 hover:bg-neutral-100'
-            )}
-          >
-            <ChevronLeft className="h-5 w-5 text-neutral-400 flex-shrink-0" />
-            Wróć do organizacji
-          </button>
-        </div>
-      )}
+      <UserMenu accountPath="/platform/account" onNavigate={onClose} collapsed={collapsed} />
     </aside>
   )
 }

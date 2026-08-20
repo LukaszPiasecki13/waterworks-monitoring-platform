@@ -2,6 +2,7 @@ import { Link, useLocation } from 'react-router-dom'
 import { useActivePermissions } from '@/hooks/useActivePermissions'
 import { cn } from '@/lib/cn'
 import { BarChart3, Droplets, GaugeCircle, Users } from 'lucide-react'
+import { UserMenu } from './UserMenu'
 import type { PermissionCode } from '@/types/permissions'
 
 interface NavItem {
@@ -16,9 +17,10 @@ interface NavItem {
 interface OrgSidebarProps {
   isOpen?: boolean
   onClose?: () => void
+  collapsed?: boolean
 }
 
-export function OrgSidebar({ isOpen = true, onClose }: OrgSidebarProps) {
+export function OrgSidebar({ isOpen = true, onClose, collapsed = false }: OrgSidebarProps) {
   const location = useLocation()
   const { hasPermission, hasAnyPermission } = useActivePermissions()
 
@@ -90,20 +92,23 @@ export function OrgSidebar({ isOpen = true, onClose }: OrgSidebarProps) {
   return (
     <aside
       className={cn(
-        'fixed inset-y-16 left-0 z-40 w-64 bg-surface border-r border-neutral-200 overflow-y-auto transition-transform duration-300 lg:static lg:inset-auto flex flex-col',
-        isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
+        'fixed inset-y-16 left-0 z-40 w-64 bg-surface border-r border-neutral-200 overflow-y-auto transition-all duration-300 lg:static lg:inset-auto flex flex-col',
+        isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0',
+        collapsed ? 'lg:w-16' : 'lg:w-64'
       )}
     >
-      <nav className="space-y-6 px-2 py-4 flex-1">
+      <nav className={cn('space-y-6 py-4 flex-1', collapsed ? 'px-1' : 'px-2')}>
         {sections.map((section) => {
           if (section.items.length === 0) return null
 
           return (
             <div key={section.key}>
               <div className="px-3 py-2">
-                <p className="text-xs font-semibold uppercase tracking-wide text-neutral-500">
-                  {section.label}
-                </p>
+                {!collapsed && (
+                  <p className="text-xs font-semibold uppercase tracking-wide text-neutral-500">
+                    {section.label}
+                  </p>
+                )}
               </div>
               <div className="space-y-1">
                 {section.items.map((item) => {
@@ -114,8 +119,10 @@ export function OrgSidebar({ isOpen = true, onClose }: OrgSidebarProps) {
                       key={item.path}
                       to={item.path}
                       onClick={handleLinkClick}
+                      title={collapsed ? item.label : undefined}
                       className={cn(
                         'flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors',
+                        collapsed && 'lg:justify-center',
                         isActive
                           ? 'bg-brand-50 text-brand-700 font-semibold'
                           : 'text-neutral-700 hover:bg-neutral-100'
@@ -129,7 +136,7 @@ export function OrgSidebar({ isOpen = true, onClose }: OrgSidebarProps) {
                       >
                         {item.icon}
                       </div>
-                      {item.label}
+                      {!collapsed && item.label}
                     </Link>
                   )
                 })}
@@ -138,6 +145,8 @@ export function OrgSidebar({ isOpen = true, onClose }: OrgSidebarProps) {
           )
         })}
       </nav>
+
+      <UserMenu accountPath="/account" onNavigate={handleLinkClick} collapsed={collapsed} />
     </aside>
   )
 }
