@@ -9,6 +9,7 @@
 
 // =========================
 // ESP32-S3 pins <-> A7670E
+// see HARDWARE.md for full pin map
 // =========================
 
 const int LED_PIN = -1;
