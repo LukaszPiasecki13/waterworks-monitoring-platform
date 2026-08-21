@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from app.modules.core_data.models import Device, Organization, User, WaterObject
 from app.modules.core_data.repositories.devices import DeviceRepository
 from app.modules.core_data.repositories.water_objects import WaterObjectRepository
+from app.modules.device_identity.models.device_credential import DeviceCredential
 
 
 def test_device_delete_with_measurement_points_raises_conflict_error(
@@ -31,11 +32,22 @@ def test_device_delete_with_measurement_points_raises_conflict_error(
     db_session.add(water_obj)
     db_session.flush()
 
+    credential = DeviceCredential(
+        id=uuid4(),
+        serial_number="device-delete-test",
+        public_key_pem="-----BEGIN PUBLIC KEY-----\ntest\n-----END PUBLIC KEY-----",
+        status="claimed",
+        created_at=datetime(2026, 1, 1),
+        updated_at=datetime(2026, 1, 1),
+    )
+    db_session.add(credential)
+    db_session.flush()
+
     device = Device(
         id=uuid4(),
         water_object_id=water_obj.id,
         external_id="device-delete-test",
-        hashed_secret="hash",
+        device_credential_id=credential.id,
         firmware_version="1.0",
         is_active=True,
         created_at=datetime(2026, 1, 1),

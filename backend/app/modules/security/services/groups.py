@@ -369,14 +369,14 @@ class GroupService:
                 current_ids = set(self.repo.group_ids_for_user(user_id))
                 if admin_group.id not in current_ids:
                     current_ids.add(admin_group.id)
-                    self.replace_user_groups(user_id, current_ids, actor=actor)
+                    self.replace_user_groups(user_id, list(current_ids), actor=actor)
         else:
             org_group_ids = set(self.repo.group_ids_for_organization(organization_id))
             if org_group_ids:
                 current_ids = set(self.repo.group_ids_for_user(user_id))
                 remaining = current_ids - org_group_ids
                 if remaining != current_ids:
-                    self.replace_user_groups(user_id, remaining, actor=actor)
+                    self.replace_user_groups(user_id, list(remaining), actor=actor)
 
     def remove_system_group(
         self, user: User, system_key: str, actor: User | None = None

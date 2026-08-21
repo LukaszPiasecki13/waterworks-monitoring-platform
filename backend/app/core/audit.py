@@ -17,6 +17,7 @@ class EntityType(StrEnum):
     CORE_DATA_WATER_OBJECT = "core_data_water_object"
     CORE_DATA_DEVICE = "core_data_device"
     CORE_DATA_MEASUREMENT_POINT = "core_data_measurement_point"
+    DEVICE_IDENTITY_CREDENTIAL = "device_identity_credential"
 
 
 @dataclass(frozen=True, slots=True)

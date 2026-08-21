@@ -43,6 +43,7 @@ from app.modules.core_data.services.measurement_points import (
     MeasurementPointService,
 )
 from app.modules.core_data.services.water_objects import WaterObjectService
+from app.modules.device_identity.models.device_credential import DeviceCredential
 from app.modules.security.access import OrganizationAccess
 
 
@@ -76,12 +77,32 @@ def org_a_and_b(db_session: Session):
     db_session.add_all([water_a, water_b])
     db_session.flush()
 
+    # Create device credentials
+    cred_a = DeviceCredential(
+        id=uuid4(),
+        serial_number="device-a",
+        public_key_pem="-----BEGIN PUBLIC KEY-----\ntest-a\n-----END PUBLIC KEY-----",
+        status="claimed",
+        created_at=datetime(2026, 1, 1),
+        updated_at=datetime(2026, 1, 1),
+    )
+    cred_b = DeviceCredential(
+        id=uuid4(),
+        serial_number="device-b",
+        public_key_pem="-----BEGIN PUBLIC KEY-----\ntest-b\n-----END PUBLIC KEY-----",
+        status="claimed",
+        created_at=datetime(2026, 1, 1),
+        updated_at=datetime(2026, 1, 1),
+    )
+    db_session.add_all([cred_a, cred_b])
+    db_session.flush()
+
     # Create devices in each org
     device_a = Device(
         id=uuid4(),
         water_object_id=water_a.id,
         external_id="device-a",
-        hashed_secret="hash-a",
+        device_credential_id=cred_a.id,
         firmware_version="1.0",
         is_active=True,
         created_at=datetime(2026, 1, 1),
@@ -91,7 +112,7 @@ def org_a_and_b(db_session: Session):
         id=uuid4(),
         water_object_id=water_b.id,
         external_id="device-b",
-        hashed_secret="hash-b",
+        device_credential_id=cred_b.id,
         firmware_version="1.0",
         is_active=True,
         created_at=datetime(2026, 1, 1),

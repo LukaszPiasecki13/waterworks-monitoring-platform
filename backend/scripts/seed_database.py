@@ -22,6 +22,7 @@ from app.modules.core_data.models.organization import Organization
 from app.modules.core_data.models.user import User
 from app.modules.core_data.models.users_organizations import UsersOrganizations
 from app.modules.core_data.models.water_object import WaterObject
+from app.modules.device_identity.models import DeviceCredential
 from app.modules.security.models import Permission, UserGroup
 from app.modules.security.permission_catalog import (
     ADMIN_GROUP_KEY,
@@ -421,83 +422,60 @@ def seed_database():
         # 4. Create Devices
         print("\n📱 Creating devices...")
 
+        def create_test_device(
+            session,
+            external_id: str,
+            water_object_id,
+            firmware_version: str | None = None,
+        ):
+            """Create a test device with a dummy credential."""
+            device = session.query(Device).filter_by(external_id=external_id).first()
+            if device:
+                return device
+
+            # Create dummy credential for test device
+            credential = DeviceCredential(
+                id=uuid4(),
+                serial_number=external_id,
+                public_key_pem=(
+                    "-----BEGIN PUBLIC KEY-----\n"
+                    "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEYjmz7JoKPLfZzJKsHfL8YAq6Z6K3\n"
+                    "YfHFcGwI/vfbz4R8Fzvj3tF6BxqC3n5J9a9o3n5J9a9o3n5J9a9o3nQ==\n"
+                    "-----END PUBLIC KEY-----"
+                ),
+                status="claimed",
+            )
+            session.add(credential)
+            session.flush()
+
+            device = Device(
+                id=uuid4(),
+                water_object_id=water_object_id,
+                external_id=external_id,
+                device_credential_id=credential.id,
+                firmware_version=firmware_version,
+                last_seen_at=datetime.now(UTC),
+                is_active=True,
+            )
+            session.add(device)
+            return device
+
         # Gmina Frysztak devices
-        # ESP32 device for telemetry
-        dev_esp32 = (
-            session.query(Device).filter_by(external_id="esp32-a7670e-0001").first()
+        create_test_device(session, "esp32-a7670e-0001", fr_intake.id, "1.0.0")
+        dev_fr_intake = create_test_device(
+            session, "FR-INTAKE-001", fr_intake.id, "2.1.5"
         )
-        if not dev_esp32:
-            dev_esp32 = Device(
-                id=uuid4(),
-                water_object_id=fr_intake.id,
-                external_id="esp32-a7670e-0001",
-                hashed_secret=hash_password("Test1"),
-                firmware_version="1.0.0",
-                last_seen_at=datetime.now(UTC),
-                is_active=True,
-            )
-            session.add(dev_esp32)
-
-        dev_fr_intake = (
-            session.query(Device).filter_by(external_id="FR-INTAKE-001").first()
+        dev_fr_treatment = create_test_device(
+            session, "FR-TREATMENT-001", fr_treatment.id, "2.0.3"
         )
-        if not dev_fr_intake:
-            dev_fr_intake = Device(
-                id=uuid4(),
-                water_object_id=fr_intake.id,
-                external_id="FR-INTAKE-001",
-                hashed_secret=hash_password("device_secret_123"),
-                firmware_version="2.1.5",
-                last_seen_at=datetime.now(UTC),
-                is_active=True,
-            )
-            session.add(dev_fr_intake)
-
-        dev_fr_treatment = (
-            session.query(Device).filter_by(external_id="FR-TREATMENT-001").first()
-        )
-        if not dev_fr_treatment:
-            dev_fr_treatment = Device(
-                id=uuid4(),
-                water_object_id=fr_treatment.id,
-                external_id="FR-TREATMENT-001",
-                hashed_secret=hash_password("device_secret_456"),
-                firmware_version="2.0.3",
-                last_seen_at=datetime.now(UTC),
-                is_active=True,
-            )
-            session.add(dev_fr_treatment)
 
         # Gmina Radziłów devices
-        dev_rad_intake = (
-            session.query(Device).filter_by(external_id="RAD-INTAKE-001").first()
+        dev_rad_intake = create_test_device(
+            session, "RAD-INTAKE-001", rad_intake.id, "2.2.0"
         )
-        if not dev_rad_intake:
-            dev_rad_intake = Device(
-                id=uuid4(),
-                water_object_id=rad_intake.id,
-                external_id="RAD-INTAKE-001",
-                hashed_secret=hash_password("device_secret_789"),
-                firmware_version="2.2.0",
-                last_seen_at=datetime.now(UTC),
-                is_active=True,
-            )
-            session.add(dev_rad_intake)
-
-        dev_rad_treatment = (
-            session.query(Device).filter_by(external_id="RAD-TREATMENT-001").first()
+        dev_rad_treatment = create_test_device(
+            session, "RAD-TREATMENT-001", rad_treatment.id, "1.9.8"
         )
-        if not dev_rad_treatment:
-            dev_rad_treatment = Device(
-                id=uuid4(),
-                water_object_id=rad_treatment.id,
-                external_id="RAD-TREATMENT-001",
-                hashed_secret=hash_password("device_secret_012"),
-                firmware_version="1.9.8",
-                last_seen_at=datetime.now(UTC),
-                is_active=True,
-            )
-            session.add(dev_rad_treatment)
 
         session.commit()
         print("  ✓ Created devices (checked for existing)")

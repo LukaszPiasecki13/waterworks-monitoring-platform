@@ -20,6 +20,9 @@ from app.modules.core_data.api import (
     users_router,
     water_objects_router,
 )
+from app.modules.device_identity.api.claims import claims_router
+from app.modules.device_identity.api.device_auth import device_auth_router
+from app.modules.device_identity.api.provisioning import provisioning_router
 from app.modules.security.api import (
     auth_router,
     org_router,
@@ -95,15 +98,20 @@ app.include_router(context_router)
 # Ingest endpoint (unprefixed: /telemetry/ingest)
 app.include_router(telemetry_ingest_router)
 
+# Device authentication endpoints (unprefixed: /devices/auth/*)
+app.include_router(device_auth_router)
+
 # API v1 endpoints - platform level
 app.include_router(users_router, prefix=f"{API_V1_PREFIX}/platform")
 app.include_router(organizations_router, prefix=f"{API_V1_PREFIX}/platform")
 app.include_router(platform_router, prefix=f"{API_V1_PREFIX}/platform")
 app.include_router(platform_audit_router, prefix=f"{API_V1_PREFIX}/platform")
+app.include_router(provisioning_router, prefix=f"{API_V1_PREFIX}/platform")
 
 # API v1 endpoints - organization level
 app.include_router(water_objects_router, prefix=API_V1_PREFIX)
 app.include_router(devices_router, prefix=API_V1_PREFIX)
+app.include_router(claims_router, prefix=API_V1_PREFIX)
 app.include_router(measurement_points_router, prefix=API_V1_PREFIX)
 app.include_router(members_router, prefix=API_V1_PREFIX)
 app.include_router(permissions_router, prefix=API_V1_PREFIX)

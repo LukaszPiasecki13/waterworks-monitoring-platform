@@ -96,14 +96,14 @@ class DeviceRepository(SQLRepository):
         self,
         water_object_id: UUID,
         external_id: str,
-        hashed_secret: str,
+        device_credential_id: UUID,
         firmware_version: str | None = None,
     ) -> Device:
-        """Create new device."""
+        """Create new device with device credential."""
         device = Device(
             water_object_id=water_object_id,
             external_id=external_id,
-            hashed_secret=hashed_secret,
+            device_credential_id=device_credential_id,
             firmware_version=firmware_version,
         )
         self.session.add(device)

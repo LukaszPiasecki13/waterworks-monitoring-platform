@@ -1,22 +1,14 @@
 """Dependency wiring for telemetry module."""
 
-from fastapi import Depends, Header
+from fastapi import Depends
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
 from app.core.dependencies import get_db
-from app.modules.core_data.dependencies import get_device_service
 from app.modules.telemetry.repositories.packets import TelemetryPacketRepository
 from app.modules.telemetry.repositories.queries import TelemetryQueryRepository
 from app.modules.telemetry.services.ingest import TelemetryIngestService
 from app.modules.telemetry.services.query import TelemetryQueryService
-
-
-def get_device_secret_header(
-    x_device_key: str | None = Header(default=None, alias="X-Device-Key"),
-) -> str | None:
-    """Extract device secret from X-Device-Key header, if present."""
-    return x_device_key
 
 
 def get_telemetry_packet_repository(
@@ -27,9 +19,8 @@ def get_telemetry_packet_repository(
 
 def get_telemetry_ingest_service(
     repository: TelemetryPacketRepository = Depends(get_telemetry_packet_repository),
-    device_service=Depends(get_device_service),
 ) -> TelemetryIngestService:
-    return TelemetryIngestService(repository=repository, device_service=device_service)
+    return TelemetryIngestService(repository=repository)
 
 
 def get_telemetry_query_repository(

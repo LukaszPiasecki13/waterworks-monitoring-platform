@@ -23,6 +23,8 @@ class Settings(BaseSettings):
     secret_key: str
     access_token_expire_minutes: int = Field(default=120, gt=0)
     refresh_token_expire_days: int = Field(default=1, gt=0)
+    device_token_expire_hours: int = Field(default=36, gt=0)
+    device_challenge_expire_seconds: int = Field(default=300, gt=0)
     algorithm: str = "HS256"
 
     # HTTP
@@ -30,9 +32,6 @@ class Settings(BaseSettings):
 
     # File storage
     attachment_storage_path: str = "storage/attachments"
-
-    # Telemetry ingest
-    telemetry_ingest_key: str | None = None
 
     # Telemetry query
     telemetry_stale_after_seconds: int = Field(
@@ -81,8 +80,6 @@ class Settings(BaseSettings):
             return self
         if len(self.secret_key) < 32:
             raise ValueError("secret_key must be at least 32 characters outside dev")
-        if not self.telemetry_ingest_key:
-            raise ValueError("telemetry_ingest_key is required outside dev")
         # An empty list is rejected too: main.py falls back to a wildcard when
         # no origin is configured, so "unset" is as unsafe as an explicit "*".
         if not self.cors_origins:

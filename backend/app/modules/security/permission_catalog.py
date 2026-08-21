@@ -22,6 +22,7 @@ PLATFORM_VIEW_USERS = "PLATFORM_VIEW_USERS"
 PLATFORM_MANAGE_USERS = "PLATFORM_MANAGE_USERS"
 PLATFORM_MANAGE_MEMBERSHIPS = "PLATFORM_MANAGE_MEMBERSHIPS"
 PLATFORM_VIEW_AUDIT = "PLATFORM_VIEW_AUDIT"
+PLATFORM_MANAGE_DEVICE_PROVISIONING = "PLATFORM_MANAGE_DEVICE_PROVISIONING"
 
 # System group keys
 ADMIN_GROUP_KEY = "admin"
@@ -139,6 +140,12 @@ PERMISSION_CATALOG = [
     PermissionDefinition(
         code=PLATFORM_VIEW_AUDIT,
         name="Podgląd audytu globalnego",
+        category="Platforma",
+        plane="platform",
+    ),
+    PermissionDefinition(
+        code=PLATFORM_MANAGE_DEVICE_PROVISIONING,
+        name="Zarządzanie provisioningiem urządzeń",
         category="Platforma",
         plane="platform",
     ),

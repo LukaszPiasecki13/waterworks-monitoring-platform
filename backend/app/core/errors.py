@@ -57,6 +57,13 @@ class ValidationException(APIError):  # noqa: N818
         super().__init__(message, status.HTTP_422_UNPROCESSABLE_CONTENT)
 
 
+class GoneError(APIError):
+    """Resource is gone (expired challenge, etc)."""
+
+    def __init__(self, message: str = "Resource is gone"):
+        super().__init__(message, status.HTTP_410_GONE)
+
+
 def _error_response(status_code: int, detail: object) -> JSONResponse:
     return JSONResponse(status_code=status_code, content={"detail": detail})
 

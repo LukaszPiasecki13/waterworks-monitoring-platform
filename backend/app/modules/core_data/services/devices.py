@@ -1,6 +1,5 @@
 """Device management service."""
 
-import secrets
 from uuid import UUID
 
 from sqlalchemy.exc import IntegrityError
@@ -10,12 +9,8 @@ from app.core.errors import ConflictError
 from app.modules.core_data.models.device import Device
 from app.modules.core_data.repositories.devices import DeviceRepository
 from app.modules.core_data.repositories.water_objects import WaterObjectRepository
-from app.modules.core_data.schemas.devices import (
-    DeviceCreateRequest,
-    DeviceUpdateRequest,
-)
+from app.modules.core_data.schemas.devices import DeviceUpdateRequest
 from app.modules.security.access import OrganizationAccess
-from app.modules.security.services.password import hash_password, verify_password
 
 
 class DeviceService:
@@ -25,21 +20,6 @@ class DeviceService:
     and permissions (see `require_org_access`) and pass in the resulting
     `OrganizationAccess`.
     """
-
-    @staticmethod
-    def generate_secret() -> str:
-        """Generate a random device secret."""
-        return secrets.token_urlsafe(32)
-
-    @staticmethod
-    def hash_secret(plain: str) -> str:
-        """Hash device secret using bcrypt."""
-        return hash_password(plain)
-
-    @staticmethod
-    def verify_secret(plain: str, hashed: str) -> bool:
-        """Verify device secret against hash."""
-        return verify_password(plain, hashed)
 
     def __init__(
         self,
@@ -55,6 +35,7 @@ class DeviceService:
         return {
             "external_id": device.external_id,
             "water_object_id": device.water_object_id,
+            "device_credential_id": device.device_credential_id,
             "firmware_version": device.firmware_version,
             "is_active": device.is_active,
         }
@@ -63,7 +44,8 @@ class DeviceService:
         self,
         action: str,
         device,
-        org_access: OrganizationAccess,
+        actor_id: str,
+        actor_display_name: str | None,
         old_state: dict,
         new_state: dict,
     ) -> None:
@@ -72,8 +54,8 @@ class DeviceService:
                 entity_type=EntityType.CORE_DATA_DEVICE.value,
                 entity_id=str(device.id),
                 action=action,
-                actor_id=str(org_access.actor.id),
-                actor_display_name=org_access.actor.email,
+                actor_id=actor_id,
+                actor_display_name=actor_display_name,
                 changes=calculate_delta(old_state, new_state),
             )
         )
@@ -81,6 +63,13 @@ class DeviceService:
     def get_by_id(self, device_id: UUID, org_access: OrganizationAccess):
         """Get device by ID."""
         return self.repo.find_in_organization(device_id, org_access.organization_id)
+
+    def find_by_id_unscoped(self, device_id: UUID) -> Device:
+        """Find device by ID without org scope (for device_identity internal use).
+
+        Raises NotFoundError if not found.
+        """
+        return self.repo.find_by_id(device_id)
 
     def get_by_external_id(self, external_id: str) -> Device | None:
         """Get device by external ID, returns None if not found."""
@@ -100,34 +89,46 @@ class DeviceService:
         )
         return devices, count
 
-    def create(
-        self, request: DeviceCreateRequest, org_access: OrganizationAccess
+    def create_claimed(
+        self,
+        *,
+        water_object_id: UUID,
+        serial_number: str,
+        device_credential_id: UUID,
+        actor_id: str,
+        actor_display_name: str | None,
     ) -> Device:
-        """Create device in organization.
+        """Create a device claimed by a credential.
 
-        Generates a per-device secret, hashes and stores it. Returns the plaintext
-        secret to the operator (only shown at creation time) so they can configure
-        the device to authenticate to ingest service.
+        Called by device_identity on first verify.
+
+        Args:
+            water_object_id: Water object the device belongs to
+            serial_number: Device serial number (external_id)
+            device_credential_id: The credential UUID
+            actor_id: Audit actor ID
+            actor_display_name: Audit actor display name
+
+        Returns:
+            The created device
         """
         with self.repo.transaction():
-            self.water_object_repo.find_in_organization(
-                request.water_object_id, org_access.organization_id
-            )
-            if self.repo.get_by_external_id(request.external_id):
-                raise ConflictError("Device with this external_id already exists")
-            plaintext_secret = self.generate_secret()
-            hashed_secret = self.hash_secret(plaintext_secret)
             device = self.repo.create(
-                water_object_id=request.water_object_id,
-                external_id=request.external_id,
-                hashed_secret=hashed_secret,
-                firmware_version=request.firmware_version,
+                water_object_id=water_object_id,
+                external_id=serial_number,
+                device_credential_id=device_credential_id,
+                firmware_version=None,
             )
             self.repo.flush()
             self.repo.refresh(device)
-            # Attach plaintext secret to device object for inclusion in response
-            device.secret = plaintext_secret
-            self._record_audit("CREATE", device, org_access, {}, self._state(device))
+            self._record_audit(
+                "CREATE",
+                device,
+                actor_id,
+                actor_display_name,
+                {},
+                self._state(device),
+            )
             return device
 
     def update(
@@ -149,7 +150,14 @@ class DeviceService:
             if not calculate_delta(old_state, new_state):
                 tx.skip_audit()
                 return device
-            self._record_audit("UPDATE", device, org_access, old_state, new_state)
+            self._record_audit(
+                "UPDATE",
+                device,
+                str(org_access.actor.id),
+                org_access.actor.email,
+                old_state,
+                new_state,
+            )
             return device
 
     def delete(self, device_id: UUID, org_access: OrganizationAccess) -> None:
@@ -161,7 +169,14 @@ class DeviceService:
                 )
                 old_state = self._state(device)
                 self.repo.delete(device)
-                self._record_audit("DELETE", device, org_access, old_state, {})
+                self._record_audit(
+                    "DELETE",
+                    device,
+                    str(org_access.actor.id),
+                    org_access.actor.email,
+                    old_state,
+                    {},
+                )
         except IntegrityError as err:
             raise ConflictError(
                 "Cannot delete device with related measurement points"

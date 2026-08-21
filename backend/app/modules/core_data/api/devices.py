@@ -6,8 +6,6 @@ from fastapi import APIRouter, Body, Depends, Path
 
 from app.modules.core_data.dependencies import get_device_service
 from app.modules.core_data.schemas.devices import (
-    DeviceCreateRequest,
-    DeviceCreateResponse,
     DeviceResponse,
     DeviceUpdateRequest,
     ListDevicesRequest,
@@ -39,17 +37,6 @@ def list_devices(
         skip=query.skip,
         limit=query.limit,
     )
-
-
-@router.post("", response_model=DeviceCreateResponse)
-def create_device(
-    org_id: UUID = Path(...),
-    request: DeviceCreateRequest = Body(...),
-    org_access: OrganizationAccess = Depends(require_org_access(CAN_MANAGE_ASSETS)),
-    service: DeviceService = Depends(get_device_service),
-):
-    """Create device."""
-    return service.create(request, org_access)
 
 
 @router.get("/{device_id}", response_model=DeviceResponse)

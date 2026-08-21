@@ -36,6 +36,7 @@ def get_token_service() -> TokenService:
         algorithm=settings.algorithm,
         access_token_expire_minutes=settings.access_token_expire_minutes,
         refresh_token_expire_days=settings.refresh_token_expire_days,
+        device_token_expire_hours=settings.device_token_expire_hours,
     )
 
 

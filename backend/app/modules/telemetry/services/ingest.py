@@ -2,13 +2,9 @@
 
 from datetime import UTC, datetime
 
-from app.modules.core_data.services.devices import DeviceService
-from app.modules.telemetry.exceptions import (
-    InactiveDeviceError,
-    InvalidDeviceSecretError,
-    TelemetryPacketAlreadyExistsError,
-    UnknownDeviceError,
-)
+from app.core.errors import ForbiddenError
+from app.modules.core_data.models.device import Device
+from app.modules.telemetry.exceptions import TelemetryPacketAlreadyExistsError
 from app.modules.telemetry.repositories.packets import TelemetryPacketRepository
 from app.modules.telemetry.schemas.measurement_packet import (
     MeasurementPacketRequest,
@@ -17,40 +13,25 @@ from app.modules.telemetry.schemas.measurement_packet import (
 
 
 class TelemetryIngestService:
-    def __init__(
-        self, repository: TelemetryPacketRepository, device_service: DeviceService
-    ):
+    def __init__(self, repository: TelemetryPacketRepository):
         self._repository = repository
-        self._device_service = device_service
-
-    def _verify_device_credentials(self, device_id: str, device_secret: str | None):
-        """Authenticate a device by external_id and secret.
-
-        Returns the Device if valid.
-        Raises UnknownDeviceError (401), InvalidDeviceSecretError (403),
-        or InactiveDeviceError (403).
-        """
-        if device_secret is None:
-            raise InvalidDeviceSecretError
-
-        device = self._device_service.get_by_external_id(device_id)
-
-        if not device:
-            raise UnknownDeviceError(device_id)
-
-        if not device.is_active:
-            raise InactiveDeviceError(device_id)
-
-        if not DeviceService.verify_secret(device_secret, device.hashed_secret):
-            raise InvalidDeviceSecretError
-
-        return device
 
     def ingest(
-        self, packet: MeasurementPacketRequest, device_secret: str | None
+        self, packet: MeasurementPacketRequest, device: Device
     ) -> TelemetryIngestResponse:
-        """Ingest a telemetry packet from an authenticated device."""
-        self._verify_device_credentials(packet.device_id, device_secret)
+        """Ingest a telemetry packet from an authenticated device.
+
+        Args:
+            packet: The measurement packet
+            device: The authenticated device (from bearer token)
+
+        Raises:
+            ForbiddenError: If packet device_id doesn't match authenticated device
+        """
+        if packet.device_id != device.external_id:
+            raise ForbiddenError(
+                "Device ID mismatch: packet doesn't match authenticated device"
+            )
 
         exists = self._repository.exists_by_device_seq(
             device_id=packet.device_id,

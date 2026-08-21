@@ -8,14 +8,6 @@ from pydantic import ConfigDict, Field
 from app.core.schemas import BaseSchema
 
 
-class DeviceCreateRequest(BaseSchema):
-    """Create device request."""
-
-    water_object_id: UUID
-    external_id: str = Field(..., min_length=1, max_length=128)
-    firmware_version: str | None = Field(None, max_length=50)
-
-
 class DeviceUpdateRequest(BaseSchema):
     """Update device request."""
 
@@ -24,7 +16,7 @@ class DeviceUpdateRequest(BaseSchema):
 
 
 class DeviceResponse(BaseSchema):
-    """Device response DTO (no secret)."""
+    """Device response DTO."""
 
     id: UUID
     water_object_id: UUID
@@ -32,19 +24,6 @@ class DeviceResponse(BaseSchema):
     firmware_version: str | None
     last_seen_at: datetime | None = None
     last_diagnostics_at: datetime | None = None
-    is_active: bool
-
-    model_config = ConfigDict(from_attributes=True)
-
-
-class DeviceCreateResponse(BaseSchema):
-    """Device creation response (includes plaintext secret for operator setup)."""
-
-    id: UUID
-    water_object_id: UUID
-    external_id: str
-    firmware_version: str | None
-    secret: str  # Plaintext secret shown only at creation time
     is_active: bool
 
     model_config = ConfigDict(from_attributes=True)

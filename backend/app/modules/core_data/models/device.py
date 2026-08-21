@@ -32,7 +32,13 @@ class Device(Base):
         nullable=False,
         index=True,
     )
-    hashed_secret: Mapped[str] = mapped_column(String(255), nullable=False)
+    device_credential_id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("device_credentials.id"),
+        unique=True,
+        nullable=False,
+        index=True,
+    )
     firmware_version: Mapped[str | None] = mapped_column(String(50))
     last_seen_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     last_diagnostics_at: Mapped[datetime | None] = mapped_column(
