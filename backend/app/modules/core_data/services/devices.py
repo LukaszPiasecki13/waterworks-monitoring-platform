@@ -82,6 +82,10 @@ class DeviceService:
         """Get device by ID."""
         return self.repo.find_in_organization(device_id, org_access.organization_id)
 
+    def get_by_external_id(self, external_id: str) -> Device | None:
+        """Get device by external ID, returns None if not found."""
+        return self.repo.get_by_external_id(external_id)
+
     def list_all(self, query, org_access: OrganizationAccess):
         """List devices in organization."""
         devices = self.repo.list_all_with_org_filter(

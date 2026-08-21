@@ -429,3 +429,86 @@ def test_create_group_without_organization_id_creates_platform_group(
     db_session.flush()
 
     assert created.organization_id is None
+
+
+def test_sync_org_membership_group_joined_true_adds_user_to_org_admin_group(
+    db_session: Session,
+) -> None:
+    """sync_org_membership_group(..., joined=True) adds user to org's admin group."""
+    from app.modules.security.permission_catalog import ORG_ADMIN_GROUP_KEY
+
+    org = Organization(name="Test Org Sync 1")
+    db_session.add(org)
+    db_session.flush()
+
+    user = _user(db_session, "syncuser1")
+    actor = _user(db_session, "syncadmin1")
+    db_session.commit()
+
+    service = _group_service(db_session)
+
+    # Create org admin group
+    admin_group = (
+        db_session.query(UserGroup)
+        .filter_by(organization_id=org.id, system_key=ORG_ADMIN_GROUP_KEY)
+        .first()
+    )
+    if not admin_group:
+        admin_group = UserGroup(
+            name="Org Admin",
+            description="Organization admin",
+            is_system=True,
+            system_key=ORG_ADMIN_GROUP_KEY,
+            organization_id=org.id,
+        )
+        db_session.add(admin_group)
+        db_session.flush()
+
+    # Sync membership (joined=True)
+    service.sync_org_membership_group(user.id, org.id, joined=True, actor=actor)
+
+    # Check user is now in admin group
+    user_groups = service.group_ids_for_user(user.id)
+    assert admin_group.id in user_groups
+
+
+def test_sync_org_membership_group_joined_false_removes_user_from_org_groups(
+    db_session: Session,
+) -> None:
+    """sync_org_membership_group(..., joined=False) removes user from org groups."""
+    from app.modules.security.permission_catalog import ORG_ADMIN_GROUP_KEY
+
+    org = Organization(name="Test Org Sync 2")
+    db_session.add(org)
+    db_session.flush()
+
+    user = _user(db_session, "syncuser2")
+    actor = _user(db_session, "syncadmin2")
+
+    # Create org admin group
+    admin_group = UserGroup(
+        name="Org Admin",
+        description="Organization admin",
+        is_system=True,
+        system_key=ORG_ADMIN_GROUP_KEY,
+        organization_id=org.id,
+    )
+    db_session.add(admin_group)
+    db_session.flush()
+
+    service = _group_service(db_session)
+
+    # Add user to group first
+    repo = GroupRepository(db_session)
+    repo.replace_user_groups(user.id, {admin_group.id})
+    db_session.flush()
+
+    # Verify user is in group
+    assert admin_group.id in service.group_ids_for_user(user.id)
+
+    # Sync membership (joined=False)
+    service.sync_org_membership_group(user.id, org.id, joined=False, actor=actor)
+
+    # Check user was removed from admin group
+    user_groups = service.group_ids_for_user(user.id)
+    assert admin_group.id not in user_groups

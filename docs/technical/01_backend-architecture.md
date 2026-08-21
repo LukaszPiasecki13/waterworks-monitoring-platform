@@ -100,7 +100,7 @@ Skupia się na praktycznym, poziomym podziale odpowiedzialności — bardziej cz
 | Warstwa | Może importować z |
 |---|---|
 | **API** | Services (własny moduł), Core, Errors |
-| **Services** | Repositories (własny lub inny moduł), inne Services, Core, Errors |
+| **Services** | Repositories (własny moduł), inne Services, Core, Errors |
 | **Repositories** | Infrastructure, Core, Errors |
 | **Infrastructure** | Core, Errors |
 

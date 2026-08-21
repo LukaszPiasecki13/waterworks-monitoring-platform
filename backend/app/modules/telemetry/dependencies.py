@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
 from app.core.dependencies import get_db
+from app.modules.core_data.dependencies import get_device_service
 from app.modules.telemetry.repositories.packets import TelemetryPacketRepository
 from app.modules.telemetry.repositories.queries import TelemetryQueryRepository
 from app.modules.telemetry.services.ingest import TelemetryIngestService
@@ -26,9 +27,9 @@ def get_telemetry_packet_repository(
 
 def get_telemetry_ingest_service(
     repository: TelemetryPacketRepository = Depends(get_telemetry_packet_repository),
-    session: Session = Depends(get_db),
+    device_service=Depends(get_device_service),
 ) -> TelemetryIngestService:
-    return TelemetryIngestService(repository=repository, session=session)
+    return TelemetryIngestService(repository=repository, device_service=device_service)
 
 
 def get_telemetry_query_repository(

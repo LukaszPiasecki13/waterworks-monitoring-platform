@@ -11,8 +11,7 @@ from app.modules.core_data.repositories.users_organizations import (
     UsersOrganizationsRepository,
 )
 from app.modules.core_data.services.users import UserService
-from app.modules.security.permission_catalog import ORG_ADMIN_GROUP_KEY
-from app.modules.security.repositories import GroupRepository
+from app.modules.security.services.groups import GroupService
 
 if TYPE_CHECKING:
     from app.modules.security.access import OrganizationAccess
@@ -25,12 +24,12 @@ class MembersService:
         self,
         repo: UsersOrganizationsRepository,
         user_service: UserService,
-        group_repo: GroupRepository,
+        groups: GroupService,
         audit: AuditPort,
     ):
         self.repo = repo
         self.user_service = user_service
-        self.group_repo = group_repo
+        self.groups = groups
         self.audit = audit
 
     def list_members(self, org_access: OrganizationAccess, skip: int, limit: int):
@@ -46,17 +45,6 @@ class MembersService:
         with self.repo.transaction():
             self.repo.add_member(user_id, org_access.organization_id)
             self.repo.flush()
-
-            # Auto-assign user to org's admin group so membership appears in
-            # environment picker
-            admin_group = self.group_repo.get_group_by_system_key(
-                ORG_ADMIN_GROUP_KEY, organization_id=org_access.organization_id
-            )
-            if admin_group:
-                current_groups = set(self.group_repo.group_ids_for_user(user_id))
-                current_groups.add(admin_group.id)
-                self.group_repo.replace_user_groups(user_id, current_groups)
-                self.repo.flush()
 
             self.audit.record(
                 AuditEntry(
@@ -75,6 +63,13 @@ class MembersService:
                     context_id=str(org_access.organization_id),
                 )
             )
+
+        self.groups.sync_org_membership_group(
+            user_id,
+            org_access.organization_id,
+            joined=True,
+            actor=org_access.actor,
+        )
         return user
 
     def remove_member(self, user_id: UUID, org_access: OrganizationAccess) -> None:
@@ -82,15 +77,6 @@ class MembersService:
             raise NotFoundError("User is not a member of this organization")
 
         with self.repo.transaction():
-            org_group_ids = set(
-                self.group_repo.group_ids_for_organization(org_access.organization_id)
-            )
-            if org_group_ids:
-                current_groups = set(self.group_repo.group_ids_for_user(user_id))
-                remaining = current_groups - org_group_ids
-                if remaining != current_groups:
-                    self.group_repo.replace_user_groups(user_id, remaining)
-
             self.repo.remove_member(user_id, org_access.organization_id)
             self.repo.flush()
             self.audit.record(
@@ -110,6 +96,13 @@ class MembersService:
                     context_id=str(org_access.organization_id),
                 )
             )
+
+        self.groups.sync_org_membership_group(
+            user_id,
+            org_access.organization_id,
+            joined=False,
+            actor=org_access.actor,
+        )
 
     def get_organizations_for_user(self, user_id: UUID) -> list[Organization]:
         """Get all organizations user is a member of, with full org details."""
@@ -150,6 +143,10 @@ class MembersService:
                 )
             )
 
+        self.groups.sync_org_membership_group(
+            user_id, organization_id, joined=True, actor=actor
+        )
+
     def remove_user_from_organization(
         self, user_id: UUID, organization_id: UUID, actor: User
     ) -> None:
@@ -158,15 +155,6 @@ class MembersService:
             raise NotFoundError("User is not a member of this organization")
 
         with self.repo.transaction():
-            org_group_ids = set(
-                self.group_repo.group_ids_for_organization(organization_id)
-            )
-            if org_group_ids:
-                current_groups = set(self.group_repo.group_ids_for_user(user_id))
-                remaining = current_groups - org_group_ids
-                if remaining != current_groups:
-                    self.group_repo.replace_user_groups(user_id, remaining)
-
             self.repo.remove_member(user_id, organization_id)
             self.repo.flush()
             self.audit.record(
@@ -186,3 +174,7 @@ class MembersService:
                     context_id=str(organization_id),
                 )
             )
+
+        self.groups.sync_org_membership_group(
+            user_id, organization_id, joined=False, actor=actor
+        )

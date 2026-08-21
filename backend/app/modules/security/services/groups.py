@@ -14,6 +14,7 @@ from app.modules.security.audit_state import security_group_audit_state
 from app.modules.security.models import UserGroup
 from app.modules.security.permission_catalog import (
     ADMIN_GROUP_KEY,
+    ORG_ADMIN_GROUP_KEY,
     STAFF_GROUP_KEY,
 )
 from app.modules.security.repositories.groups import GroupRepository
@@ -350,6 +351,32 @@ class GroupService:
                     self._group_state(group),
                 )
             return sorted(ids)
+
+    def sync_org_membership_group(
+        self, user_id: UUID, organization_id: UUID, *, joined: bool, actor: User
+    ) -> None:
+        """Sync organization-scoped group membership on join/leave.
+
+        When a user joins an organization (joined=True), auto-assign them to the
+        org's admin group so they appear in the environment picker. When they
+        leave (joined=False), remove them from all org-scoped groups.
+        """
+        if joined:
+            admin_group = self.repo.get_group_by_system_key(
+                ORG_ADMIN_GROUP_KEY, organization_id=organization_id
+            )
+            if admin_group:
+                current_ids = set(self.repo.group_ids_for_user(user_id))
+                if admin_group.id not in current_ids:
+                    current_ids.add(admin_group.id)
+                    self.replace_user_groups(user_id, current_ids, actor=actor)
+        else:
+            org_group_ids = set(self.repo.group_ids_for_organization(organization_id))
+            if org_group_ids:
+                current_ids = set(self.repo.group_ids_for_user(user_id))
+                remaining = current_ids - org_group_ids
+                if remaining != current_ids:
+                    self.replace_user_groups(user_id, remaining, actor=actor)
 
     def remove_system_group(
         self, user: User, system_key: str, actor: User | None = None

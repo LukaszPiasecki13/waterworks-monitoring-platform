@@ -2,11 +2,7 @@
 
 from datetime import UTC, datetime
 
-from sqlalchemy import select
-from sqlalchemy.orm import Session
-
-from app.modules.core_data.models.device import Device
-from app.modules.security.services.password import verify_password
+from app.modules.core_data.services.devices import DeviceService
 from app.modules.telemetry.exceptions import (
     InactiveDeviceError,
     InvalidDeviceSecretError,
@@ -21,13 +17,13 @@ from app.modules.telemetry.schemas.measurement_packet import (
 
 
 class TelemetryIngestService:
-    def __init__(self, repository: TelemetryPacketRepository, session: Session):
+    def __init__(
+        self, repository: TelemetryPacketRepository, device_service: DeviceService
+    ):
         self._repository = repository
-        self._session = session
+        self._device_service = device_service
 
-    def _verify_device_credentials(
-        self, device_id: str, device_secret: str | None
-    ) -> Device:
+    def _verify_device_credentials(self, device_id: str, device_secret: str | None):
         """Authenticate a device by external_id and secret.
 
         Returns the Device if valid.
@@ -37,8 +33,7 @@ class TelemetryIngestService:
         if device_secret is None:
             raise InvalidDeviceSecretError
 
-        stmt = select(Device).where(Device.external_id == device_id)
-        device = self._session.execute(stmt).scalar_one_or_none()
+        device = self._device_service.get_by_external_id(device_id)
 
         if not device:
             raise UnknownDeviceError(device_id)
@@ -46,7 +41,7 @@ class TelemetryIngestService:
         if not device.is_active:
             raise InactiveDeviceError(device_id)
 
-        if not verify_password(device_secret, device.hashed_secret):
+        if not DeviceService.verify_secret(device_secret, device.hashed_secret):
             raise InvalidDeviceSecretError
 
         return device

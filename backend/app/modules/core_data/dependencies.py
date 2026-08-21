@@ -25,11 +25,8 @@ from app.modules.core_data.services.members import MembersService
 from app.modules.core_data.services.organizations import OrganizationService
 from app.modules.core_data.services.users import UserService
 from app.modules.core_data.services.water_objects import WaterObjectService
-from app.modules.security.dependencies import (
-    get_group_repo,
-    get_permission_service,
-)
-from app.modules.security.repositories import GroupRepository
+from app.modules.security.dependencies import get_group_service, get_permission_service
+from app.modules.security.services.groups import GroupService
 from app.modules.security.services.permissions import PermissionService
 
 
@@ -115,11 +112,11 @@ def get_users_organizations_repo(
 def get_members_service(
     repo: UsersOrganizationsRepository = Depends(get_users_organizations_repo),
     user_service: UserService = Depends(get_user_service),
-    group_repo: GroupRepository = Depends(get_group_repo),
+    groups: GroupService = Depends(get_group_service),
     audit: AuditPort = Depends(get_audit_service),
 ) -> MembersService:
     """Get members service dependency."""
-    return MembersService(repo, user_service, group_repo, audit)
+    return MembersService(repo, user_service, groups, audit)
 
 
 def get_user_context_service(
