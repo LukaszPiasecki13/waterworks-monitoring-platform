@@ -24,7 +24,7 @@
 
 ## 4. Nieoczywiste decyzje projektowe
 
-**Per-device authentication** — każde `Device` ma unikalny `hashed_secret` generowany przy tworzeniu. Ingest weryfikuje `X-Device-Key` nagłówek wobec tego sekretu ([`services/ingest.py:31-48`](../../backend/app/modules/telemetry/services/ingest.py#L31-L48)) zamiast globalnego klucza. Zwraca `401` dla nieznanego urządzenia (`device_id` nie istnieje), `403` dla błędnego klucza lub nieaktywnego urządzenia (`is_active=False`).
+**Per-device authentication przez bearer token** — zastąpiło wcześniejszy statyczny `X-Device-Key`/`Device.hashed_secret` (usunięty całkowicie). Ingest wymaga `Authorization: Bearer <device_token>`, zweryfikowanego przez zależność `get_current_device` z modułu [`device_identity`](./06_device_identity_module.md) — token wydawany po asymetrycznym challenge/response, nie po statycznym sekrecie. `get_current_device` zwraca `401` dla brakującego/nieprawidłowego tokenu i nieaktywnego urządzenia (`is_active=False`). Dodatkowo `TelemetryIngestService.ingest()` sprawdza `packet.device_id == device.external_id` ([`services/ingest.py:31-34`](../../backend/app/modules/telemetry/services/ingest.py#L31-L34)) → `403` przy niezgodności, żeby ważny token jednego urządzenia nie mógł podszyć się pod inny SN w treści pakietu. Pełny opis flow (provisioning → claim → challenge → verify) w [`06_device_identity_module.md`](./06_device_identity_module.md).
 
 **`transaction(skip_audit=True)` na ingest** — pakiety telemetryczne to dane z urządzenia IoT, nie zmiana wywołana przez użytkownika, więc nie generują wpisu w audit logu (który śledzi "kto co zmienił", nie strumień pomiarowy).
 

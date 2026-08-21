@@ -436,6 +436,12 @@ Niezmienny, append-only log zmian biznesowych. Nie ma własnej warstwy `api/` �
 
 → Pełny opis: [`05_audit_module.md`](./05_audit_module.md)
 
+## 6.5. `device_identity/`
+
+Asymetryczna autentykacja urządzeń IoT — zastąpienie statycznego współdzielonego sekretu schematem opartym o klucz publiczny (EC P-256) i dowód posiadania (challenge/response). Urządzenia logują się do `/devices/auth/challenge` i `/devices/auth/verify` (brak autoryzacji), otrzymując sesyjne JWT. Telemetria ingest przechodzi z nagłówka `X-Device-Key` na bearer token. Provisioning (`POST /api/v1/platform/device-provisioning`) wymaga uprawnienia `PLATFORM_MANAGE_DEVICE_PROVISIONING`. Moduł oddzielony od `core_data` i `security`, konsumowany przez zależności.
+
+→ Pełny opis: [`06_device_identity_module.md`](./06_device_identity_module.md)
+
 ---
 
 # 7. Płaszczyzny dostępu i routing API
