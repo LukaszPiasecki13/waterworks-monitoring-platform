@@ -28,6 +28,7 @@ class UserContextService:
 
         for org in orgs:
             perms = self.permissions_service.permissions_for_user_in_org(user, org.id)
+            # Include organization even with 0 permissions if user is a member
             organizations.append(
                 OrganizationEnvironment(
                     organization_id=org.id,

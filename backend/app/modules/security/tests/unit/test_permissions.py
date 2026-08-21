@@ -3,12 +3,13 @@ from unittest.mock import MagicMock
 import pytest
 from sqlalchemy.orm import Session
 
-from app.core.errors import BadRequestError
+from app.core.errors import BadRequestError, ConflictError
 from app.modules.core_data.models import User
 from app.modules.core_data.repositories import UserRepository
 from app.modules.security.models import Permission, UserGroup
 from app.modules.security.repositories import PermissionRepository
 from app.modules.security.schemas.permissions import (
+    UserGroupCreateRequest,
     UserGroupSaveRequest,
     UserGroupUpdateRequest,
 )
@@ -179,3 +180,260 @@ def test_permission_only_group_change_is_persisted(db_session: Session) -> None:
         "CAN_VIEW_USERS",
         "CAN_MANAGE_USERS",
     }
+
+
+def test_create_group_is_scoped_to_organization_not_global(
+    db_session: Session,
+) -> None:
+    """Regression test for the cross-org name collision bug (03-plan-overview.md
+    risk 7.1b): two different organizations must both be able to have a group
+    named "Operator" without a false ConflictError."""
+    from app.modules.core_data.models import Organization
+
+    org_a = Organization(name="Org A")
+    org_b = Organization(name="Org B")
+    db_session.add_all([org_a, org_b])
+    db_session.flush()
+
+    actor = _user(db_session, "org-admin")
+    db_session.commit()
+
+    service = _service(db_session)
+    service.create_group(
+        UserGroupCreateRequest(name="Operator", description="", permission_codes=[]),
+        actor=actor,
+        organization_id=org_a.id,
+    )
+
+    # Same name in a different organization must succeed, not raise ConflictError.
+    created_in_b = service.create_group(
+        UserGroupCreateRequest(name="Operator", description="", permission_codes=[]),
+        actor=actor,
+        organization_id=org_b.id,
+    )
+
+    assert created_in_b["name"] == "Operator"
+
+    groups_in_b = service.list_org_groups(org_b.id)
+    assert len(groups_in_b) == 1
+    assert groups_in_b[0]["id"] == created_in_b["id"]
+
+    groups_in_a = service.list_org_groups(org_a.id)
+    assert len(groups_in_a) == 1
+    assert groups_in_a[0]["id"] != created_in_b["id"]
+
+
+def test_create_group_without_organization_id_stays_platform_scoped(
+    db_session: Session,
+) -> None:
+    """Backward compatibility with the legacy /security/groups endpoint
+    (security/api/permissions.py), which calls create_group without
+    organization_id."""
+    actor = _user(db_session, "platform-admin")
+    db_session.commit()
+
+    service = _service(db_session)
+    created = service.create_group(
+        UserGroupCreateRequest(
+            name="Platform Only", description="", permission_codes=[]
+        ),
+        actor=actor,
+    )
+
+    platform_groups = service.list_platform_groups()
+    assert any(g["id"] == created["id"] for g in platform_groups)
+
+
+# Additional unit tests for new methods (Phase 9)
+
+
+def test_validate_group_name_detects_duplicate_in_same_org(db_session: Session) -> None:
+    """_validate_group_name() raises ConflictError when duplicate name exists
+    in the same organization."""
+    from app.modules.core_data.models import Organization
+
+    org = Organization(name="Test Org")
+    db_session.add(org)
+    db_session.flush()
+
+    # Create first group
+    group1 = UserGroup(name="Operators", organization_id=org.id)
+    db_session.add(group1)
+    db_session.flush()
+
+    service = _service(db_session)
+    # Should raise ConflictError when attempting to validate duplicate name
+    # in the same organization (used in create_group path)
+    with pytest.raises(ConflictError):
+        service._validate_group_name("Operators", group_id=None, organization_id=org.id)
+
+
+def test_validate_group_name_allows_same_name_in_different_org(
+    db_session: Session,
+) -> None:
+    """_validate_group_name() allows identical names in different organizations
+    (regression test for bug 7.1b)."""
+    from app.modules.core_data.models import Organization
+
+    org_a = Organization(name="Org A")
+    org_b = Organization(name="Org B")
+    db_session.add_all([org_a, org_b])
+    db_session.flush()
+
+    # Create group in org A
+    group_a = UserGroup(name="Operators", organization_id=org_a.id)
+    db_session.add(group_a)
+    db_session.flush()
+
+    service = _service(db_session)
+    # Same name in org B should NOT raise ConflictError
+    service._validate_group_name("Operators", group_id=None, organization_id=org_b.id)
+    # If we got here without exception, test passes
+
+
+def test_validate_group_name_allows_unchanged_name_on_update(
+    db_session: Session,
+) -> None:
+    """_validate_group_name() excludes the current group (by group_id) from
+    duplicate check, allowing updates that don't change the name."""
+    from app.modules.core_data.models import Organization
+
+    org = Organization(name="Test Org")
+    db_session.add(org)
+    db_session.flush()
+
+    group = UserGroup(name="Operators", organization_id=org.id)
+    db_session.add(group)
+    db_session.flush()
+
+    service = _service(db_session)
+    # Same name, but excluding this group from the check (group_id is provided)
+    # should not raise ConflictError
+    service._validate_group_name("Operators", group_id=group.id, organization_id=org.id)
+
+
+def test_validate_group_name_allows_same_name_across_planes(
+    db_session: Session,
+) -> None:
+    """_validate_group_name() allows identical names when one is on platform
+    plane (organization_id=None) and one is org-scoped."""
+    from app.modules.core_data.models import Organization
+
+    org = Organization(name="Test Org")
+    db_session.add(org)
+    db_session.flush()
+
+    # Create platform-scoped group
+    platform_group = UserGroup(name="Operators", organization_id=None)
+    db_session.add(platform_group)
+    db_session.flush()
+
+    service = _service(db_session)
+    # Same name on org plane should not raise ConflictError
+    service._validate_group_name("Operators", group_id=None, organization_id=org.id)
+
+
+def test_list_groups_for_organization_returns_only_platform_groups_when_org_id_none(
+    db_session: Session,
+) -> None:
+    """list_groups_for_organization(None) returns only platform-scoped groups."""
+    from app.modules.core_data.models import Organization
+
+    org = Organization(name="Test Org")
+    db_session.add(org)
+    db_session.flush()
+
+    # Create mixed groups
+    platform_group = UserGroup(name="Platform Group", organization_id=None)
+    org_group = UserGroup(name="Org Group", organization_id=org.id)
+    db_session.add_all([platform_group, org_group])
+    db_session.flush()
+
+    repo = PermissionRepository(db_session)
+    result = repo.list_groups_for_organization(None)
+
+    # Should only contain platform groups
+    assert any(g.name == "Platform Group" for g in result)
+    assert not any(g.name == "Org Group" for g in result)
+
+
+def test_list_groups_for_organization_returns_only_specified_org_groups(
+    db_session: Session,
+) -> None:
+    """list_groups_for_organization(org_id) returns only groups belonging
+    to that organization."""
+    from app.modules.core_data.models import Organization
+
+    org_a = Organization(name="Org A")
+    org_b = Organization(name="Org B")
+    db_session.add_all([org_a, org_b])
+    db_session.flush()
+
+    # Create mixed groups
+    platform_group = UserGroup(name="Platform Group", organization_id=None)
+    group_a = UserGroup(name="Group A", organization_id=org_a.id)
+    group_b = UserGroup(name="Group B", organization_id=org_b.id)
+    db_session.add_all([platform_group, group_a, group_b])
+    db_session.flush()
+
+    repo = PermissionRepository(db_session)
+    result = repo.list_groups_for_organization(org_a.id)
+
+    # Should only contain org_a groups
+    assert any(g.name == "Group A" for g in result)
+    assert not any(g.name == "Group B" for g in result)
+    assert not any(g.name == "Platform Group" for g in result)
+
+
+def test_list_groups_for_organization_returns_empty_when_no_groups(
+    db_session: Session,
+) -> None:
+    """list_groups_for_organization() returns empty list when organization
+    has no groups."""
+    from app.modules.core_data.models import Organization
+
+    org = Organization(name="Empty Org")
+    db_session.add(org)
+    db_session.flush()
+
+    repo = PermissionRepository(db_session)
+    result = repo.list_groups_for_organization(org.id)
+
+    assert result == []
+
+
+def test_create_group_with_organization_id_sets_org_scoping(
+    db_session: Session,
+) -> None:
+    """create_group() with organization_id parameter creates group with that
+    organization_id set (not None)."""
+    from app.modules.core_data.models import Organization
+
+    org = Organization(name="Test Org")
+    db_session.add(org)
+    db_session.flush()
+
+    repo = PermissionRepository(db_session)
+    created = repo.create_group(
+        name="Org Scoped",
+        description="Test group",
+        organization_id=org.id,
+    )
+    db_session.flush()
+
+    assert created.organization_id == org.id
+
+
+def test_create_group_without_organization_id_creates_platform_group(
+    db_session: Session,
+) -> None:
+    """create_group() without organization_id parameter creates platform-scoped
+    group (organization_id is None)."""
+    repo = PermissionRepository(db_session)
+    created = repo.create_group(
+        name="Platform Scoped",
+        description="Test group",
+    )
+    db_session.flush()
+
+    assert created.organization_id is None

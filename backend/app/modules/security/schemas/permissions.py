@@ -70,6 +70,7 @@ class UserGroupResponse(BaseSchema):
     description: str
     is_system: bool
     system_key: str | None
+    organization_id: str | None
     permissions: list[PermissionResponse]
     user_ids: list[UUID]
     created_at: datetime

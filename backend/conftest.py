@@ -30,10 +30,7 @@ from app.infrastructure.sql import models_registry  # noqa: F401
 from app.modules.core_data.api.users import router as users_router
 from app.modules.core_data.models import User
 from app.modules.security.api import router as security_router
-from app.modules.security.dependencies import (
-    get_current_user,
-    require_admin,
-)
+from app.modules.security.dependencies import get_current_user
 from app.modules.security.models import security_user_groups
 from app.modules.security.permission_catalog import ADMIN_GROUP_KEY
 from app.modules.security.repositories import PermissionRepository
@@ -180,7 +177,6 @@ def api_client(
 
     app.dependency_overrides[get_db] = override_get_db
     app.dependency_overrides[get_current_user] = lambda: admin_user
-    app.dependency_overrides[require_admin] = lambda: admin_user
 
     with TestClient(app) as client:
         yield client

@@ -25,6 +25,10 @@ from app.modules.core_data.models.water_object import WaterObject
 from app.modules.security.models import Permission, UserGroup
 from app.modules.security.permission_catalog import (
     ADMIN_GROUP_KEY,
+    ORG_ADMIN_GROUP_KEY,
+    ORG_OPERATOR_GROUP_KEY,
+    ORG_PLANE_PERMISSION_CODES,
+    ORG_VIEWER_GROUP_KEY,
     PERMISSION_CATALOG,
     STAFF_GROUP_KEY,
     VIEW_PERMISSIONS,
@@ -181,7 +185,7 @@ def seed_database():
         session.commit()
         print(f"  ✓ Created {perms_count} permissions and {groups_count} groups")
 
-        # 1. Create Organizations
+        # 1. Create Organizations & seed their system groups
         print("\n📦 Creating organizations...")
         org1 = session.query(Organization).filter_by(name="Gmina Frysztak").first()
         if not org1:
@@ -293,6 +297,40 @@ def seed_database():
 
         session.commit()
         print("  ✓ Created users and assigned to organizations")
+
+        # Seed system groups for organizations
+        print("\n🔐 Seeding organization system groups...")
+        from app.modules.audit.repositories.audit import AuditRepository
+        from app.modules.audit.services.audit import SqlAuditService
+        from app.modules.core_data.repositories.users import UserRepository
+        from app.modules.security.repositories.permissions import PermissionRepository
+        from app.modules.security.services.permissions import PermissionService
+
+        perm_repo = PermissionRepository(session)
+        user_repo = UserRepository(session)
+        audit_repo = AuditRepository(session)
+        audit_service = SqlAuditService(audit_repo)
+        perm_service = PermissionService(perm_repo, user_repo, audit_service)
+
+        for org in [org1, org2]:
+            # Check if org already has groups
+            existing_groups = perm_repo.list_org_groups(org.id)
+            if not existing_groups:
+                print(f"  Seeding groups for {org.name}...")
+                perm_service.seed_organization_groups(
+                    organization_id=org.id,
+                    org_plane_codes=ORG_PLANE_PERMISSION_CODES,
+                    view_codes=VIEW_PERMISSIONS,
+                    admin_key=ORG_ADMIN_GROUP_KEY,
+                    operator_key=ORG_OPERATOR_GROUP_KEY,
+                    viewer_key=ORG_VIEWER_GROUP_KEY,
+                    actor=admin_global,
+                )
+                print("    ✓ Created 3 system groups")
+            else:
+                print(f"  ✓ {org.name} already has {len(existing_groups)} groups")
+
+        session.commit()
 
         # 3. Create Water Objects
         print("\n💧 Creating water objects...")
