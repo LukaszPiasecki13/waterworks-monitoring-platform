@@ -1,4 +1,3 @@
-from collections.abc import Callable
 from uuid import UUID
 
 from fastapi import Depends, HTTPException, status
@@ -8,6 +7,7 @@ from sqlalchemy.orm import Session
 from app.core.audit import AuditPort
 from app.core.config import get_settings
 from app.core.dependencies import get_db
+from app.core.errors import NotFoundError
 from app.modules.audit.dependencies import get_audit_service
 from app.modules.core_data.models import User
 from app.modules.core_data.repositories.users import UserRepository
@@ -20,11 +20,9 @@ from app.modules.security.access import (
     get_organization_context,
     get_platform_context,
 )
-from app.modules.security.permission_catalog import (
-    CAN_MANAGE_SECURITY,
-)
-from app.modules.security.repositories import PermissionRepository
+from app.modules.security.repositories import GroupRepository, PermissionRepository
 from app.modules.security.services.auth import AuthService
+from app.modules.security.services.groups import GroupService
 from app.modules.security.services.permissions import PermissionService
 from app.modules.security.services.token import TokenService
 
@@ -52,12 +50,27 @@ def get_permission_repo(
     return PermissionRepository(session)
 
 
+def get_group_repo(
+    session: Session = Depends(get_db),
+) -> GroupRepository:
+    return GroupRepository(session)
+
+
 def get_permission_service(
     repo: PermissionRepository = Depends(get_permission_repo),
     users: UserRepository = Depends(get_user_repo),
-    audit: AuditPort = Depends(get_audit_service),
+    group_repo: GroupRepository = Depends(get_group_repo),
 ) -> PermissionService:
-    return PermissionService(repo, users, audit)
+    return PermissionService(repo, users, group_repo)
+
+
+def get_group_service(
+    repo: GroupRepository = Depends(get_group_repo),
+    users: UserRepository = Depends(get_user_repo),
+    permissions: PermissionService = Depends(get_permission_service),
+    audit: AuditPort = Depends(get_audit_service),
+) -> GroupService:
+    return GroupService(repo, users, permissions, audit)
 
 
 def get_auth_service(
@@ -119,41 +132,20 @@ def get_current_user(
     return user
 
 
-def require_permission(permission_code: str) -> Callable[..., User]:
-    """Require a permission inherited from any user security group."""
-
-    def dependency(
-        user: User = Depends(get_current_user),
-        permissions: PermissionService = Depends(get_permission_service),
-    ) -> User:
-        if not permissions.has_permission(user, permission_code):
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Insufficient permissions",
-            )
-        return user
-
-    return dependency
-
-
-def require_assigned_permission(
-    user: User = Depends(get_current_user),
-    permissions: PermissionService = Depends(get_permission_service),
-) -> User:
-    """Require any permission currently present in the SQL catalog."""
-    if not permissions.permissions_for_user(user):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Insufficient permissions",
-        )
-    return user
-
-
 def get_users_organizations_repo(
     session: Session = Depends(get_db),
 ) -> UsersOrganizationsRepository:
     """Get users-organizations repository dependency."""
     return UsersOrganizationsRepository(session)
+
+
+def _require_any_permission(permissions: set[str], required: tuple[str, ...]) -> None:
+    """Raise 403 unless `permissions` contains at least one of `required`."""
+    if not permissions.intersection(required):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Insufficient permissions",
+        )
 
 
 def require_org_membership(
@@ -181,12 +173,33 @@ def require_org_access(*permission_codes: str):
     def dependency(
         org_access: OrganizationAccess = Depends(require_org_membership),
     ) -> OrganizationAccess:
-        if not org_access.permissions.intersection(permission_codes):
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Insufficient permissions",
-            )
+        _require_any_permission(org_access.permissions, permission_codes)
         return org_access
+
+    return dependency
+
+
+def require_org_or_platform_permission(*platform_permission_codes: str):
+    """Require org membership, or one of the given platform-level permissions.
+
+    Lets platform admins operate on org-scoped resources (e.g. memberships)
+    without being a member of the organization themselves.
+    """
+
+    def dependency(
+        org_id: UUID,
+        user: User = Depends(get_current_user),
+        members: UsersOrganizationsRepository = Depends(get_users_organizations_repo),
+        permissions: PermissionService = Depends(get_permission_service),
+    ) -> OrganizationAccess:
+        try:
+            return get_organization_context(org_id, user, members, permissions)
+        except NotFoundError:
+            pass
+
+        platform_context = get_platform_context(user, permissions)
+        _require_any_permission(platform_context.permissions, platform_permission_codes)
+        return OrganizationAccess(actor=user, organization_id=org_id, permissions=set())
 
     return dependency
 
@@ -204,17 +217,7 @@ def require_platform_permission(*permission_codes: str):
         permissions: PermissionService = Depends(get_permission_service),
     ) -> PlatformContext:
         context = get_platform_context(user, permissions)
-        if not context.permissions.intersection(permission_codes):
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Insufficient permissions",
-            )
+        _require_any_permission(context.permissions, permission_codes)
         return context
 
     return dependency
-
-
-# Backward-compatible aliases for code that has not yet moved to an
-# action-specific permission. They are group-based and never inspect User.status.
-require_admin = require_permission(CAN_MANAGE_SECURITY)
-require_staff = require_assigned_permission

@@ -11,7 +11,8 @@ from app.modules.core_data.repositories.users_organizations import (
     UsersOrganizationsRepository,
 )
 from app.modules.core_data.services.users import UserService
-from app.modules.security.repositories import PermissionRepository
+from app.modules.security.permission_catalog import ORG_ADMIN_GROUP_KEY
+from app.modules.security.repositories import GroupRepository
 
 if TYPE_CHECKING:
     from app.modules.security.access import OrganizationAccess
@@ -24,12 +25,12 @@ class MembersService:
         self,
         repo: UsersOrganizationsRepository,
         user_service: UserService,
-        perm_repo: PermissionRepository,
+        group_repo: GroupRepository,
         audit: AuditPort,
     ):
         self.repo = repo
         self.user_service = user_service
-        self.perm_repo = perm_repo
+        self.group_repo = group_repo
         self.audit = audit
 
     def list_members(self, org_access: OrganizationAccess, skip: int, limit: int):
@@ -45,6 +46,18 @@ class MembersService:
         with self.repo.transaction():
             self.repo.add_member(user_id, org_access.organization_id)
             self.repo.flush()
+
+            # Auto-assign user to org's admin group so membership appears in
+            # environment picker
+            admin_group = self.group_repo.get_group_by_system_key(
+                ORG_ADMIN_GROUP_KEY, organization_id=org_access.organization_id
+            )
+            if admin_group:
+                current_groups = set(self.group_repo.group_ids_for_user(user_id))
+                current_groups.add(admin_group.id)
+                self.group_repo.replace_user_groups(user_id, current_groups)
+                self.repo.flush()
+
             self.audit.record(
                 AuditEntry(
                     entity_type=EntityType.CORE_DATA_USER.value,
@@ -70,13 +83,13 @@ class MembersService:
 
         with self.repo.transaction():
             org_group_ids = set(
-                self.perm_repo.group_ids_for_organization(org_access.organization_id)
+                self.group_repo.group_ids_for_organization(org_access.organization_id)
             )
             if org_group_ids:
-                current_groups = set(self.perm_repo.group_ids_for_user(user_id))
+                current_groups = set(self.group_repo.group_ids_for_user(user_id))
                 remaining = current_groups - org_group_ids
                 if remaining != current_groups:
-                    self.perm_repo.replace_user_groups(user_id, remaining)
+                    self.group_repo.replace_user_groups(user_id, remaining)
 
             self.repo.remove_member(user_id, org_access.organization_id)
             self.repo.flush()
@@ -146,13 +159,13 @@ class MembersService:
 
         with self.repo.transaction():
             org_group_ids = set(
-                self.perm_repo.group_ids_for_organization(organization_id)
+                self.group_repo.group_ids_for_organization(organization_id)
             )
             if org_group_ids:
-                current_groups = set(self.perm_repo.group_ids_for_user(user_id))
+                current_groups = set(self.group_repo.group_ids_for_user(user_id))
                 remaining = current_groups - org_group_ids
                 if remaining != current_groups:
-                    self.perm_repo.replace_user_groups(user_id, remaining)
+                    self.group_repo.replace_user_groups(user_id, remaining)
 
             self.repo.remove_member(user_id, organization_id)
             self.repo.flush()

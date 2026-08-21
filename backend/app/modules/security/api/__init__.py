@@ -1,12 +1,14 @@
 """Security API endpoints."""
 
-from fastapi import APIRouter
-
 from .auth import router as auth_router
+from .groups import org_router, platform_router
 from .permissions import router as permissions_router
+from .platform_audit import router as platform_audit_router
 
-router = APIRouter()
-router.include_router(auth_router)
-router.include_router(permissions_router, prefix="/api/v1")
-
-__all__ = ["router"]
+__all__ = [
+    "auth_router",
+    "org_router",
+    "permissions_router",
+    "platform_audit_router",
+    "platform_router",
+]

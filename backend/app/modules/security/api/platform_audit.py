@@ -1,7 +1,4 @@
-"""Platform audit log API endpoints (temporary location).
-
-TODO: Move to app/modules/platform/api/audit.py when platform module is created.
-"""
+"""Platform audit log API endpoints."""
 
 from fastapi import APIRouter, Depends
 

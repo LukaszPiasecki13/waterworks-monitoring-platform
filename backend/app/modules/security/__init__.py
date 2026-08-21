@@ -1,4 +1,3 @@
-from app.modules.security.api import router as security_router
 from app.modules.security.schemas import (
     LoginRequest,
     TokenRefreshRequest,
@@ -18,6 +17,5 @@ __all__ = [
     "TokenResponse",
     "TokenService",
     "hash_password",
-    "security_router",
     "verify_password",
 ]

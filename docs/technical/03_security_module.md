@@ -21,11 +21,43 @@ Unikalność nazw grupowych jest **złożona**: `UNIQUE (organization_id, name)`
 
 ## 3. Kluczowe reguły i niezmienniki
 
-- **Ostatni admin jest chroniony**: logika w `replace_user_groups` (patrz [`../app/modules/security/services/permissions.py`](../app/modules/security/services/permissions.py)) odrzuca operację, która usunęłaby ostatniego użytkownika z platformowej grupy Super Admin (`BadRequestError`) — system nie może zostać bez superadmina. Administrator gminy nie jest chroniony (gmina może być bez administratora; super admin może ją naprawić).
-- **Grupy systemowe częściowo zablokowane**: nazwy/opisu grup systemowych nie da się zmienić (`_ensure_system_group_fields_immutable`); uprawnień grupy Super Admin (`system_key="admin"`, `organization_id IS NULL`) nie da się edytować (`_ensure_permissions_editable`). Uprawnienia gminnych grup systemowych (`organization_id <> NULL`) są edytowalne.
+- **Ostatni admin jest chroniony**: logika w `replace_user_groups` (patrz [`../app/modules/security/services/groups.py`](../app/modules/security/services/groups.py)) odrzuca operację, która usunęłaby ostatniego użytkownika z platformowej grupy Super Admin (`BadRequestError`) — system nie może zostać bez superadmina. Administrator gminy nie jest chroniony (gmina może być bez administratora; super admin może ją naprawić).
+- **Grupy systemowe częściowo zablokowane**: nazwy/opisu grup systemowych nie da się zmienić (`_ensure_custom_group`); uprawnień grupy Super Admin (`system_key="admin"`, `organization_id IS NULL`) nie da się edytować (`_ensure_permissions_editable`). Uprawnienia gminnych grup systemowych (`organization_id <> NULL`) są edytowalne.
 - Każda zmiana grupy/przypisania generuje wpis audytowy przez `AuditPort`, chyba że delta stanu jest pusta (wtedy `tx.skip_audit()`).
-- **Katalog uprawnień** (`app/modules/security/permission_catalog.py`) — zamknięta lista kodów z polem `plane` (`'organization'` lub `'platform'`). Grupy organizacyjne mogą zawierać wyłącznie kody `CAN_*`; grupy platformowe wyłącznie `PLATFORM_*` (egzekwowana w `_resolve_permissions`).
+- **Katalog uprawnień** (`app/modules/security/permission_catalog.py`) — zamknięta lista kodów. Grupy organizacyjne mogą zawierać wyłącznie kody `CAN_*`; grupy platformowe wyłącznie `PLATFORM_*` (egzekwowana w `PermissionService.resolve_permissions()`).
 
+
+## 4. Struktura API
+
+Module `security/api/` zawiera cztery pliki:
+
+| Plik | Endpointy | Autoryzacja |
+|---|---|---|
+| `auth.py` | `/auth/token`, `/auth/refresh` | Brak (public token endpoint) |
+| `permissions.py` | `GET /security/me/permissions` | Wymagany aktywny user |
+| `groups.py` | Dwa oddzielne routery (patrz poniżej) | Zależne od routera |
+| `platform_audit.py` | `GET /platform/audit` | `PLATFORM_VIEW_AUDIT` |
+
+### Organizacyjne grupy (`/api/v1/orgs/{org_id}/groups`)
+
+Oryginalnie w `core_data/api/org_groups.py`, przeniesione do `security/api/groups.py::org_router` (§1.1 planu separacji). Umożliwia członkom organizacji zarządzać grupami bezpieczeństwa tej organizacji.
+
+- Autoryzacja: `require_org_or_platform_permission(PLATFORM_MANAGE_ORGANIZATIONS)` — członek organizacji OR admin platformy
+- Walidacja: `_ensure_group_belongs_to_org()` zapobiega IDOR-om (404 zamiast 403 na cross-org access)
+- Permissiony grupy: wyłącznie `CAN_*` (organizacyjne kody z katalogu)
+
+### Platformowe grupy (`/api/v1/platform/groups`)
+
+Oryginalnie w `core_data/api/platform_groups.py`, przeniesione do `security/api/groups.py::platform_router`. Umożliwia super adminom zarządzać grupami bezpieczeństwa platformy.
+
+- Autoryzacja: `require_platform_permission(PLATFORM_MANAGE_ORGANIZATIONS)`
+- Permissiony grupy: wyłącznie `PLATFORM_*`
+
+### Audyt platformy (`/api/v1/platform/audit`)
+
+Oryginalnie w `core_data/api/platform_audit.py`, przeniesione do `security/api/platform_audit.py`. Pokazuje wszystkie zdarzenia audytowe w systemie (dostęp ograniczony do `PLATFORM_VIEW_AUDIT`).
+
+Implementacja: zapytanie do `AuditReaderPort.list_all()` bez filtrowania po encji (w odróżnieniu od `/security/groups/{id}/audit`, które czyta historię konkretnej grupy).
 
 ## 6. Nieoczywiste decyzje projektowe
 

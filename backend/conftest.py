@@ -27,13 +27,13 @@ from app.core.dependencies import get_db
 from app.core.errors import register_error_handlers
 from app.core.rate_limit import limiter
 from app.infrastructure.sql import models_registry  # noqa: F401
-from app.modules.core_data.api.users import router as users_router
+from app.modules.core_data.api import users_router
 from app.modules.core_data.models import User
-from app.modules.security.api import router as security_router
+from app.modules.security.api import auth_router
 from app.modules.security.dependencies import get_current_user
 from app.modules.security.models import security_user_groups
 from app.modules.security.permission_catalog import ADMIN_GROUP_KEY
-from app.modules.security.repositories import PermissionRepository
+from app.modules.security.repositories import GroupRepository, PermissionRepository
 from app.modules.security.services.seed import SecuritySeedService
 
 
@@ -135,10 +135,10 @@ def admin_user(db_session: Session) -> User:
     duplicate rows — DATABASE_URL may point at a database where that
     reference data already exists.
     """
-    SecuritySeedService(PermissionRepository(db_session)).seed()
-    admin_group = PermissionRepository(db_session).get_group_by_system_key(
-        ADMIN_GROUP_KEY
-    )
+    perm_repo = PermissionRepository(db_session)
+    group_repo = GroupRepository(db_session)
+    SecuritySeedService(perm_repo, group_repo).seed()
+    admin_group = group_repo.get_group_by_system_key(ADMIN_GROUP_KEY)
 
     unique = uuid4().hex[:8]
     user = User(
@@ -169,7 +169,7 @@ def api_client(
 ) -> Generator[TestClient]:
     app = FastAPI()
     register_error_handlers(app)
-    app.include_router(security_router)
+    app.include_router(auth_router)
     app.include_router(users_router, prefix="/api/v1")
 
     def override_get_db() -> Generator[Session]:

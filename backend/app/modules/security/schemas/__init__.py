@@ -8,17 +8,16 @@ from .auth import (
     TokenRefreshRequest,
     TokenResponse,
 )
-from .permissions import (
+from .groups import (
     GroupIdsRequest,
-    MyPermissionsResponse,
     PermissionCodesRequest,
-    PermissionResponse,
     UserGroupCreateRequest,
     UserGroupResponse,
     UserGroupSaveRequest,
     UserGroupUpdateRequest,
     UserIdsRequest,
 )
+from .permissions import MyPermissionsResponse, PermissionResponse
 
 __all__ = [
     "GroupIdsRequest",

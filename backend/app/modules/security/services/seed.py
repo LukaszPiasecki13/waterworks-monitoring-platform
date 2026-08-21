@@ -14,7 +14,7 @@ from app.modules.security.permission_catalog import (
     ADMIN_GROUP_KEY,
     PERMISSION_CATALOG,
 )
-from app.modules.security.repositories import PermissionRepository
+from app.modules.security.repositories import GroupRepository, PermissionRepository
 
 logger = logging.getLogger(__name__)
 
@@ -22,8 +22,9 @@ logger = logging.getLogger(__name__)
 class SecuritySeedService:
     """Synchronize permission catalog and seed system groups on application startup."""
 
-    def __init__(self, repo: PermissionRepository):
-        self.repo = repo
+    def __init__(self, perm_repo: PermissionRepository, group_repo: GroupRepository):
+        self.perm_repo = perm_repo
+        self.group_repo = group_repo
 
     def seed(self) -> None:
         """Sync permissions from catalog and ensure system groups exist."""
@@ -36,7 +37,7 @@ class SecuritySeedService:
             # Seed system groups
             self._seed_admin_group()
 
-            self.repo.commit(skip_audit=True)
+            self.perm_repo.commit(skip_audit=True)
             logger.info("Security seed completed successfully")
         except Exception as e:
             # If tables don't exist (migration not applied yet), skip seeding
@@ -51,7 +52,7 @@ class SecuritySeedService:
     def _sync_permissions(self) -> None:
         """Sync permission catalog into database (upsert by code)."""
         for perm_def in PERMISSION_CATALOG:
-            existing = self.repo.get_permission_by_code(perm_def.code)
+            existing = self.perm_repo.get_permission_by_code(perm_def.code)
             if existing:
                 # Update name/category if they differ
                 if (
@@ -62,7 +63,7 @@ class SecuritySeedService:
                     existing.category = perm_def.category
                     logger.debug(f"Updated permission {perm_def.code}")
             else:
-                self.repo.create_permission(
+                self.perm_repo.create_permission(
                     code=perm_def.code,
                     name=perm_def.name,
                     category=perm_def.category,
@@ -71,13 +72,13 @@ class SecuritySeedService:
 
     def _seed_admin_group(self) -> None:
         """Create or resync admin group with all permissions (platform-level)."""
-        admin_group = self.repo.get_group_by_system_key(
+        admin_group = self.group_repo.get_group_by_system_key(
             ADMIN_GROUP_KEY, organization_id=None
         )
-        all_permissions = self.repo.list_permissions()
+        all_permissions = self.perm_repo.list_permissions()
 
         if not admin_group:
-            admin_group = self.repo.create_system_group(
+            admin_group = self.group_repo.create_system_group(
                 name="Admin",
                 description="Full system access",
                 system_key=ADMIN_GROUP_KEY,

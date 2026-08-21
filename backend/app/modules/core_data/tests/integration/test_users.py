@@ -17,7 +17,7 @@ from app.modules.core_data.repositories.users_organizations import (
 from app.modules.security.dependencies import get_current_user
 from app.modules.security.models import UserGroup, security_user_groups
 from app.modules.security.permission_catalog import PLATFORM_VIEW_USERS
-from app.modules.security.repositories import PermissionRepository
+from app.modules.security.repositories import GroupRepository, PermissionRepository
 
 
 def test_user_repository_filters_and_counts_users(db_session: Session) -> None:
@@ -204,8 +204,8 @@ def test_removing_organization_membership_strips_org_scoped_groups(
         hashed_password="hash",
         is_active=True,
     )
-    perm_repo = PermissionRepository(db_session)
-    org_group = perm_repo.create_system_group(
+    group_repo = GroupRepository(db_session)
+    org_group = group_repo.create_system_group(
         name="Org Viewer",
         description="",
         system_key=f"org-viewer-{uuid4().hex[:8]}",
@@ -220,13 +220,13 @@ def test_removing_organization_membership_strips_org_scoped_groups(
     )
     db_session.commit()
 
-    assert org_group.id in perm_repo.group_ids_for_user(target.id)
+    assert org_group.id in group_repo.group_ids_for_user(target.id)
 
     user_org_url = f"/api/v1/users/{target.id}/organizations/{org.id}"
     remove_response = api_client.delete(user_org_url)
     assert remove_response.status_code == 204
 
-    assert org_group.id not in perm_repo.group_ids_for_user(target.id)
+    assert org_group.id not in group_repo.group_ids_for_user(target.id)
 
 
 def test_view_only_platform_user_cannot_modify_organization_membership(

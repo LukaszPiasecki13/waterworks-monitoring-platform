@@ -1,8 +1,4 @@
-"""Integration tests for platform and organization groups API endpoints.
-
-These tests validate the new platform_groups and org_groups endpoints
-introduced in Phase 8 (implementation) of the groups & permissions feature.
-"""
+"""Integration tests for platform and organization groups API endpoints."""
 
 from uuid import uuid4
 
@@ -13,9 +9,8 @@ from sqlalchemy.orm import Session
 
 from app.core.dependencies import get_db
 from app.core.errors import register_error_handlers
-from app.modules.core_data.api.org_groups import router as org_groups_router
-from app.modules.core_data.api.platform_groups import router as platform_groups_router
 from app.modules.core_data.models import Organization, User
+from app.modules.security.api.groups import org_router, platform_router
 from app.modules.security.dependencies import get_current_user
 from app.modules.security.models import UserGroup
 
@@ -25,8 +20,8 @@ def groups_api_client(db_session: Session, admin_user: User):
     """Test client with platform and org groups routers mounted."""
     app = FastAPI()
     register_error_handlers(app)
-    app.include_router(platform_groups_router, prefix="/api/v1/platform")
-    app.include_router(org_groups_router, prefix="/api/v1")
+    app.include_router(platform_router, prefix="/api/v1/platform")
+    app.include_router(org_router, prefix="/api/v1")
 
     def override_get_db():
         yield db_session
@@ -226,9 +221,9 @@ def test_org_groups_idor_put_returns_404(
     db_session.flush()
 
     # Create a group in org_b (without admin access to org_b)
-    from app.modules.security.repositories import PermissionRepository
+    from app.modules.security.repositories import GroupRepository
 
-    repo = PermissionRepository(db_session)
+    repo = GroupRepository(db_session)
     group_b = repo.create_group(
         name=f"OrgBGroup{uuid4().hex[:8]}",
         description="In org B",
@@ -267,9 +262,9 @@ def test_org_groups_idor_delete_returns_404(
     db_session.flush()
 
     # Create a group in org_b
-    from app.modules.security.repositories import PermissionRepository
+    from app.modules.security.repositories import GroupRepository
 
-    repo = PermissionRepository(db_session)
+    repo = GroupRepository(db_session)
     group_b = repo.create_group(
         name=f"OrgBGroup{uuid4().hex[:8]}",
         description="In org B",
@@ -287,3 +282,77 @@ def test_org_groups_idor_delete_returns_404(
     group = db_session.query(UserGroup).filter(UserGroup.id == group_b.id).first()
     assert group is not None
     assert group.organization_id == org_b.id
+
+
+def test_org_groups_platform_admin_fallback_can_manage(
+    db_session: Session, admin_user: User
+) -> None:
+    """Platform admin without membership can manage org groups via fallback.
+
+    Platform admin user (with PLATFORM_MANAGE_ORGANIZATIONS) can create/edit/delete
+    groups in an organization they're not a member of.
+    Regression test for fallback platform→org authorization pattern.
+    """
+    # Create org without adding admin_user as member
+    org = Organization(name=f"TestOrg{uuid4().hex[:8]}")
+    db_session.add(org)
+    db_session.commit()
+
+    # Create app with admin_user override (simulates platform admin)
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+
+    app = FastAPI()
+    from app.core.errors import register_error_handlers
+
+    register_error_handlers(app)
+    app.include_router(org_router, prefix="/api/v1")
+
+    def override_get_db():
+        yield db_session
+
+    app.dependency_overrides[get_db] = override_get_db
+    app.dependency_overrides[get_current_user] = lambda: admin_user
+
+    client = TestClient(app)
+
+    # Platform admin (NOT member of org) creates a group — should succeed via fallback
+    create_resp = client.post(
+        f"/api/v1/orgs/{org.id}/groups",
+        json={
+            "name": f"PlatformAdminGroup{uuid4().hex[:8]}",
+            "description": "Created by platform admin",
+            "permission_codes": ["CAN_VIEW_USERS"],
+        },
+    )
+
+    assert create_resp.status_code == 201, f"Response: {create_resp.json()}"
+    group_id = create_resp.json()["id"]
+
+    # Verify group was created in the right org
+    group = db_session.query(UserGroup).filter(UserGroup.id == group_id).first()
+    assert group is not None
+    assert group.organization_id == org.id
+
+    # Platform admin modifies the group — should succeed
+    update_resp = client.put(
+        f"/api/v1/orgs/{org.id}/groups/{group_id}",
+        json={
+            "name": "Modified by Platform Admin",
+            "description": "Updated",
+            "permission_codes": ["CAN_MANAGE_USERS"],
+            "user_ids": [],
+        },
+    )
+
+    assert update_resp.status_code == 200, f"Response: {update_resp.json()}"
+
+    # Platform admin deletes the group — should succeed
+    delete_resp = client.delete(f"/api/v1/orgs/{org.id}/groups/{group_id}")
+    assert delete_resp.status_code == 204
+
+    # Verify group was deleted
+    group = db_session.query(UserGroup).filter(UserGroup.id == group_id).first()
+    assert group is None
+
+    app.dependency_overrides.clear()

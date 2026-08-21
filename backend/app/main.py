@@ -11,20 +11,23 @@ from app.core.errors import register_error_handlers
 from app.core.health import router as health_router
 from app.core.logging import configure_logging
 from app.core.rate_limit import register_rate_limiting
-from app.modules.core_data.api.context import router as context_router
-from app.modules.core_data.api.devices import router as devices_router
-from app.modules.core_data.api.measurement_points import (
-    router as measurement_points_router,
+from app.modules.core_data.api import (
+    context_router,
+    devices_router,
+    measurement_points_router,
+    members_router,
+    organizations_router,
+    users_router,
+    water_objects_router,
 )
-from app.modules.core_data.api.members import router as members_router
-from app.modules.core_data.api.org_groups import router as org_groups_router
-from app.modules.core_data.api.organizations import router as organizations_router
-from app.modules.core_data.api.platform_audit import router as platform_audit_router
-from app.modules.core_data.api.platform_groups import router as platform_groups_router
-from app.modules.core_data.api.users import router as users_router
-from app.modules.core_data.api.water_objects import router as water_objects_router
-from app.modules.security.api import router as security_router
-from app.modules.security.dependencies import get_permission_repo
+from app.modules.security.api import (
+    auth_router,
+    org_router,
+    permissions_router,
+    platform_audit_router,
+    platform_router,
+)
+from app.modules.security.dependencies import get_group_repo, get_permission_repo
 from app.modules.security.services.seed import SecuritySeedService
 from app.modules.telemetry.api.ingest import router as telemetry_ingest_router
 from app.modules.telemetry.api.query import router as telemetry_query_router
@@ -43,7 +46,8 @@ async def lifespan(application: FastAPI):
         session = create_session()
         try:
             perm_repo = get_permission_repo(session)
-            seed = SecuritySeedService(perm_repo)
+            group_repo = get_group_repo(session)
+            seed = SecuritySeedService(perm_repo, group_repo)
             seed.seed()
         finally:
             session.close()
@@ -85,7 +89,7 @@ def root_redirect():
 app.include_router(health_router)
 
 # Auth endpoints (unprefixed: /auth/*)
-app.include_router(security_router)
+app.include_router(auth_router)
 app.include_router(context_router)
 
 # Ingest endpoint (unprefixed: /telemetry/ingest)
@@ -94,7 +98,7 @@ app.include_router(telemetry_ingest_router)
 # API v1 endpoints - platform level
 app.include_router(users_router, prefix=f"{API_V1_PREFIX}/platform")
 app.include_router(organizations_router, prefix=f"{API_V1_PREFIX}/platform")
-app.include_router(platform_groups_router, prefix=f"{API_V1_PREFIX}/platform")
+app.include_router(platform_router, prefix=f"{API_V1_PREFIX}/platform")
 app.include_router(platform_audit_router, prefix=f"{API_V1_PREFIX}/platform")
 
 # API v1 endpoints - organization level
@@ -102,7 +106,8 @@ app.include_router(water_objects_router, prefix=API_V1_PREFIX)
 app.include_router(devices_router, prefix=API_V1_PREFIX)
 app.include_router(measurement_points_router, prefix=API_V1_PREFIX)
 app.include_router(members_router, prefix=API_V1_PREFIX)
-app.include_router(org_groups_router, prefix=API_V1_PREFIX)
+app.include_router(permissions_router, prefix=API_V1_PREFIX)
+app.include_router(org_router, prefix=API_V1_PREFIX)
 app.include_router(
     telemetry_query_router, prefix=f"{API_V1_PREFIX}/orgs/{{org_id}}/telemetry"
 )

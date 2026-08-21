@@ -17,8 +17,8 @@ Organization
 
 User (bez organization_id, bez status — uprawnienia wyłącznie z grup)
   ↔ UsersOrganizations (M:N membership, brak kolumny roli)
-     └─ SecurityGroup (z organization_id=NULL dla grup platformowych,
-                        lub organization_id<UUID> dla grup gminy)
+  ↔ SecurityGroup (moduł security: grupy uprawnień z organization_id=NULL dla platform,
+                    lub organization_id<UUID> dla gmin)
 ```
 
 | Encja | Reprezentuje |

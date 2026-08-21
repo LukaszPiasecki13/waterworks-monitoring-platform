@@ -1,6 +1,5 @@
 from collections.abc import Generator
 from datetime import datetime
-from unittest.mock import MagicMock
 
 import pytest
 from fastapi import FastAPI
@@ -12,27 +11,25 @@ from app.core.errors import register_error_handlers
 from app.core.rate_limit import register_rate_limiting
 from app.modules.core_data.models import User
 from app.modules.core_data.repositories import UserRepository
-from app.modules.security.api import router
+from app.modules.security.api import auth_router
 from app.modules.security.permission_catalog import STAFF_GROUP_KEY
-from app.modules.security.repositories import PermissionRepository
+from app.modules.security.repositories import GroupRepository, PermissionRepository
 from app.modules.security.services.password import hash_password
 from app.modules.security.services.permissions import PermissionService
 
 
 def permission_service(session: Session) -> PermissionService:
-    return PermissionService(
-        PermissionRepository(session), UserRepository(session), MagicMock()
-    )
+    return PermissionService(PermissionRepository(session), UserRepository(session))
 
 
 @pytest.fixture
 def auth_client(db_session: Session) -> Generator[TestClient]:
-    repo = PermissionRepository(db_session)
-    if not repo.get_group_by_system_key(STAFF_GROUP_KEY):
+    group_repo = GroupRepository(db_session)
+    if not group_repo.get_group_by_system_key(STAFF_GROUP_KEY):
         # "Staff" is reference data normally synced by SecuritySeedService at
         # startup; DATABASE_URL may point at a database where it already
         # exists, so only create it if missing.
-        repo.create_system_group(
+        group_repo.create_system_group(
             name="Staff",
             description="Default application access",
             system_key=STAFF_GROUP_KEY,
@@ -41,7 +38,7 @@ def auth_client(db_session: Session) -> Generator[TestClient]:
     app = FastAPI()
     register_error_handlers(app)
     register_rate_limiting(app)
-    app.include_router(router)
+    app.include_router(auth_router)
 
     def override_get_db() -> Generator[Session]:
         yield db_session
