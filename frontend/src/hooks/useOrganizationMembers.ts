@@ -1,25 +1,26 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { usersService } from '@/services/usersService'
-import { authService } from '@/services/authService'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '@/stores/authStore'
+import { membersService } from '@/services/membersService'
+import { authService } from '@/services/authService'
 import { queryKeys } from './queryKeys'
 
-export function useUserOrganizations(userId: string | null) {
+export function useOrganizationMembers(orgId: string | null) {
   return useQuery({
-    queryKey: queryKeys.users.organizations(userId || ''),
-    queryFn: () => usersService.getOrganizations(userId as string),
-    enabled: !!userId,
+    queryKey: queryKeys.members.list(orgId || ''),
+    queryFn: () => (orgId ? membersService.list(orgId) : Promise.resolve([])),
+    enabled: !!orgId,
   })
 }
 
-export function useAssignUserOrganization(userId: string) {
+export function useAddOrganizationMember(orgId: string) {
   const queryClient = useQueryClient()
   const { setUserContext } = useAuthStore()
 
   return useMutation({
-    mutationFn: (orgId: string) => usersService.assignOrganization(userId, orgId),
+    mutationFn: (userId: string) => membersService.add(orgId, userId),
     onSuccess: async () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.users.organizations(userId) })
+      queryClient.invalidateQueries({ queryKey: queryKeys.members.list(orgId) })
+      // Force fetch and sync user context to Zustand store
       try {
         const userContextData = await queryClient.fetchQuery({
           queryKey: queryKeys.auth.userContext(),
@@ -33,14 +34,15 @@ export function useAssignUserOrganization(userId: string) {
   })
 }
 
-export function useRemoveUserOrganization(userId: string) {
+export function useRemoveOrganizationMember(orgId: string) {
   const queryClient = useQueryClient()
   const { setUserContext } = useAuthStore()
 
   return useMutation({
-    mutationFn: (orgId: string) => usersService.removeOrganization(userId, orgId),
+    mutationFn: (userId: string) => membersService.remove(orgId, userId),
     onSuccess: async () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.users.organizations(userId) })
+      queryClient.invalidateQueries({ queryKey: queryKeys.members.list(orgId) })
+      // Force fetch and sync user context to Zustand store
       try {
         const userContextData = await queryClient.fetchQuery({
           queryKey: queryKeys.auth.userContext(),

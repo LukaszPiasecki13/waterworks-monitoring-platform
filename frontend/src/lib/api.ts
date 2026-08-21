@@ -11,6 +11,16 @@ export const authClient = axios.create({
   baseURL: API_URL,
 })
 
+authClient.interceptors.request.use((config: InternalAxiosRequestConfig) => {
+  if (!config.headers.Authorization) {
+    const token = useAuthStore.getState().accessToken
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`
+    }
+  }
+  return config
+})
+
 export const apiClient = axios.create({
   baseURL: API_URL,
 })

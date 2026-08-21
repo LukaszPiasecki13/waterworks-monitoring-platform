@@ -9,6 +9,14 @@ interface ColumnDef<T> {
   sortable?: boolean;
 }
 
+interface EmptyState {
+  icon?: React.ReactNode;
+  title: string;
+  subtitle?: string;
+  ctaLabel?: string;
+  onCta?: () => void;
+}
+
 interface DataTableProps<T> {
   columns: ColumnDef<T>[];
   data: T[];
@@ -17,6 +25,7 @@ interface DataTableProps<T> {
   isError?: boolean;
   errorMessage?: string;
   emptyMessage?: string;
+  emptyState?: EmptyState;
   onRowClick?: (row: T, index: number) => void;
   pageSize?: number;
   currentPage?: number;
@@ -32,6 +41,7 @@ export function DataTable<T extends object>({
   isError = false,
   errorMessage = 'Błąd wczytywania danych',
   emptyMessage = 'Brak danych',
+  emptyState,
   onRowClick,
   pageSize = 20,
   currentPage = 1,
@@ -69,6 +79,31 @@ export function DataTable<T extends object>({
   }
 
   if (isEmpty || data.length === 0) {
+    if (emptyState) {
+      return (
+        <div className="flex justify-center items-center h-64">
+          <div className="text-center">
+            {emptyState.icon && (
+              <div className="flex justify-center mb-4 text-neutral-400">
+                {emptyState.icon}
+              </div>
+            )}
+            <h3 className="font-semibold text-neutral-900 mb-1">{emptyState.title}</h3>
+            {emptyState.subtitle && (
+              <p className="text-sm text-neutral-500 mb-4">{emptyState.subtitle}</p>
+            )}
+            {emptyState.ctaLabel && emptyState.onCta && (
+              <button
+                onClick={emptyState.onCta}
+                className="inline-flex items-center justify-center px-3 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 transition-colors"
+              >
+                {emptyState.ctaLabel}
+              </button>
+            )}
+          </div>
+        </div>
+      );
+    }
     return (
       <div className="flex justify-center items-center h-64">
         <p className="text-neutral-500">{emptyMessage}</p>

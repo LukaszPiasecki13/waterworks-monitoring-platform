@@ -1,10 +1,11 @@
 import { useCrudPageState } from '@/hooks/useCrudPageState';
 import { useDevices, useCreateDevice, useUpdateDevice, useDeleteDevice } from '@/hooks/useDevices';
+import { useActivePermissions } from '@/hooks/useActivePermissions';
 import { Button } from '@/components/ui/Button';
 import { Card, CardContent } from '@/components/ui/Card';
 import { DataTable } from '@/components/ui/DataTable';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
-import { Plus, Pencil, Trash2 } from 'lucide-react';
+import { Plus, Pencil, Trash2, Cpu } from 'lucide-react';
 import type { Device, DeviceCreateRequest, DeviceUpdateRequest } from '@/types/coreData';
 import { DeviceFormDialog, type DeviceFormData } from '@/components/dialogs/DeviceFormDialog';
 
@@ -13,6 +14,8 @@ export function DevicesPage() {
   const createMutation = useCreateDevice();
   const updateMutation = useUpdateDevice();
   const deleteMutation = useDeleteDevice();
+  const { hasPermission } = useActivePermissions();
+  const canManage = hasPermission('CAN_MANAGE_ASSETS');
 
   const crud = useCrudPageState<string, DeviceFormData, DeviceCreateRequest, DeviceUpdateRequest, Device>({
     createMutation,
@@ -50,28 +53,34 @@ export function DevicesPage() {
       label: 'Wersja',
       render: (row: Device) => row.firmware_version || '—',
     },
-    {
-      key: 'actions',
-      label: 'Akcje',
-      render: (row: Device) => (
-        <div className="flex gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => crud.openEdit(row.id)}
-          >
-            <Pencil className="h-4 w-4" />
-          </Button>
-          <Button
-            variant="destructive"
-            size="sm"
-            onClick={() => crud.requestDelete(row.id)}
-          >
-            <Trash2 className="h-4 w-4" />
-          </Button>
-        </div>
-      ),
-    },
+    ...(canManage
+      ? [
+          {
+            key: 'actions',
+            label: 'Akcje',
+            render: (row: Device) => (
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => crud.openEdit(row.id)}
+                  aria-label={`Edytuj urządzenie ${row.external_id}`}
+                >
+                  <Pencil className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={() => crud.requestDelete(row.id)}
+                  aria-label={`Usuń urządzenie ${row.external_id}`}
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </div>
+            ),
+          },
+        ]
+      : []),
   ];
 
   return (
@@ -81,10 +90,12 @@ export function DevicesPage() {
           <h1 className="text-3xl font-bold text-neutral-900">Urządzenia</h1>
           <p className="text-neutral-600">Zarządzanie urządzeniami pomiarowymi</p>
         </div>
-        <Button onClick={crud.openCreate}>
-          <Plus className="mr-2 h-4 w-4" />
-          Nowe urządzenie
-        </Button>
+        {canManage && (
+          <Button onClick={crud.openCreate}>
+            <Plus className="mr-2 h-4 w-4" />
+            Nowe urządzenie
+          </Button>
+        )}
       </div>
 
       <Card>
@@ -93,31 +104,42 @@ export function DevicesPage() {
             columns={columns}
             data={devices}
             isLoading={isLoading}
+            emptyState={canManage ? {
+              icon: <Cpu className="h-12 w-12" />,
+              title: 'Brak urządzeń',
+              subtitle: 'Zacznij od dodania pierwszego urządzenia pomiarowego',
+              ctaLabel: 'Dodaj urządzenie',
+              onCta: () => crud.openCreate(),
+            } : undefined}
           />
         </CardContent>
       </Card>
 
-      <DeviceFormDialog
-        open={crud.isFormOpen}
-        onOpenChange={crud.setIsFormOpen}
-        deviceId={crud.editingId}
-        onSubmit={crud.handleSubmit}
-        isLoading={crud.isSubmitting}
-        serverFieldErrors={crud.serverFieldErrors}
-      />
+      {canManage && (
+        <>
+          <DeviceFormDialog
+            open={crud.isFormOpen}
+            onOpenChange={crud.setIsFormOpen}
+            deviceId={crud.editingId}
+            onSubmit={crud.handleSubmit}
+            isLoading={crud.isSubmitting}
+            serverFieldErrors={crud.serverFieldErrors}
+          />
 
-      <ConfirmDialog
-        open={!!crud.deleteId}
-        onOpenChange={(open) => !open && crud.cancelDelete()}
-        title="Usuń urządzenie"
-        description="Ta akcja nie może być cofnięta."
-        message="Czy na pewno chcesz usunąć to urządzenie?"
-        confirmText="Usuń"
-        cancelText="Anuluj"
-        isDestructive
-        isLoading={crud.isDeleting}
-        onConfirm={crud.confirmDelete}
-      />
+          <ConfirmDialog
+            open={!!crud.deleteId}
+            onOpenChange={(open) => !open && crud.cancelDelete()}
+            title="Usuń urządzenie"
+            description="Ta akcja nie może być cofnięta."
+            message="Czy na pewno chcesz usunąć to urządzenie?"
+            confirmText="Usuń"
+            cancelText="Anuluj"
+            isDestructive
+            isLoading={crud.isDeleting}
+            onConfirm={crud.confirmDelete}
+          />
+        </>
+      )}
     </div>
   );
 }

@@ -1,6 +1,10 @@
 /* Centralna fabryka kluczy React Query — każdy hook czyta z tego źródła */
 
 export const queryKeys = {
+  auth: {
+    userContext: () => ['auth', 'userContext'] as const,
+  },
+
   organizations: {
     all: ['organizations'] as const,
     list: (params?: object) => [

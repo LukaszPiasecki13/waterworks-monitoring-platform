@@ -28,7 +28,7 @@ export interface UseCrudPageStateOptions<
   /** Przekształć dane z formularza na payload update, gdy się różnią. Domyślnie identyczność. */
   toUpdateInput?: (data: TFormData) => TUpdateInput
   /** Dodatkowy efekt uboczny po udanym create, PO domyślnym toast+zamknięciu. */
-  onCreateSuccess?: (result: TCreateResult) => void
+  onCreateSuccess?: (result: TCreateResult, formData: TFormData) => void
   onUpdateSuccess?: () => void
 }
 
@@ -115,7 +115,7 @@ export function useCrudPageState<
             setIsFormOpen(false)
             setServerFieldErrors(null)
             toast.success(messages.createSuccess)
-            options.onCreateSuccess?.(result)
+            options.onCreateSuccess?.(result, data)
           },
           onError: buildOnError(messages.createErrorFallback),
         })

@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/Button'
 import { Card, CardContent } from '@/components/ui/Card'
 import { DataTable } from '@/components/ui/DataTable'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
-import { Plus, Pencil, Trash2, Building2 } from 'lucide-react'
+import { Plus, Pencil, Trash2, Building2, Users } from 'lucide-react'
 import type { ManagedUser, ManagedUserCreateRequest, ManagedUserUpdateRequest } from '@/types/coreData'
 import { UserFormDialog, type UserFormData } from '@/components/dialogs/UserFormDialog'
 import { ManageUserOrganizationsDialog } from '@/components/dialogs/ManageUserOrganizationsDialog'
@@ -62,7 +62,7 @@ export function PlatformUsersPage() {
                   variant="outline"
                   size="sm"
                   onClick={() => setOrgDialogUser(row)}
-                  title="Zarządzaj organizacjami"
+                  aria-label={`Zarządzaj organizacjami użytkownika ${row.username}`}
                 >
                   <Building2 className="h-4 w-4" />
                 </Button>
@@ -70,6 +70,7 @@ export function PlatformUsersPage() {
                   variant="outline"
                   size="sm"
                   onClick={() => crud.openEdit(row.id)}
+                  aria-label={`Edytuj użytkownika ${row.username}`}
                 >
                   <Pencil className="h-4 w-4" />
                 </Button>
@@ -77,6 +78,7 @@ export function PlatformUsersPage() {
                   variant="destructive"
                   size="sm"
                   onClick={() => crud.requestDelete(row.id)}
+                  aria-label={`Usuń użytkownika ${row.username}`}
                 >
                   <Trash2 className="h-4 w-4" />
                 </Button>
@@ -104,7 +106,18 @@ export function PlatformUsersPage() {
 
       <Card>
         <CardContent className="p-0">
-          <DataTable columns={columns} data={users} isLoading={isLoading} />
+          <DataTable
+            columns={columns}
+            data={users}
+            isLoading={isLoading}
+            emptyState={canManageUsers ? {
+              icon: <Users className="h-12 w-12" />,
+              title: 'Brak użytkowników',
+              subtitle: 'Utwórz konta dla administratorów i operatorów',
+              ctaLabel: 'Dodaj użytkownika',
+              onCta: () => crud.openCreate(),
+            } : undefined}
+          />
         </CardContent>
       </Card>
 

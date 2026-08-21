@@ -167,10 +167,24 @@ export interface SecurityGroupSummary {
   description: string | null;
   is_system: boolean;
   system_key: string | null;
+  organization_id: string | null;
   permissions: SecurityPermission[];
   user_ids: string[];
   created_at: string;
   updated_at: string;
+}
+
+export interface SecurityGroupCreateRequest {
+  name: string;
+  description?: string;
+  permission_codes: string[];
+}
+
+export interface SecurityGroupSaveRequest {
+  name: string;
+  description?: string;
+  permission_codes: string[];
+  user_ids: string[];
 }
 
 /* Audit Event */

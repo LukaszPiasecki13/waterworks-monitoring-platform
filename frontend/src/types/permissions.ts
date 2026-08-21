@@ -36,3 +36,31 @@ export const PERMISSIONS: Record<PermissionCode, string> = {
   PLATFORM_MANAGE_MEMBERSHIPS: 'Manage memberships (platform)',
   PLATFORM_VIEW_AUDIT: 'View audit log (platform)',
 };
+
+export interface PermissionCatalogEntry {
+  code: PermissionCode;
+  name: string;
+  category: string;
+  plane: 'organization' | 'platform';
+}
+
+/* Mirrors PERMISSION_CATALOG in backend/app/modules/security/permission_catalog.py —
+   keep category/plane in sync manually when the backend catalog changes. */
+export const PERMISSION_CATALOG: PermissionCatalogEntry[] = [
+  { code: 'CAN_VIEW_USERS', name: 'Podgląd członków organizacji', category: 'Użytkownicy', plane: 'organization' },
+  { code: 'CAN_MANAGE_USERS', name: 'Zarządzanie członkami organizacji', category: 'Użytkownicy', plane: 'organization' },
+  { code: 'CAN_VIEW_SECURITY', name: 'Podgląd grup bezpieczeństwa organizacji', category: 'Bezpieczeństwo', plane: 'organization' },
+  { code: 'CAN_MANAGE_SECURITY', name: 'Zarządzanie grupami bezpieczeństwa organizacji', category: 'Bezpieczeństwo', plane: 'organization' },
+  { code: 'CAN_VIEW_ATTACHMENTS', name: 'Podgląd załączników organizacji', category: 'Załączniki', plane: 'organization' },
+  { code: 'CAN_MANAGE_ATTACHMENTS', name: 'Zarządzanie załącznikami organizacji', category: 'Załączniki', plane: 'organization' },
+  { code: 'CAN_VIEW_ORGANIZATIONS', name: 'Podgląd własnej organizacji', category: 'Rejestr obiektów', plane: 'organization' },
+  { code: 'CAN_MANAGE_ORGANIZATIONS', name: 'Zarządzanie własną organizacją', category: 'Rejestr obiektów', plane: 'organization' },
+  { code: 'CAN_VIEW_ASSETS', name: 'Podgląd obiektów, urządzeń i punktów pomiarowych', category: 'Rejestr obiektów', plane: 'organization' },
+  { code: 'CAN_MANAGE_ASSETS', name: 'Zarządzanie obiektami, urządzeniami i punktami pomiarowymi', category: 'Rejestr obiektów', plane: 'organization' },
+  { code: 'PLATFORM_VIEW_ORGANIZATIONS', name: 'Podgląd rejestru organizacji', category: 'Platforma', plane: 'platform' },
+  { code: 'PLATFORM_MANAGE_ORGANIZATIONS', name: 'Zarządzanie organizacjami', category: 'Platforma', plane: 'platform' },
+  { code: 'PLATFORM_VIEW_USERS', name: 'Podgląd globalnego rejestru kont', category: 'Platforma', plane: 'platform' },
+  { code: 'PLATFORM_MANAGE_USERS', name: 'Zarządzanie kontami', category: 'Platforma', plane: 'platform' },
+  { code: 'PLATFORM_MANAGE_MEMBERSHIPS', name: 'Zarządzanie członkostwami', category: 'Platforma', plane: 'platform' },
+  { code: 'PLATFORM_VIEW_AUDIT', name: 'Podgląd audytu globalnego', category: 'Platforma', plane: 'platform' },
+];

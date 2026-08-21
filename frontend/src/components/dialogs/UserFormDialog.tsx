@@ -60,7 +60,14 @@ export function UserFormDialog({
         is_active: user.is_active,
       });
     } else {
-      reset();
+      reset({
+        username: '',
+        email: '',
+        first_name: '',
+        last_name: '',
+        password: '',
+        is_active: true,
+      });
     }
   }, [userId, user, reset]);
 
