@@ -14,7 +14,7 @@ import { Building2, Shield, ChevronDown } from 'lucide-react'
 export function EnvironmentSwitcher() {
   const navigate = useNavigate()
   const { userContext } = useAuthStore()
-  const { environment, setOrganization, setPlatform } = useActiveEnvironmentStore()
+  const { environment, setOrganization } = useActiveEnvironmentStore()
 
   if (!userContext || !environment) {
     return null
@@ -25,20 +25,12 @@ export function EnvironmentSwitcher() {
     navigate('/dashboard', { replace: true })
   }
 
-  const handleSwitchPlatform = () => {
-    setPlatform()
-    navigate('/platform/organizations', { replace: true })
-  }
-
   const handleSwitchEnvironment = () => {
     navigate('/environment-picker', { replace: true })
   }
 
   const getDisplayLabel = () => {
-    if (environment.type === 'platform') {
-      return 'Platforma'
-    }
-    return environment.organizationName
+    return 'Organizacje'
   }
 
   return (
@@ -79,24 +71,6 @@ export function EnvironmentSwitcher() {
             </div>
           )}
         </div>
-
-        {userContext.platform && (
-          <>
-            <DropdownMenuSeparator />
-            <div className="px-3 py-2">
-              <p className="text-xs font-semibold uppercase tracking-wide text-neutral-500 mb-2">
-                Platforma
-              </p>
-              <DropdownMenuItem
-                onClick={handleSwitchPlatform}
-                className={environment.type === 'platform' ? 'bg-purple-50' : ''}
-              >
-                <Shield className="h-4 w-4 mr-2" />
-                <span>Platforma</span>
-              </DropdownMenuItem>
-            </div>
-          </>
-        )}
 
         <DropdownMenuSeparator />
         <DropdownMenuItem onClick={handleSwitchEnvironment}>
