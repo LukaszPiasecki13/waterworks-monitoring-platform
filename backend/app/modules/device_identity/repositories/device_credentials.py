@@ -11,7 +11,7 @@ class DeviceCredentialRepository(SQLRepository):
     """Manage device credentials in the database."""
 
     def __init__(self, session: Session):
-        super().__init__(session, DeviceCredential)
+        super().__init__(session)
 
     def get_by_serial_number(self, serial_number: str) -> DeviceCredential | None:
         """Get a credential by serial number, return None if not found."""
