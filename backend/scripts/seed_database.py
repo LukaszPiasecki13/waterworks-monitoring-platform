@@ -304,10 +304,12 @@ def seed_database():
         from app.modules.audit.repositories.audit import AuditRepository
         from app.modules.audit.services.audit import SqlAuditService
         from app.modules.core_data.repositories.users import UserRepository
+        from app.modules.security.repositories.groups import GroupRepository
         from app.modules.security.repositories.permissions import PermissionRepository
         from app.modules.security.services.permissions import PermissionService
 
         perm_repo = PermissionRepository(session)
+        group_repo = GroupRepository(session)
         user_repo = UserRepository(session)
         audit_repo = AuditRepository(session)
         audit_service = SqlAuditService(audit_repo)
@@ -315,7 +317,7 @@ def seed_database():
 
         for org in [org1, org2]:
             # Check if org already has groups
-            existing_groups = perm_repo.list_org_groups(org.id)
+            existing_groups = group_repo.list_org_groups(org.id)
             if not existing_groups:
                 print(f"  Seeding groups for {org.name}...")
                 perm_service.seed_organization_groups(
@@ -698,9 +700,9 @@ def seed_database():
             )
 
             if admin_group and staff_group:
-                from app.modules.security.repositories import PermissionRepository
+                from app.modules.security.repositories.groups import GroupRepository
 
-                repo = PermissionRepository(session)
+                repo = GroupRepository(session)
 
                 # Assign global admin to admin group
                 repo.replace_user_groups(admin_user.id, {admin_group.id})

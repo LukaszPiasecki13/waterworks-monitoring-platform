@@ -11,8 +11,8 @@ from fastapi.testclient import TestClient
 from app.core.dependencies import get_db
 from app.core.errors import register_error_handlers
 from app.modules.device_identity.api.claims import claims_router
-from app.modules.device_identity.api.device_auth import router as device_auth_router
-from app.modules.device_identity.api.provisioning import router as provisioning_router
+from app.modules.device_identity.api.device_auth import device_auth_router
+from app.modules.device_identity.api.provisioning import provisioning_router
 from app.modules.device_identity.dependencies import (
     get_device_auth_service,
     get_provisioning_service,

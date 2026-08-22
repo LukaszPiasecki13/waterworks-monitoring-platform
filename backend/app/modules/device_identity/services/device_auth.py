@@ -113,7 +113,12 @@ class DeviceAuthService:
             except Exception as err:
                 raise BadRequestError("Invalid signature encoding") from err
 
-            message = credential.pending_challenge.encode()
+            # Decode base64url challenge nonce to bytes before verification
+            try:
+                message = base64.urlsafe_b64decode(credential.pending_challenge + "==")
+            except Exception as err:
+                raise BadRequestError("Invalid challenge encoding") from err
+
             if not verify_signature(credential.public_key_pem, message, signature_der):
                 raise AuthenticationError("Signature verification failed")
 
