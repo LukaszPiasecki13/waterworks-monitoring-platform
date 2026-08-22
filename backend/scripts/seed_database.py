@@ -250,6 +250,22 @@ def seed_database():
             )
             session.add(viewer_radzilow)
 
+        # Gmina Frysztak - operator (for device provisioning/claim testing)
+        operator_frysztak = (
+            session.query(User).filter_by(username="operator_frysztak").first()
+        )
+        if not operator_frysztak:
+            operator_frysztak = User(
+                id=uuid4(),
+                username="operator_frysztak",
+                email="operator@gmina-frysztak.pl",
+                first_name="Piotr",
+                last_name="Operator",
+                hashed_password=hash_password("password123"),
+                is_active=True,
+            )
+            session.add(operator_frysztak)
+
         session.flush()
 
         # Add users to organizations (M:N relationship)
@@ -296,6 +312,19 @@ def seed_database():
                 UsersOrganizations(user_id=viewer_radzilow.id, organization_id=org2.id)
             )
 
+        # Operator Frysztak belongs to org1
+        org1_operator = (
+            session.query(UsersOrganizations)
+            .filter_by(user_id=operator_frysztak.id, organization_id=org1.id)
+            .first()
+        )
+        if not org1_operator:
+            session.add(
+                UsersOrganizations(
+                    user_id=operator_frysztak.id, organization_id=org1.id
+                )
+            )
+
         session.commit()
         print("  ✓ Created users and assigned to organizations")
 
@@ -306,6 +335,7 @@ def seed_database():
         from app.modules.core_data.repositories.users import UserRepository
         from app.modules.security.repositories.groups import GroupRepository
         from app.modules.security.repositories.permissions import PermissionRepository
+        from app.modules.security.services.groups import GroupService
         from app.modules.security.services.permissions import PermissionService
 
         perm_repo = PermissionRepository(session)
@@ -313,14 +343,15 @@ def seed_database():
         user_repo = UserRepository(session)
         audit_repo = AuditRepository(session)
         audit_service = SqlAuditService(audit_repo)
-        perm_service = PermissionService(perm_repo, user_repo, audit_service)
+        perm_service = PermissionService(perm_repo, user_repo, group_repo)
+        group_service = GroupService(group_repo, user_repo, perm_service, audit_service)
 
         for org in [org1, org2]:
             # Check if org already has groups
             existing_groups = group_repo.list_org_groups(org.id)
             if not existing_groups:
                 print(f"  Seeding groups for {org.name}...")
-                perm_service.seed_organization_groups(
+                group_service.seed_organization_groups(
                     organization_id=org.id,
                     org_plane_codes=ORG_PLANE_PERMISSION_CODES,
                     view_codes=VIEW_PERMISSIONS,
@@ -690,6 +721,9 @@ def seed_database():
         viewer_radzilow_user = (
             session.query(User).filter_by(username="viewer_radzilow").first()
         )
+        operator_frysztak_user = (
+            session.query(User).filter_by(username="operator_frysztak").first()
+        )
 
         if admin_user and viewer_frysztak_user and viewer_radzilow_user:
             admin_group = (
@@ -697,6 +731,11 @@ def seed_database():
             )
             staff_group = (
                 session.query(UserGroup).filter_by(system_key=STAFF_GROUP_KEY).first()
+            )
+            operator_group = (
+                session.query(UserGroup)
+                .filter_by(system_key=ORG_OPERATOR_GROUP_KEY, organization_id=org1.id)
+                .first()
             )
 
             if admin_group and staff_group:
@@ -709,6 +748,11 @@ def seed_database():
                 # Assign viewers to staff group (read-only)
                 repo.replace_user_groups(viewer_frysztak_user.id, {staff_group.id})
                 repo.replace_user_groups(viewer_radzilow_user.id, {staff_group.id})
+                # Assign operator to org-level operator group
+                if operator_frysztak_user and operator_group:
+                    repo.replace_user_groups(
+                        operator_frysztak_user.id, {operator_group.id}
+                    )
 
                 session.commit()
                 print("  ✓ Users assigned to groups")
@@ -721,7 +765,7 @@ def seed_database():
         print("  Organizations:      2")
         print("    - Gmina Frysztak")
         print("    - Gmina Radziłów")
-        print("  Users:              3 (1 admin + 2 viewers)")
+        print("  Users:              4 (1 admin + 2 viewers + 1 operator)")
         print("  Water Objects:      4 (2 per organization)")
         print("    Gmina Frysztak:")
         print("      - Ujęcie wody - Jezioro Frysztak")
@@ -741,7 +785,11 @@ def seed_database():
         print("    Username:         admin / password123")
         print("      → Full access to all organizations and data")
         print("      → Can manage users, devices, permissions")
-        print("\n  Viewers (organization-specific):")
+        print("\n  Operator (device provisioning & asset management):")
+        print("    Username:         operator_frysztak / password123")
+        print("      → Can provision devices, manage assets in Gmina Frysztak")
+        print("      → Can claim/verify device credentials")
+        print("\n  Viewers (organization-specific, read-only):")
         print("    Gmina Frysztak:   viewer_frysztak / password123")
         print("      → Read-only access to Gmina Frysztak data")
         print("    Gmina Radziłów:   viewer_radzilow / password123")

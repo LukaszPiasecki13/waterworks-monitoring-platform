@@ -21,18 +21,19 @@ provisioning_router = APIRouter(prefix="/device-provisioning", tags=["provisioni
 async def register_device_credential(
     request: DeviceProvisionRequest,
     service: DeviceProvisioningService = Depends(get_provisioning_service),
-    platform_ctx: PlatformContext = Depends(
+    context: PlatformContext = Depends(
         require_platform_permission(PLATFORM_MANAGE_DEVICE_PROVISIONING)
     ),
 ) -> DeviceProvisionResponse:
     """Register a provisioned device credential (public key).
 
     Called by the provisioning script after firmware has generated a key pair.
+    Requires PLATFORM_MANAGE_DEVICE_PROVISIONING permission.
     """
     credential = service.register(
         serial_number=request.serial_number,
         public_key_pem=request.public_key_pem,
-        platform_ctx=platform_ctx,
+        platform_ctx=context,
     )
     return DeviceProvisionResponse(
         serial_number=credential.serial_number,
