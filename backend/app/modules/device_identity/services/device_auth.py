@@ -115,7 +115,11 @@ class DeviceAuthService:
 
             # Decode base64url challenge nonce to bytes before verification
             try:
-                message = base64.urlsafe_b64decode(credential.pending_challenge + "==")
+                challenge_b64 = credential.pending_challenge
+                # Add proper padding to make length multiple of 4
+                while len(challenge_b64) % 4 != 0:
+                    challenge_b64 += "="
+                message = base64.urlsafe_b64decode(challenge_b64)
             except Exception as err:
                 raise BadRequestError("Invalid challenge encoding") from err
 
