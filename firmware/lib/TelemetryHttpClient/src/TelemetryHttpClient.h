@@ -16,7 +16,7 @@ class TelemetryHttpClient {
   TelemetryHttpClient(ModemLink& modem, const char* server, int port, const char* deviceKey);
   ~TelemetryHttpClient();
 
-  HttpResponse post(const char* resource, const String& payload);
+  HttpResponse post(const char* resource, const String& payload, const String& bearerToken = "");
 
  private:
   ModemLink& modem_;

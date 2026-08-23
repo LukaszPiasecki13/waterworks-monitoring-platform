@@ -1,0 +1,23 @@
+{
+  "name": "EnrollmentClient",
+  "version": "0.1.0",
+  "description": "Serial ACTIVATE <code> listener and one-shot activation-code redeem for device enrollment",
+  "keywords": [
+    "enrollment",
+    "activation",
+    "provisioning"
+  ],
+  "authors": [
+    {
+      "name": "Waterworks"
+    }
+  ],
+  "license": "MIT",
+  "frameworks": "arduino",
+  "platforms": "espressif32",
+  "dependencies": {
+    "ArduinoJson": ">=6.0",
+    "DeviceIdentity": "*",
+    "TelemetryHttpClient": "*"
+  }
+}

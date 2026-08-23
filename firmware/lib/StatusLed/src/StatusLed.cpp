@@ -7,14 +7,21 @@ StatusLed::StatusLed(int pin) : pin_(pin), pixels_(nullptr) {
 
   if (pin_ == 48) {
     pixels_ = new Adafruit_NeoPixel(1, pin_, NEO_GRB + NEO_KHZ800);
-    pixels_->begin();
-    pixels_->setBrightness(255);
-    pixels_->setPixelColor(0, pixels_->Color(0, 0, 0));
-    pixels_->show();
+    // Defer pixels_->begin() to setup() to avoid blocking at global scope before watchdog resets
   } else {
     pinMode(pin_, OUTPUT);
     digitalWrite(pin_, LOW);
   }
+}
+
+void StatusLed::initializePixels() {
+  if (pixels_initialized_) return;
+  if (!pixels_) return;
+  pixels_->begin();
+  pixels_->setBrightness(255);
+  pixels_->setPixelColor(0, pixels_->Color(0, 0, 0));
+  pixels_->show();
+  pixels_initialized_ = true;
 }
 
 StatusLed::~StatusLed() {

@@ -13,10 +13,6 @@ uint32_t TimeSync::lastSyncMs_ = 0;
 void TimeSync::init() {
   synced_ = false;
   lastSyncMs_ = 0;
-  if (rtcSyncedTimeUtcSec > 0) {
-    synced_ = true;
-    lastSyncMs_ = rtcSyncMillis;
-  }
 }
 
 bool TimeSync::sync(ModemLink& modemLink) {

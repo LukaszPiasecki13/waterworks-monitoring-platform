@@ -3,7 +3,7 @@
 #include <time.h>
 #include "TelemetryPayload.h"
 
-TelemetryPayload::TelemetryPayload(const char* deviceId) : device_id_(deviceId), getUtcTime_(nullptr) {}
+TelemetryPayload::TelemetryPayload(const String& deviceId) : device_id_(deviceId), getUtcTime_(nullptr) {}
 
 float TelemetryPayload::calculateSineValue(uint32_t seq) {
   const float BASE_VALUE = 100.0f;

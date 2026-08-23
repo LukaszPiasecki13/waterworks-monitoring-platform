@@ -6,15 +6,18 @@
 #include <TelemetryPayload.h>
 #include <StatusLed.h>
 #include <TimeSync.h>
+#include <DeviceIdentity.h>
 
 #define SerialMon Serial
 
 TelemetrySender::TelemetrySender(ModemLink& modem, TelemetryHttpClient& httpClient, TelemetryPayload& payload,
-                                 StatusLed& led, unsigned long sendIntervalMs, unsigned long errorRetryMs)
+                                 StatusLed& led, DeviceIdentity& identity, unsigned long sendIntervalMs,
+                                 unsigned long errorRetryMs)
     : modem_(modem),
       http_(httpClient),
       payload_(payload),
       led_(led),
+      identity_(identity),
       send_interval_ms_(sendIntervalMs),
       error_retry_ms_(errorRetryMs) {}
 
@@ -33,12 +36,27 @@ void TelemetrySender::update(unsigned long now) {
     return;
   }
 
-  uint32_t seq = (uint32_t)(TimeSync::getUtcTimestamp() / 1000);
+  if (!TimeSync::isSynced()) {
+    SerialMon.println("[LOOP] Time not synced, skipping telemetry");
+    next_allowed_send_ms_ = millis() + error_retry_ms_;
+    return;
+  }
+
+  uint32_t nowUnix = (uint32_t)(TimeSync::getUtcTimestamp() / 1000);
+
+  if (!identity_.hasValidSession(nowUnix)) {
+    SerialMon.println("[LOOP] No valid session, skipping telemetry");
+    next_allowed_send_ms_ = millis() + error_retry_ms_;
+    return;
+  }
+
+  uint32_t seq = nowUnix;
   String payloadStr = payload_.build(seq, send_start_ms);
   SerialMon.print("[DATA] Payload: ");
   SerialMon.println(payloadStr);
 
-  HttpResponse resp = http_.post(RESOURCE, payloadStr);
+  String token = identity_.sessionToken();
+  HttpResponse resp = http_.post(RESOURCE, payloadStr, token);
 
   if (resp.statusCode == 200 || resp.statusCode == 202) {
     SerialMon.print("[LOOP] Send OK, seq=");
@@ -46,11 +64,15 @@ void TelemetrySender::update(unsigned long now) {
 
     led_.blinkSuccess();
     last_success_ms_ = now;
+    last_error_was_permanent_ = false;
   } else {
     SerialMon.print("[LOOP] Send failed, seq=");
     SerialMon.println(seq);
 
     led_.blinkError();
     next_allowed_send_ms_ = millis() + error_retry_ms_;
+
+    // Track if error is permanent (device not assigned, etc.)
+    last_error_was_permanent_ = (resp.statusCode == 409 || resp.statusCode == 410 || resp.statusCode == 403);
   }
 }

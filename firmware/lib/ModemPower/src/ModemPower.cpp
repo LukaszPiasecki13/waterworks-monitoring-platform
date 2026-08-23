@@ -11,6 +11,11 @@ void ModemPower::powerOn() {
     delay(500);
   }
 
+  if (reset_pin_ >= 0) {
+    pinMode(reset_pin_, OUTPUT);
+    digitalWrite(reset_pin_, LOW);
+  }
+
   if (pwrkey_pin_ >= 0) {
     pinMode(pwrkey_pin_, OUTPUT);
     digitalWrite(pwrkey_pin_, HIGH);

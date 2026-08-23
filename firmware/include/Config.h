@@ -12,7 +12,7 @@
 // see HARDWARE.md for full pin map
 // =========================
 
-const int LED_PIN = -1;
+const int LED_PIN = 48;
 const int MODEM_RX_PIN = 18;
 const int MODEM_TX_PIN = 17;
 const int MODEM_PWRKEY_PIN = 4;
@@ -35,13 +35,15 @@ const char SIM_PIN[] = "";
 const char SERVER[] = "waterworks-monitoring-platform.onrender.com";
 const int PORT = 443;
 const char RESOURCE[] = "/telemetry/ingest";
-const char DEVICE_KEY[] = "Test1";
 
 // =========================
-// Device identity
+// Device identity & provisioning
 // =========================
 
-const char DEVICE_ID[] = "esp32-a7670e-0001";
+const char SN_PREFIX[] = "WW-";
+const char CHALLENGE_RESOURCE[] = "/devices/auth/challenge";
+const char VERIFY_RESOURCE[] = "/devices/auth/verify";
+const char ACTIVATION_RESOURCE[] = "/devices/activation/redeem";
 
 // =========================
 // Timings
@@ -51,3 +53,6 @@ const unsigned long SEND_INTERVAL_MS = 15000;
 const unsigned long ERROR_RETRY_MS = 5000;
 const unsigned long WATCHDOG_STUCK_MS = 5 * 60 * 1000;  // 5 minutes
 const uint8_t MAX_RESTART_ATTEMPTS = 2;
+const unsigned long CLAIM_POLL_INTERVAL_MS = 15000;        // testowe; do dostrojenia po Fazie B
+const uint32_t TOKEN_REFRESH_MARGIN_SECONDS = 4 * 3600;    // 4h przed wygaśnięciem 36h tokenu
+const unsigned long ACTIVATION_RETRY_INTERVAL_MS = 30000;  // backoff bazowy dla EnrollmentClient (błędy przejściowe)

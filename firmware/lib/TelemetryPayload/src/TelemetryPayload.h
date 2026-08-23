@@ -5,13 +5,13 @@
 
 class TelemetryPayload {
  public:
-  TelemetryPayload(const char* deviceId);
+  TelemetryPayload(const String& deviceId);
 
   String build(uint32_t seq, unsigned long timestampMs);
   void setGetUtcTime(std::function<uint64_t()> getUtcTime);
 
  private:
-  const char* device_id_;
+  String device_id_;
   std::function<uint64_t()> getUtcTime_;
 
   float calculateSineValue(uint32_t seq);

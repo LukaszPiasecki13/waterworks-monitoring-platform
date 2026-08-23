@@ -17,7 +17,7 @@ TelemetryHttpClient::~TelemetryHttpClient() {
   }
 }
 
-HttpResponse TelemetryHttpClient::post(const char* resource, const String& payload) {
+HttpResponse TelemetryHttpClient::post(const char* resource, const String& payload, const String& bearerToken) {
   HttpResponse resp = {-1, 0, ""};
 
   SerialMon.print("[HTTP] POST size=");
@@ -33,7 +33,13 @@ HttpResponse TelemetryHttpClient::post(const char* resource, const String& paylo
   http_->post(resource);
   http_->sendHeader("Content-Type", "application/json");
   http_->sendHeader("Accept", "application/json");
-  http_->sendHeader("X-Device-Key", device_key_);
+
+  if (!bearerToken.isEmpty()) {
+    http_->sendHeader("Authorization", "Bearer " + bearerToken);
+  } else {
+    http_->sendHeader("X-Device-Key", device_key_);
+  }
+
   http_->sendHeader("Content-Length", payload.length());
   http_->beginBody();
   http_->print(payload);
