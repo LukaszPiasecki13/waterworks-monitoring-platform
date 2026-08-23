@@ -1,7 +1,9 @@
 import { apiClient } from '@/lib/api';
 import type {
   Device,
-  DeviceCreateRequest,
+  DeviceAssignRequest,
+  DeviceAssignResponse,
+  DeviceClaimStatusResponse,
   DeviceUpdateRequest,
 } from '@/types/coreData';
 
@@ -30,8 +32,13 @@ export const devicesService = {
     return response.data;
   },
 
-  async create(orgId: string, data: DeviceCreateRequest): Promise<Device> {
+  async assign(orgId: string, data: DeviceAssignRequest): Promise<DeviceAssignResponse> {
     const response = await apiClient.post(`/api/v1/orgs/${orgId}/devices`, data);
+    return response.data;
+  },
+
+  async getClaimStatus(orgId: string, serialNumber: string): Promise<DeviceClaimStatusResponse> {
+    const response = await apiClient.get(`/api/v1/orgs/${orgId}/devices/claims/${serialNumber}`);
     return response.data;
   },
 
@@ -42,5 +49,26 @@ export const devicesService = {
 
   async delete(orgId: string, id: string): Promise<void> {
     await apiClient.delete(`/api/v1/orgs/${orgId}/devices/${id}`);
+  },
+
+  // Platform-level methods (no org scoping)
+  async listAll(params?: ListParams): Promise<Device[]> {
+    const response = await apiClient.get('/api/v1/platform/devices', { params });
+    if (response.data && Array.isArray(response.data.items)) {
+      return response.data.items;
+    }
+    if (Array.isArray(response.data)) {
+      return response.data;
+    }
+    return [];
+  },
+
+  async getDetail(id: string): Promise<Device> {
+    const response = await apiClient.get(`/api/v1/platform/devices/${id}`);
+    return response.data;
+  },
+
+  async deletePlatform(id: string): Promise<void> {
+    await apiClient.delete(`/api/v1/platform/devices/${id}`);
   },
 };

@@ -1,42 +1,40 @@
 import { useCrudPageState } from '@/hooks/useCrudPageState';
-import { useDevices, useCreateDevice, useUpdateDevice, useDeleteDevice } from '@/hooks/useDevices';
+import { useDevices, useAssignDevice, useUpdateDevice, useDeleteDevice } from '@/hooks/useDevices';
 import { useActivePermissions } from '@/hooks/useActivePermissions';
 import { Button } from '@/components/ui/Button';
 import { Card, CardContent } from '@/components/ui/Card';
 import { DataTable } from '@/components/ui/DataTable';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { Plus, Pencil, Trash2, Cpu } from 'lucide-react';
-import type { Device, DeviceCreateRequest, DeviceUpdateRequest } from '@/types/coreData';
+import type { Device, DeviceAssignRequest, DeviceUpdateRequest } from '@/types/coreData';
 import { DeviceFormDialog, type DeviceFormData } from '@/components/dialogs/DeviceFormDialog';
 
 export function DevicesPage() {
   const { data: devices = [], isLoading } = useDevices();
-  const createMutation = useCreateDevice();
+  const assignMutation = useAssignDevice();
   const updateMutation = useUpdateDevice();
   const deleteMutation = useDeleteDevice();
   const { hasPermission } = useActivePermissions();
   const canManage = hasPermission('CAN_MANAGE_ASSETS');
 
-  const crud = useCrudPageState<string, DeviceFormData, DeviceCreateRequest, DeviceUpdateRequest, Device>({
-    createMutation,
+  const crud = useCrudPageState<string, DeviceFormData, DeviceAssignRequest, DeviceUpdateRequest>({
+    createMutation: assignMutation,
     updateMutation,
     deleteMutation,
     messages: {
-      createSuccess: 'Urządzenie utworzone',
+      createSuccess: 'Urządzenie przypisane',
       updateSuccess: 'Urządzenie zaktualizowane',
       deleteSuccess: 'Urządzenie usunięte',
-      createErrorFallback: 'Błąd przy tworzeniu',
+      createErrorFallback: 'Błąd przy przypisywaniu',
       updateErrorFallback: 'Błąd przy aktualizacji',
       deleteErrorFallback: 'Błąd przy usuwaniu',
     },
     toCreateInput: (data) => ({
-      external_id: data.external_id ?? '',
+      serial_number: data.external_id ?? '',
       water_object_id: data.water_object_id ?? '',
-      firmware_version: data.firmware_version || undefined,
     }),
     toUpdateInput: (data) => {
       const updateData: DeviceUpdateRequest = {};
-      if (data.firmware_version) updateData.firmware_version = data.firmware_version;
       if (data.is_active !== undefined) updateData.is_active = data.is_active;
       return updateData;
     },
@@ -93,7 +91,7 @@ export function DevicesPage() {
         {canManage && (
           <Button onClick={crud.openCreate}>
             <Plus className="mr-2 h-4 w-4" />
-            Nowe urządzenie
+            Przypisz urządzenie
           </Button>
         )}
       </div>
@@ -107,8 +105,8 @@ export function DevicesPage() {
             emptyState={canManage ? {
               icon: <Cpu className="h-12 w-12" />,
               title: 'Brak urządzeń',
-              subtitle: 'Zacznij od dodania pierwszego urządzenia pomiarowego',
-              ctaLabel: 'Dodaj urządzenie',
+              subtitle: 'Zacznij od przypisania pierwszego urządzenia',
+              ctaLabel: 'Przypisz urządzenie',
               onCta: () => crud.openCreate(),
             } : undefined}
           />

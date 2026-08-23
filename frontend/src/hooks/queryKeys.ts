@@ -59,6 +59,18 @@ export const queryKeys = {
     list: () => ['platformGroups'] as const,
   },
 
+  activationCodes: {
+    all: ['activationCodes'] as const,
+    list: (params?: object) => ['activationCodes', 'list', params] as const,
+    detail: (id: string) => ['activationCodes', 'detail', id] as const,
+  },
+
+  platformDevices: {
+    all: ['platformDevices'] as const,
+    list: (params?: object) => ['platformDevices', 'list', params] as const,
+    detail: (id: string) => ['platformDevices', 'detail', id] as const,
+  },
+
   platformAudit: {
     all: ['platformAudit'] as const,
     list: (params?: { skip?: number; limit?: number }) => ['platformAudit', params] as const,

@@ -11,8 +11,7 @@ import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
 
 const deviceSchema = z.object({
-  external_id: z.string().optional(),
-  firmware_version: z.string().optional(),
+  external_id: z.string(),
   water_object_id: z.string().optional(),
   is_active: z.boolean().optional(),
 });
@@ -52,8 +51,7 @@ export function DeviceFormDialog({
     if (deviceId && device) {
       reset({
         external_id: device.external_id,
-        firmware_version: device.firmware_version || '',
-        water_object_id: device.water_object_id,
+        water_object_id: device.water_object_id ?? undefined,
         is_active: device.is_active,
       });
     } else {
@@ -76,32 +74,25 @@ export function DeviceFormDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>{deviceId ? 'Edytuj urządzenie' : 'Nowe urządzenie'}</DialogTitle>
+          <DialogTitle>{deviceId ? 'Edytuj urządzenie' : 'Przypisz urządzenie'}</DialogTitle>
         </DialogHeader>
         <DialogBody>
           <form onSubmit={handleSubmit(handleFormSubmit)} className="space-y-4">
             {!deviceId && (
               <FormField
-                label="Identyfikator urządzenia"
+                label="Numer seryjny (SN)"
                 error={errors.external_id?.message}
                 required
               >
                 <Input
                   {...register('external_id', {
-                    required: 'Identyfikator jest wymagany',
-                    minLength: { value: 2, message: 'Minimum 2 znaki' }
+                    required: 'Numer seryjny jest wymagany',
+                    minLength: { value: 1, message: 'Wymagane' }
                   })}
-                  placeholder="np. PUMP-DT-001"
+                  placeholder="np. WW-3CDC756F6DC0"
                 />
               </FormField>
             )}
-
-            <FormField label="Wersja firmware" error={errors.firmware_version?.message}>
-              <Input
-                {...register('firmware_version')}
-                placeholder="np. 1.0.0"
-              />
-            </FormField>
 
             {!deviceId && (
               <FormField label="Obiekt wodny" error={errors.water_object_id?.message} required>
@@ -138,7 +129,7 @@ export function DeviceFormDialog({
             onClick={handleSubmit(handleFormSubmit)}
             isLoading={isLoading}
           >
-            {deviceId ? 'Aktualizuj' : 'Utwórz'}
+            {deviceId ? 'Aktualizuj' : 'Przypisz'}
           </Button>
         </DialogFooter>
       </DialogContent>

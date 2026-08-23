@@ -2,7 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { devicesService } from '@/services/devicesService';
 import { queryKeys } from './queryKeys';
 import { useActiveEnvironmentStore } from '@/stores/activeEnvironmentStore';
-import type { DeviceCreateRequest, DeviceUpdateRequest } from '@/types/coreData';
+import type { DeviceAssignRequest, DeviceUpdateRequest } from '@/types/coreData';
 
 interface ListParams {
   skip?: number
@@ -40,7 +40,7 @@ export function useDevice(id: string) {
   });
 }
 
-export function useCreateDevice() {
+export function useAssignDevice() {
   const queryClient = useQueryClient();
   const activeOrgId = useActiveEnvironmentStore((state) => {
     if (state.environment?.type === 'organization') {
@@ -50,10 +50,9 @@ export function useCreateDevice() {
   })
 
   return useMutation({
-    mutationFn: (data: DeviceCreateRequest) => devicesService.create(activeOrgId!, data),
+    mutationFn: (data: DeviceAssignRequest) => devicesService.assign(activeOrgId!, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.devices.all });
-      queryClient.invalidateQueries({ queryKey: queryKeys.waterObjects.all });
     },
   });
 }
@@ -89,6 +88,33 @@ export function useDeleteDevice() {
     mutationFn: (id: string) => devicesService.delete(activeOrgId!, id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.devices.all });
+    },
+  });
+}
+
+// Platform-level device hooks (no org scoping)
+export function usePlatformDevices(params?: ListParams) {
+  return useQuery({
+    queryKey: queryKeys.platformDevices.list(params),
+    queryFn: () => devicesService.listAll(params),
+  });
+}
+
+export function usePlatformDevice(id: string) {
+  return useQuery({
+    queryKey: queryKeys.platformDevices.detail(id),
+    queryFn: () => devicesService.getDetail(id),
+    enabled: !!id,
+  });
+}
+
+export function useDeletePlatformDevice() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (id: string) => devicesService.deletePlatform(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.platformDevices.all });
     },
   });
 }

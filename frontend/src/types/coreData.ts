@@ -49,7 +49,7 @@ export interface WaterObjectUpdateRequest {
 /* Device */
 export interface Device {
   id: string;
-  water_object_id: string;
+  water_object_id: string | null;
   external_id: string;
   firmware_version: string | null;
   last_seen_at: string | null;
@@ -57,15 +57,37 @@ export interface Device {
   is_active: boolean;
 }
 
-export interface DeviceCreateRequest {
+export interface DeviceAssignRequest {
+  serial_number: string;
   water_object_id: string;
-  external_id: string;
-  firmware_version?: string;
+}
+
+export interface DeviceAssignResponse {
+  serial_number: string;
+  status: string;
+}
+
+export interface DeviceClaimStatusResponse {
+  serial_number: string;
+  status: string;
 }
 
 export interface DeviceUpdateRequest {
   firmware_version?: string;
   is_active?: boolean;
+}
+
+/* Activation Code */
+export interface ActivationCode {
+  id: string;
+  status: 'unused' | 'used' | 'expired' | 'cancelled';
+  expires_at: string;
+  used_at: string | null;
+  serial_number: string | null;
+}
+
+export interface ActivationCodeCreateResponse extends ActivationCode {
+  activation_code: string;
 }
 
 /* Measurement Point */

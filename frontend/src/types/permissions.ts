@@ -16,6 +16,7 @@ export type PermissionCode =
   | 'PLATFORM_VIEW_USERS'
   | 'PLATFORM_MANAGE_USERS'
   | 'PLATFORM_MANAGE_MEMBERSHIPS'
+  | 'PLATFORM_MANAGE_DEVICE_PROVISIONING'
   | 'PLATFORM_VIEW_AUDIT';
 
 export const PERMISSIONS: Record<PermissionCode, string> = {
@@ -34,6 +35,7 @@ export const PERMISSIONS: Record<PermissionCode, string> = {
   PLATFORM_VIEW_USERS: 'View users (platform)',
   PLATFORM_MANAGE_USERS: 'Manage users (platform)',
   PLATFORM_MANAGE_MEMBERSHIPS: 'Manage memberships (platform)',
+  PLATFORM_MANAGE_DEVICE_PROVISIONING: 'Manage device provisioning (platform)',
   PLATFORM_VIEW_AUDIT: 'View audit log (platform)',
 };
 
@@ -62,5 +64,6 @@ export const PERMISSION_CATALOG: PermissionCatalogEntry[] = [
   { code: 'PLATFORM_VIEW_USERS', name: 'Podgląd globalnego rejestru kont', category: 'Platforma', plane: 'platform' },
   { code: 'PLATFORM_MANAGE_USERS', name: 'Zarządzanie kontami', category: 'Platforma', plane: 'platform' },
   { code: 'PLATFORM_MANAGE_MEMBERSHIPS', name: 'Zarządzanie członkostwami', category: 'Platforma', plane: 'platform' },
+  { code: 'PLATFORM_MANAGE_DEVICE_PROVISIONING', name: 'Zarządzanie provisioningiem urządzeń', category: 'Platforma', plane: 'platform' },
   { code: 'PLATFORM_VIEW_AUDIT', name: 'Podgląd audytu globalnego', category: 'Platforma', plane: 'platform' },
 ];

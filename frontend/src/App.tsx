@@ -32,6 +32,12 @@ const PlatformUsersPage = lazy(() =>
 const PlatformGroupsPage = lazy(() =>
   import('@/pages/PlatformGroupsPage').then((m) => ({ default: m.PlatformGroupsPage }))
 )
+const PlatformActivationCodesPage = lazy(() =>
+  import('@/pages/PlatformActivationCodesPage').then((m) => ({ default: m.PlatformActivationCodesPage }))
+)
+const PlatformDevicesPage = lazy(() =>
+  import('@/pages/PlatformDevicesPage').then((m) => ({ default: m.PlatformDevicesPage }))
+)
 const PlatformAuditPage = lazy(() =>
   import('@/pages/PlatformAuditPage').then((m) => ({ default: m.PlatformAuditPage }))
 )
@@ -133,6 +139,26 @@ const router = createBrowserRouter(
               <RequirePermission permission="PLATFORM_MANAGE_ORGANIZATIONS">
                 <Suspense fallback={<LoadingFallback />}>
                   <PlatformGroupsPage />
+                </Suspense>
+              </RequirePermission>
+            }
+          />
+          <Route
+            path="/platform/activation-codes"
+            element={
+              <RequirePermission permission="PLATFORM_MANAGE_DEVICE_PROVISIONING">
+                <Suspense fallback={<LoadingFallback />}>
+                  <PlatformActivationCodesPage />
+                </Suspense>
+              </RequirePermission>
+            }
+          />
+          <Route
+            path="/platform/devices"
+            element={
+              <RequirePermission permission="PLATFORM_MANAGE_DEVICE_PROVISIONING">
+                <Suspense fallback={<LoadingFallback />}>
+                  <PlatformDevicesPage />
                 </Suspense>
               </RequirePermission>
             }

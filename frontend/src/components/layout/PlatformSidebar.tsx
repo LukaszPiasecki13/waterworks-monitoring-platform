@@ -1,7 +1,7 @@
 import { Link, useLocation } from 'react-router-dom'
 import { useActivePermissions } from '@/hooks/useActivePermissions'
 import { cn } from '@/lib/cn'
-import { Building2, Users, Lock, FileText } from 'lucide-react'
+import { Building2, Users, Lock, FileText, KeyRound, Cpu } from 'lucide-react'
 import { UserMenu } from './UserMenu'
 import type { PermissionCode } from '@/types/permissions'
 
@@ -41,6 +41,18 @@ export function PlatformSidebar({ isOpen = true, onClose, collapsed = false }: P
       path: '/platform/groups',
       icon: <Lock className="h-5 w-5" />,
       permissions: ['PLATFORM_VIEW_ORGANIZATIONS'],
+    },
+    {
+      label: 'Kody aktywacyjne',
+      path: '/platform/activation-codes',
+      icon: <KeyRound className="h-5 w-5" />,
+      permissions: ['PLATFORM_MANAGE_DEVICE_PROVISIONING'],
+    },
+    {
+      label: 'Wszystkie urządzenia',
+      path: '/platform/devices',
+      icon: <Cpu className="h-5 w-5" />,
+      permissions: ['PLATFORM_MANAGE_DEVICE_PROVISIONING'],
     },
     {
       label: 'Audyt',
