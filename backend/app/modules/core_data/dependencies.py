@@ -51,11 +51,11 @@ def get_organization_repo(session: Session = Depends(get_db)) -> OrganizationRep
 
 def get_organization_service(
     repo: OrganizationRepository = Depends(get_organization_repo),
-    perm_service: PermissionService = Depends(get_permission_service),
+    group_service: GroupService = Depends(get_group_service),
     audit: AuditPort = Depends(get_audit_service),
 ) -> OrganizationService:
     """Get organization service dependency."""
-    return OrganizationService(repo, perm_service, audit)
+    return OrganizationService(repo, group_service, audit)
 
 
 def get_water_object_repo(session: Session = Depends(get_db)) -> WaterObjectRepository:

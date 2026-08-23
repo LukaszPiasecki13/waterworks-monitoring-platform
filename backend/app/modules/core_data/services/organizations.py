@@ -20,7 +20,7 @@ from app.modules.security.permission_catalog import (
     ORG_VIEWER_GROUP_KEY,
     VIEW_PERMISSIONS,
 )
-from app.modules.security.services.permissions import PermissionService
+from app.modules.security.services.groups import GroupService
 
 
 class OrganizationService:
@@ -29,11 +29,11 @@ class OrganizationService:
     def __init__(
         self,
         repo: OrganizationRepository,
-        perm_service: PermissionService,
+        group_service: GroupService,
         audit: AuditPort,
     ):
         self.repo = repo
-        self.perm_service = perm_service
+        self.group_service = group_service
         self.audit = audit
 
     def _state(self, org) -> dict:
@@ -82,7 +82,7 @@ class OrganizationService:
 
     def _seed_starter_groups(self, org: Organization, actor: User) -> None:
         """Create 3 starter groups for organization."""
-        self.perm_service.seed_organization_groups(
+        self.group_service.seed_organization_groups(
             organization_id=org.id,
             org_plane_codes=ORG_PLANE_PERMISSION_CODES,
             view_codes=VIEW_PERMISSIONS,

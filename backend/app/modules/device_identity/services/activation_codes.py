@@ -180,7 +180,7 @@ class DeviceActivationCodeService:
         """
         code_hash = _hash_code(activation_code)
 
-        with self.code_repo.transaction():
+        with self.code_repo.transaction() as tx:
             code = self.code_repo.get_by_code_hash(code_hash)
             if not code:
                 raise NotFoundError(
@@ -210,6 +210,7 @@ class DeviceActivationCodeService:
                     credential.serial_number == serial_number
                     and credential.public_key_pem == public_key_pem
                 ):
+                    tx.skip_audit()
                     return {
                         "serial_number": serial_number,
                         "status": "already_registered",
