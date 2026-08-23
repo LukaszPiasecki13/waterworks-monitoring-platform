@@ -4,11 +4,13 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends
 
+from app.modules.core_data.schemas.users import PaginatedResponse
 from app.modules.device_identity.dependencies import get_activation_code_service
 from app.modules.device_identity.schemas.activation_codes import (
     ActivationCodeCancelResponse,
     ActivationCodeCreateResponse,
     ActivationCodeStatusResponse,
+    ListActivationCodesQuery,
 )
 from app.modules.device_identity.services.activation_codes import (
     DeviceActivationCodeService,
@@ -20,6 +22,29 @@ from app.modules.security.permission_catalog import PLATFORM_MANAGE_DEVICE_PROVI
 activation_codes_router = APIRouter(
     prefix="/device-activation-codes", tags=["activation-codes"]
 )
+
+
+@activation_codes_router.get(
+    "", response_model=PaginatedResponse[ActivationCodeStatusResponse]
+)
+async def list_activation_codes(
+    query: ListActivationCodesQuery = Depends(),
+    service: DeviceActivationCodeService = Depends(get_activation_code_service),
+    context: PlatformContext = Depends(
+        require_platform_permission(PLATFORM_MANAGE_DEVICE_PROVISIONING)
+    ),
+) -> PaginatedResponse[ActivationCodeStatusResponse]:
+    """List activation codes with pagination.
+
+    Requires PLATFORM_MANAGE_DEVICE_PROVISIONING permission.
+    """
+    codes, total = service.list_codes(skip=query.skip, limit=query.limit)
+    return PaginatedResponse(
+        items=[ActivationCodeStatusResponse(**code) for code in codes],
+        total=total,
+        skip=query.skip,
+        limit=query.limit,
+    )
 
 
 @activation_codes_router.post(

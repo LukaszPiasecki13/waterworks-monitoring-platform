@@ -3,9 +3,16 @@
 from datetime import datetime
 from uuid import UUID
 
-from pydantic import ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.core.schemas import BaseSchema
+
+
+class ListActivationCodesQuery(BaseModel):
+    """Query parameters for listing activation codes."""
+
+    skip: int = Field(0, ge=0)
+    limit: int = Field(100, ge=1, le=1000)
 
 
 class ActivationCodeCreateResponse(BaseSchema):

@@ -52,3 +52,14 @@ class DeviceActivationCodeRepository(SQLRepository):
             .filter(DeviceActivationCode.code_hash == code_hash)
             .first()
         )
+
+    def list_all(
+        self, skip: int = 0, limit: int = 100
+    ) -> tuple[list[DeviceActivationCode], int]:
+        """List all activation codes with pagination."""
+        query = self.session.query(DeviceActivationCode).order_by(
+            DeviceActivationCode.created_at.desc()
+        )
+        total = query.count()
+        codes = query.offset(skip).limit(limit).all()
+        return codes, total

@@ -115,6 +115,37 @@ class DeviceActivationCodeService:
             "serial_number": serial_number,
         }
 
+    def list_codes(self, skip: int = 0, limit: int = 100) -> tuple[list[dict], int]:
+        """List activation codes with pagination.
+
+        Returns list of dicts (same structure as get_status) and total count.
+        """
+        codes, total = self.code_repo.list_all(skip=skip, limit=limit)
+        result = []
+        for code in codes:
+            serial_number = None
+            if code.redeemed_by_credential_id:
+                credential = self.credential_repo.get_by_id(
+                    code.redeemed_by_credential_id
+                )
+                if credential:
+                    serial_number = credential.serial_number
+
+            status = code.status
+            if status == "unused" and code.expires_at < datetime.now(UTC):
+                status = "expired"
+
+            result.append(
+                {
+                    "id": code.id,
+                    "status": status,
+                    "expires_at": code.expires_at,
+                    "used_at": code.used_at,
+                    "serial_number": serial_number,
+                }
+            )
+        return result, total
+
     def cancel(
         self, code_id: UUID, actor_id: str, actor_display_name: str | None
     ) -> dict:
