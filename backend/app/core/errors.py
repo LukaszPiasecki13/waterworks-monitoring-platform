@@ -12,9 +12,15 @@ logger = logging.getLogger(__name__)
 class APIError(Exception):
     """Base exception for API errors."""
 
-    def __init__(self, message: str, status_code: int = status.HTTP_400_BAD_REQUEST):
+    def __init__(
+        self,
+        message: str,
+        status_code: int = status.HTTP_400_BAD_REQUEST,
+        code: str | None = None,
+    ):
         self.message = message
         self.status_code = status_code
+        self.code = code
         super().__init__(message)
 
 
@@ -25,47 +31,52 @@ class BadRequestError(APIError):
 class NotFoundError(APIError):
     """Resource not found."""
 
-    def __init__(self, message: str = "Resource not found"):
-        super().__init__(message, status.HTTP_404_NOT_FOUND)
+    def __init__(self, message: str = "Resource not found", code: str | None = None):
+        super().__init__(message, status.HTTP_404_NOT_FOUND, code)
 
 
 class ConflictError(APIError):
     """Resource conflict (e.g., unique constraint violation)."""
 
-    def __init__(self, message: str = "Resource conflict"):
-        super().__init__(message, status.HTTP_409_CONFLICT)
+    def __init__(self, message: str = "Resource conflict", code: str | None = None):
+        super().__init__(message, status.HTTP_409_CONFLICT, code)
 
 
 class AuthenticationError(APIError):
     """Authentication failed."""
 
-    def __init__(self, message: str = "Authentication failed"):
-        super().__init__(message, status.HTTP_401_UNAUTHORIZED)
+    def __init__(self, message: str = "Authentication failed", code: str | None = None):
+        super().__init__(message, status.HTTP_401_UNAUTHORIZED, code)
 
 
 class ForbiddenError(APIError):
     """Permission denied."""
 
-    def __init__(self, message: str = "Permission denied"):
-        super().__init__(message, status.HTTP_403_FORBIDDEN)
+    def __init__(self, message: str = "Permission denied", code: str | None = None):
+        super().__init__(message, status.HTTP_403_FORBIDDEN, code)
 
 
 class ValidationException(APIError):  # noqa: N818
     """Validation error."""
 
-    def __init__(self, message: str = "Validation error"):
-        super().__init__(message, status.HTTP_422_UNPROCESSABLE_CONTENT)
+    def __init__(self, message: str = "Validation error", code: str | None = None):
+        super().__init__(message, status.HTTP_422_UNPROCESSABLE_CONTENT, code)
 
 
 class GoneError(APIError):
     """Resource is gone (expired challenge, etc)."""
 
-    def __init__(self, message: str = "Resource is gone"):
-        super().__init__(message, status.HTTP_410_GONE)
+    def __init__(self, message: str = "Resource is gone", code: str | None = None):
+        super().__init__(message, status.HTTP_410_GONE, code)
 
 
-def _error_response(status_code: int, detail: object) -> JSONResponse:
-    return JSONResponse(status_code=status_code, content={"detail": detail})
+def _error_response(
+    status_code: int, detail: object, code: str | None = None
+) -> JSONResponse:
+    content = {"detail": detail}
+    if code is not None:
+        content["code"] = code
+    return JSONResponse(status_code=status_code, content=content)
 
 
 def register_error_handlers(app: FastAPI) -> None:
@@ -88,7 +99,7 @@ def register_error_handlers(app: FastAPI) -> None:
                 exc.message,
                 exc.status_code,
             )
-        return _error_response(exc.status_code, exc.message)
+        return _error_response(exc.status_code, exc.message, exc.code)
 
     @app.exception_handler(ValidationError)
     async def validation_exception_handler(request: Request, exc: ValidationError):

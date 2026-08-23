@@ -18,6 +18,7 @@ class EntityType(StrEnum):
     CORE_DATA_DEVICE = "core_data_device"
     CORE_DATA_MEASUREMENT_POINT = "core_data_measurement_point"
     DEVICE_IDENTITY_CREDENTIAL = "device_identity_credential"
+    DEVICE_IDENTITY_ACTIVATION_CODE = "device_identity_activation_code"
 
 
 @dataclass(frozen=True, slots=True)

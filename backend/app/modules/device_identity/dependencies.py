@@ -18,8 +18,14 @@ from app.modules.core_data.dependencies import (
 from app.modules.core_data.models.device import Device
 from app.modules.core_data.services.devices import DeviceService
 from app.modules.core_data.services.water_objects import WaterObjectService
+from app.modules.device_identity.repositories.device_activation_codes import (
+    DeviceActivationCodeRepository,
+)
 from app.modules.device_identity.repositories.device_credentials import (
     DeviceCredentialRepository,
+)
+from app.modules.device_identity.services.activation_codes import (
+    DeviceActivationCodeService,
 )
 from app.modules.device_identity.services.claims import DeviceClaimService
 from app.modules.device_identity.services.device_auth import DeviceAuthService
@@ -39,6 +45,13 @@ def get_credential_repo(
     return DeviceCredentialRepository(session)
 
 
+def get_activation_code_repo(
+    session: Session = Depends(get_db),
+) -> DeviceActivationCodeRepository:
+    """Get device activation code repository dependency."""
+    return DeviceActivationCodeRepository(session)
+
+
 def get_provisioning_service(
     repo: DeviceCredentialRepository = Depends(get_credential_repo),
     audit: AuditPort = Depends(get_audit_service),
@@ -48,13 +61,11 @@ def get_provisioning_service(
 
 
 def get_claim_service(
-    repo: DeviceCredentialRepository = Depends(get_credential_repo),
     water_object_service: WaterObjectService = Depends(get_water_object_service),
     device_service: DeviceService = Depends(get_device_service),
-    audit: AuditPort = Depends(get_audit_service),
 ) -> DeviceClaimService:
     """Get claim service dependency."""
-    return DeviceClaimService(repo, water_object_service, device_service, audit)
+    return DeviceClaimService(water_object_service, device_service)
 
 
 def get_device_auth_service(
@@ -72,6 +83,16 @@ def get_device_auth_service(
         audit,
         settings.device_challenge_expire_seconds,
     )
+
+
+def get_activation_code_service(
+    code_repo: DeviceActivationCodeRepository = Depends(get_activation_code_repo),
+    credential_repo: DeviceCredentialRepository = Depends(get_credential_repo),
+    audit: AuditPort = Depends(get_audit_service),
+) -> DeviceActivationCodeService:
+    """Get activation code service dependency."""
+    settings = get_settings()
+    return DeviceActivationCodeService(code_repo, credential_repo, audit, settings)
 
 
 def get_current_device(

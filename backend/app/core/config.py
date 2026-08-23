@@ -25,6 +25,7 @@ class Settings(BaseSettings):
     refresh_token_expire_days: int = Field(default=1, gt=0)
     device_token_expire_hours: int = Field(default=36, gt=0)
     device_challenge_expire_seconds: int = Field(default=300, gt=0)
+    device_activation_code_expire_seconds: int = Field(default=900, gt=0)
     algorithm: str = "HS256"
 
     # HTTP

@@ -19,7 +19,7 @@ class DeviceResponse(BaseSchema):
     """Device response DTO."""
 
     id: UUID
-    water_object_id: UUID
+    water_object_id: UUID | None
     external_id: str
     firmware_version: str | None
     last_seen_at: datetime | None = None

@@ -20,10 +20,10 @@ class Device(Base):
         primary_key=True,
         default=uuid4,
     )
-    water_object_id: Mapped[UUID] = mapped_column(
+    water_object_id: Mapped[UUID | None] = mapped_column(
         PG_UUID(as_uuid=True),
         ForeignKey("water_objects.id"),
-        nullable=False,
+        nullable=True,
         index=True,
     )
     external_id: Mapped[str] = mapped_column(

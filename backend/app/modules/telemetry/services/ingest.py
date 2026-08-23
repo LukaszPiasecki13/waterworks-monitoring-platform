@@ -2,7 +2,7 @@
 
 from datetime import UTC, datetime
 
-from app.core.errors import ForbiddenError
+from app.core.errors import ConflictError, ForbiddenError
 from app.modules.core_data.models.device import Device
 from app.modules.telemetry.exceptions import TelemetryPacketAlreadyExistsError
 from app.modules.telemetry.repositories.packets import TelemetryPacketRepository
@@ -27,10 +27,17 @@ class TelemetryIngestService:
 
         Raises:
             ForbiddenError: If packet device_id doesn't match authenticated device
+            ConflictError: If device is not assigned to a water object
         """
         if packet.device_id != device.external_id:
             raise ForbiddenError(
                 "Device ID mismatch: packet doesn't match authenticated device"
+            )
+
+        if device.water_object_id is None:
+            raise ConflictError(
+                "Device not assigned to a water object",
+                code="DEVICE_NOT_ASSIGNED",
             )
 
         exists = self._repository.exists_by_device_seq(

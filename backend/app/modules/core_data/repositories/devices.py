@@ -54,6 +54,20 @@ class DeviceRepository(SQLRepository):
             self.session.query(Device).filter(Device.external_id == external_id).first()
         )
 
+    def find_by_external_id_unscoped(self, external_id: str) -> Device:
+        """Find device by external ID without org scope or raise NotFoundError."""
+        device = self.get_by_external_id(external_id)
+        if not device:
+            raise NotFoundError(
+                f"Device not found: {external_id}",
+                code="DEVICE_NOT_FOUND",
+            )
+        return device
+
+    def assign_water_object(self, device: Device, water_object_id: UUID) -> None:
+        """Assign a device to a water object."""
+        device.water_object_id = water_object_id
+
     def list_all_with_org_filter(
         self,
         organization_id: UUID | None = None,
@@ -94,7 +108,7 @@ class DeviceRepository(SQLRepository):
 
     def create(
         self,
-        water_object_id: UUID,
+        water_object_id: UUID | None,
         external_id: str,
         device_credential_id: UUID,
         firmware_version: str | None = None,

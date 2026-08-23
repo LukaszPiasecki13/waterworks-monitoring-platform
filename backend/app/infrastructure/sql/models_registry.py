@@ -4,13 +4,14 @@ from app.modules.core_data.models.measurement_point import MeasurementPoint
 from app.modules.core_data.models.organization import Organization
 from app.modules.core_data.models.user import User
 from app.modules.core_data.models.water_object import WaterObject
-from app.modules.device_identity.models import DeviceCredential
+from app.modules.device_identity.models import DeviceActivationCode, DeviceCredential
 from app.modules.security.models import Permission, UserGroup
 from app.modules.telemetry.models import TelemetryPacket
 
 __all__ = [
     "AuditEvent",
     "Device",
+    "DeviceActivationCode",
     "DeviceCredential",
     "MeasurementPoint",
     "Organization",

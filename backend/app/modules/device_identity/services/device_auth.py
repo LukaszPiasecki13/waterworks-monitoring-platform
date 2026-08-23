@@ -57,12 +57,6 @@ class DeviceAuthService:
             if credential.status == "revoked":
                 raise AuthenticationError("Device is revoked")
 
-            if (
-                credential.status == "unclaimed"
-                and not credential.pending_water_object_id
-            ):
-                raise BadRequestError("Device not claimed and no pending claim")
-
             nonce = secrets.token_urlsafe(32)
             expires_at = datetime.now(UTC) + timedelta(
                 seconds=self.challenge_expire_seconds
@@ -139,7 +133,9 @@ class DeviceAuthService:
             token_data = {
                 "sub": str(device.id),
                 "sn": serial_number,
-                "water_object_id": str(device.water_object_id),
+                "water_object_id": str(device.water_object_id)
+                if device.water_object_id
+                else None,
             }
             token, expires_at = self.token_service.create_device_token(token_data)
 
@@ -151,12 +147,8 @@ class DeviceAuthService:
         Returns:
             The created/claimed Device object
         """
-        water_object_id = credential.pending_water_object_id
-        if not water_object_id:
-            raise BadRequestError("No pending water object for claim")
-
         device = self.device_service.create_claimed(
-            water_object_id=water_object_id,
+            water_object_id=None,
             serial_number=credential.serial_number,
             device_credential_id=credential.id,
             actor_id=str(credential.id),
@@ -166,7 +158,6 @@ class DeviceAuthService:
         credential.status = "claimed"
         credential.claimed_device_id = device.id
         credential.claimed_at = datetime.now(UTC)
-        credential.pending_water_object_id = None
 
         self.credential_repo.flush()
         self.credential_repo.refresh(credential)

@@ -92,7 +92,7 @@ class DeviceService:
     def create_claimed(
         self,
         *,
-        water_object_id: UUID,
+        water_object_id: UUID | None,
         serial_number: str,
         device_credential_id: UUID,
         actor_id: str,
@@ -104,6 +104,7 @@ class DeviceService:
 
         Args:
             water_object_id: Water object the device belongs to
+                (None if not yet assigned)
             serial_number: Device serial number (external_id)
             device_credential_id: The credential UUID
             actor_id: Audit actor ID
@@ -158,6 +159,63 @@ class DeviceService:
                 old_state,
                 new_state,
             )
+            return device
+
+    def assign_water_object(
+        self,
+        external_id: str,
+        water_object_id: UUID,
+        actor_id: str,
+        actor_display_name: str | None,
+        context_id: UUID,
+    ) -> Device:
+        """Assign a device to a water object by external ID (serial number).
+
+        Used when an unassigned device (from redeeming an activation code) is
+        being assigned to an organization's water object.
+
+        Args:
+            external_id: Device serial number
+            water_object_id: Water object to assign to
+            actor_id: Audit actor ID
+            actor_display_name: Audit actor display name
+            context_id: Organization ID for audit context
+
+        Returns:
+            The updated device
+
+        Raises:
+            NotFoundError: Device not found
+            ConflictError: Device already assigned
+        """
+        with self.repo.transaction():
+            device = self.repo.find_by_external_id_unscoped(external_id)
+
+            if device.water_object_id is not None:
+                raise ConflictError(
+                    "Device is already assigned",
+                    code="DEVICE_ALREADY_ASSIGNED",
+                )
+
+            old_state = self._state(device)
+            self.repo.assign_water_object(device, water_object_id)
+            self.repo.flush()
+            self.repo.refresh(device)
+            new_state = self._state(device)
+
+            self.audit.record(
+                AuditEntry(
+                    entity_type=EntityType.CORE_DATA_DEVICE.value,
+                    entity_id=str(device.id),
+                    action="UPDATE",
+                    actor_id=actor_id,
+                    actor_display_name=actor_display_name,
+                    changes=calculate_delta(old_state, new_state),
+                    context_type="organization",
+                    context_id=str(context_id),
+                )
+            )
+
             return device
 
     def delete(self, device_id: UUID, org_access: OrganizationAccess) -> None:

@@ -3,7 +3,7 @@
 from datetime import datetime
 from uuid import UUID, uuid4
 
-from sqlalchemy import DateTime, String, Text, func
+from sqlalchemy import DateTime, ForeignKey, String, Text, func
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -28,8 +28,9 @@ class DeviceCredential(Base):
     )
     public_key_pem: Mapped[str] = mapped_column(Text, nullable=False)
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="unclaimed")
-    pending_water_object_id: Mapped[UUID | None] = mapped_column(
+    activation_code_id: Mapped[UUID | None] = mapped_column(
         PG_UUID(as_uuid=True),
+        ForeignKey("device_activation_codes.id"),
         nullable=True,
     )
     pending_challenge: Mapped[str | None] = mapped_column(String(64), nullable=True)
