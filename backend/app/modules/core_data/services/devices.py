@@ -60,9 +60,14 @@ class DeviceService:
             )
         )
 
-    def get_by_id(self, device_id: UUID, org_access: OrganizationAccess):
-        """Get device by ID."""
-        return self.repo.find_in_organization(device_id, org_access.organization_id)
+    def get_by_id(self, device_id: UUID, organization_id: UUID | None = None):
+        """Get device by ID, optionally filtered by organization.
+
+        If organization_id is None, retrieves device without org scope.
+        """
+        if organization_id:
+            return self.repo.find_in_organization(device_id, organization_id)
+        return self.repo.find_by_id(device_id)
 
     def find_by_id_unscoped(self, device_id: UUID) -> Device:
         """Find device by ID without org scope (for device_identity internal use).
@@ -75,17 +80,21 @@ class DeviceService:
         """Get device by external ID, returns None if not found."""
         return self.repo.get_by_external_id(external_id)
 
-    def list_all(self, query, org_access: OrganizationAccess):
-        """List devices in organization."""
+    def list_all(self, query, organization_id: UUID | None = None):
+        """List devices, optionally filtered by organization.
+
+        If organization_id is None, lists all devices (platform-level).
+        Query can optionally filter by water_object_id (org-scoped only).
+        """
         devices = self.repo.list_all_with_org_filter(
-            organization_id=org_access.organization_id,
-            water_object_id=query.water_object_id,
+            organization_id=organization_id,
+            water_object_id=query.water_object_id if organization_id else None,
             skip=query.skip,
             limit=query.limit,
         )
         count = self.repo.count_with_org_filter(
-            organization_id=org_access.organization_id,
-            water_object_id=query.water_object_id,
+            organization_id=organization_id,
+            water_object_id=query.water_object_id if organization_id else None,
         )
         return devices, count
 
@@ -218,20 +227,30 @@ class DeviceService:
 
             return device
 
-    def delete(self, device_id: UUID, org_access: OrganizationAccess) -> None:
-        """Delete device."""
+    def delete(
+        self,
+        device_id: UUID,
+        actor_id: str,
+        actor_display_name: str | None,
+        organization_id: UUID | None = None,
+    ) -> None:
+        """Delete device.
+
+        If organization_id is None, deletes device without org scope.
+        """
         try:
             with self.repo.transaction():
-                device = self.repo.find_in_organization(
-                    device_id, org_access.organization_id
-                )
+                if organization_id:
+                    device = self.repo.find_in_organization(device_id, organization_id)
+                else:
+                    device = self.repo.find_by_id(device_id)
                 old_state = self._state(device)
                 self.repo.delete(device)
                 self._record_audit(
                     "DELETE",
                     device,
-                    str(org_access.actor.id),
-                    org_access.actor.email,
+                    actor_id,
+                    actor_display_name,
                     old_state,
                     {},
                 )

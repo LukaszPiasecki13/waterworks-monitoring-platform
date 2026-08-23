@@ -13,10 +13,11 @@ from app.core.logging import configure_logging
 from app.core.rate_limit import register_rate_limiting
 from app.modules.core_data.api import (
     context_router,
+    devices_organizations_router,
+    devices_platform_router,
     devices_router,
     measurement_points_router,
     members_router,
-    organizations_router,
     users_router,
     water_objects_router,
 )
@@ -112,11 +113,12 @@ app.include_router(activation_redeem_router)
 
 # API v1 endpoints - platform level
 app.include_router(users_router, prefix=f"{API_V1_PREFIX}/platform")
-app.include_router(organizations_router, prefix=f"{API_V1_PREFIX}/platform")
+app.include_router(devices_organizations_router, prefix=f"{API_V1_PREFIX}/platform")
 app.include_router(platform_router, prefix=f"{API_V1_PREFIX}/platform")
 app.include_router(platform_audit_router, prefix=f"{API_V1_PREFIX}/platform")
 app.include_router(provisioning_router, prefix=f"{API_V1_PREFIX}/platform")
 app.include_router(activation_codes_router, prefix=f"{API_V1_PREFIX}/platform")
+app.include_router(devices_platform_router, prefix=f"{API_V1_PREFIX}/platform")
 
 # API v1 endpoints - organization level
 app.include_router(water_objects_router, prefix=API_V1_PREFIX)
