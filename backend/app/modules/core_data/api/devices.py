@@ -4,13 +4,17 @@ from uuid import UUID
 
 from fastapi import APIRouter, Body, Depends, Path
 
-from app.modules.core_data.dependencies import get_device_service
+from app.modules.core_data.dependencies import (
+    get_device_lifecycle_service,
+    get_device_service,
+)
 from app.modules.core_data.schemas.devices import (
     DeviceResponse,
     DeviceUpdateRequest,
     ListDevicesRequest,
 )
 from app.modules.core_data.schemas.users import PaginatedResponse
+from app.modules.core_data.services.device_lifecycle import DeviceLifecycleService
 from app.modules.core_data.services.devices import DeviceService
 from app.modules.security.access import OrganizationAccess, PlatformContext
 from app.modules.security.dependencies import (
@@ -77,14 +81,9 @@ def delete_device(
     org_access: OrganizationAccess = Depends(require_org_access(CAN_MANAGE_ASSETS)),
     service: DeviceService = Depends(get_device_service),
 ):
-    """Delete device."""
-    service.delete(
-        device_id,
-        actor_id=str(org_access.actor.id),
-        actor_display_name=org_access.actor.email,
-        organization_id=org_id,
-    )
-    return {"message": "Device deleted successfully"}
+    """Detach device from organization (device remains in system)."""
+    service.detach_from_organization(device_id, org_access)
+    return {"message": "Device detached from organization"}
 
 
 # Platform-level endpoints
@@ -125,18 +124,25 @@ def get_all_devices_detail(
 
 
 @platform_router.delete("/{device_id}")
-def delete_all_devices(
-    device_id: UUID,
-    service: DeviceService = Depends(get_device_service),
+def delete_device_platform(
+    device_id: UUID = Path(...),
+    service: DeviceLifecycleService = Depends(get_device_lifecycle_service),
     context: PlatformContext = Depends(
         require_platform_permission(PLATFORM_MANAGE_DEVICE_PROVISIONING)
     ),
 ):
-    """Delete device (platform-level, no org scope).
+    """Delete device completely (cascades to measurement points and telemetry).
 
     Requires PLATFORM_MANAGE_DEVICE_PROVISIONING permission.
+
+    This is a destructive operation that:
+    - Removes the device record
+    - Cascades deletion of associated measurement points
+    - Deletes all telemetry packets for this device
+    - Revokes the device credential
+    - Frees the serial number for re-registration
     """
-    service.delete(
+    service.delete_device_completely(
         device_id,
         actor_id=str(context.actor.id),
         actor_display_name=context.actor.email,

@@ -29,7 +29,7 @@ class MeasurementPoint(Base):
     )
     device_id: Mapped[UUID] = mapped_column(
         PG_UUID(as_uuid=True),
-        ForeignKey("devices.id"),
+        ForeignKey("devices.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )

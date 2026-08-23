@@ -69,3 +69,11 @@ class TelemetryIngestService:
             device_id=packet.device_id,
             seq=packet.seq,
         )
+
+    def delete_all_for_device(self, external_id: str) -> int:
+        """Delete all telemetry packets for a device.
+
+        Flushes rather than commits: the transaction belongs to the caller.
+        Returns the number of packets deleted.
+        """
+        return self._repository.delete_all_for_device(external_id)

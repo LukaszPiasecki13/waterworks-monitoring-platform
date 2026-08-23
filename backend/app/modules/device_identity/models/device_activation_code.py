@@ -42,7 +42,7 @@ class DeviceActivationCode(Base):
     )
     redeemed_by_credential_id: Mapped[UUID | None] = mapped_column(
         PG_UUID(as_uuid=True),
-        ForeignKey("device_credentials.id"),
+        ForeignKey("device_credentials.id", ondelete="SET NULL"),
         nullable=True,
         unique=True,
     )

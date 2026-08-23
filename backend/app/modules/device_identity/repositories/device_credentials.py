@@ -51,3 +51,7 @@ class DeviceCredentialRepository(SQLRepository):
         )
         self.session.add(credential)
         return credential
+
+    def delete(self, credential: DeviceCredential) -> None:
+        """Delete a device credential. Only flushes — transaction belongs to caller."""
+        self.session.delete(credential)

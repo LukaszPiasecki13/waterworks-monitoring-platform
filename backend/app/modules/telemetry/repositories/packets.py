@@ -2,7 +2,7 @@
 
 from datetime import datetime
 
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -79,3 +79,13 @@ class TelemetryPacketRepository(SQLRepository):
 
         self.refresh(entity)
         return entity
+
+    def delete_all_for_device(self, external_id: str) -> int:
+        """Delete all telemetry packets for a device by external_id.
+
+        Flushes rather than commits: the transaction belongs to the caller.
+        Returns the number of packets deleted.
+        """
+        stmt = delete(TelemetryPacket).where(TelemetryPacket.device_id == external_id)
+        result = self.session.execute(stmt)
+        return result.rowcount

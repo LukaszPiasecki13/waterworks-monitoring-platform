@@ -17,6 +17,7 @@ from app.modules.core_data.repositories.users_organizations import (
 )
 from app.modules.core_data.repositories.water_objects import WaterObjectRepository
 from app.modules.core_data.services.context import UserContextService
+from app.modules.core_data.services.device_lifecycle import DeviceLifecycleService
 from app.modules.core_data.services.devices import DeviceService
 from app.modules.core_data.services.measurement_points import (
     MeasurementPointService,
@@ -25,9 +26,14 @@ from app.modules.core_data.services.members import MembersService
 from app.modules.core_data.services.organizations import OrganizationService
 from app.modules.core_data.services.users import UserService
 from app.modules.core_data.services.water_objects import WaterObjectService
+from app.modules.device_identity.repositories.device_credentials import (
+    DeviceCredentialRepository,
+)
 from app.modules.security.dependencies import get_group_service, get_permission_service
 from app.modules.security.services.groups import GroupService
 from app.modules.security.services.permissions import PermissionService
+from app.modules.telemetry.dependencies import get_telemetry_ingest_service
+from app.modules.telemetry.services.ingest import TelemetryIngestService
 
 
 def get_user_repo(session: Session = Depends(get_db)) -> UserRepository:
@@ -77,6 +83,13 @@ def get_device_repo(session: Session = Depends(get_db)) -> DeviceRepository:
     return DeviceRepository(session)
 
 
+def get_credential_repo(
+    session: Session = Depends(get_db),
+) -> DeviceCredentialRepository:
+    """Get device credential repository dependency."""
+    return DeviceCredentialRepository(session)
+
+
 def get_device_service(
     repo: DeviceRepository = Depends(get_device_repo),
     water_object_repo: WaterObjectRepository = Depends(get_water_object_repo),
@@ -84,6 +97,18 @@ def get_device_service(
 ) -> DeviceService:
     """Get device service dependency."""
     return DeviceService(repo, water_object_repo, audit)
+
+
+def get_device_lifecycle_service(
+    device_service: DeviceService = Depends(get_device_service),
+    credential_repo: DeviceCredentialRepository = Depends(get_credential_repo),
+    telemetry_service: TelemetryIngestService = Depends(get_telemetry_ingest_service),
+    audit: AuditPort = Depends(get_audit_service),
+) -> DeviceLifecycleService:
+    """Get device lifecycle service dependency."""
+    return DeviceLifecycleService(
+        device_service, credential_repo, telemetry_service, audit
+    )
 
 
 def get_measurement_point_repo(

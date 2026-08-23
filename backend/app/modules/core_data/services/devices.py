@@ -2,8 +2,6 @@
 
 from uuid import UUID
 
-from sqlalchemy.exc import IntegrityError
-
 from app.core.audit import AuditEntry, AuditPort, EntityType, calculate_delta
 from app.core.errors import ConflictError
 from app.modules.core_data.models.device import Device
@@ -227,34 +225,54 @@ class DeviceService:
 
             return device
 
-    def delete(
+    def detach_from_organization(
+        self,
+        device_id: UUID,
+        org_access: OrganizationAccess,
+    ) -> Device:
+        """Detach a device from an organization (set water_object_id to None).
+
+        The device remains in the system and can be reassigned to another org.
+        """
+        with self.repo.transaction():
+            device = self.repo.find_in_organization(
+                device_id, org_access.organization_id
+            )
+            old_state = self._state(device)
+            self.repo.assign_water_object(device, None)
+            self.repo.flush()
+            self.repo.refresh(device)
+            new_state = self._state(device)
+            self._record_audit(
+                "UPDATE",
+                device,
+                str(org_access.actor.id),
+                org_access.actor.email,
+                old_state,
+                new_state,
+            )
+            return device
+
+    def delete_device_record(
         self,
         device_id: UUID,
         actor_id: str,
         actor_display_name: str | None,
-        organization_id: UUID | None = None,
-    ) -> None:
-        """Delete device.
+    ) -> Device:
+        """Delete a device record. No-commit core — transaction belongs to caller.
 
-        If organization_id is None, deletes device without org scope.
+        Also cascades deletion of measurement_points via FK ondelete=CASCADE.
+        Used by DeviceLifecycleService for atomic multi-service deletion.
         """
-        try:
-            with self.repo.transaction():
-                if organization_id:
-                    device = self.repo.find_in_organization(device_id, organization_id)
-                else:
-                    device = self.repo.find_by_id(device_id)
-                old_state = self._state(device)
-                self.repo.delete(device)
-                self._record_audit(
-                    "DELETE",
-                    device,
-                    actor_id,
-                    actor_display_name,
-                    old_state,
-                    {},
-                )
-        except IntegrityError as err:
-            raise ConflictError(
-                "Cannot delete device with related measurement points"
-            ) from err
+        device = self.repo.find_by_id(device_id)
+        old_state = self._state(device)
+        self.repo.delete(device)
+        self._record_audit(
+            "DELETE",
+            device,
+            actor_id,
+            actor_display_name,
+            old_state,
+            {},
+        )
+        return device
