@@ -1,8 +1,11 @@
 #pragma once
 
+class Adafruit_NeoPixel;
+
 class StatusLed {
  public:
   explicit StatusLed(int pin);
+  ~StatusLed();
 
   void blinkSuccess();
   void blinkError();
@@ -10,4 +13,5 @@ class StatusLed {
 
  private:
   int pin_;
+  Adafruit_NeoPixel* pixels_;
 };
