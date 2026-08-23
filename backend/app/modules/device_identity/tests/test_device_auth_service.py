@@ -93,15 +93,23 @@ def test_challenge_revoked_device(service, mock_credential_repo):
         service.challenge("REVOKED-SN")
 
 
-def test_challenge_unclaimed_no_pending(service, mock_credential_repo):
-    """Test challenge fails for unclaimed device with no pending claim."""
+def test_challenge_unclaimed_succeeds(service, mock_credential_repo):
+    """Test challenge succeeds for unclaimed device (new architecture allows this).
+
+    Per plan 2026-08-23, devices no longer need pre-assignment to request challenges.
+    Verify() handles first-time device creation automatically on first valid signature.
+    """
     credential = MagicMock()
     credential.status = "unclaimed"
     credential.pending_water_object_id = None
     mock_credential_repo.find_by_serial_number.return_value = credential
 
-    with pytest.raises(BadRequestError):
-        service.challenge("UNCLAIMED-SN")
+    serial, nonce = service.challenge("UNCLAIMED-SN")
+
+    assert serial == "UNCLAIMED-SN"
+    assert nonce is not None
+    assert len(nonce) > 0
+    mock_credential_repo.flush.assert_called_once()
 
 
 def test_verify_first_claim_success(

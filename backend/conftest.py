@@ -22,11 +22,15 @@ os.environ.setdefault("ENVIRONMENT", "test")
 os.environ.setdefault("SECRET_KEY", "test-secret-key-at-least-32-chars-long!")
 # DATABASE_URL must be provided in .env for tests
 
+from app.core.audit import AuditPort
 from app.core.config import get_settings
 from app.core.dependencies import get_db
 from app.core.errors import register_error_handlers
 from app.core.rate_limit import limiter
 from app.infrastructure.sql import models_registry  # noqa: F401
+from app.infrastructure.sql.factory import AuditAwareSession
+from app.modules.audit.repositories.audit import AuditRepository
+from app.modules.audit.services.audit import SqlAuditService
 from app.modules.core_data.api import users_router
 from app.modules.core_data.models import User
 from app.modules.security.api import auth_router
@@ -53,12 +57,14 @@ def db_engine() -> Generator[Engine]:
         engine.dispose()
 
 
-@pytest.fixture
-def db_session(db_engine: Engine) -> Generator[Session]:
-    """Session bound to a connection whose outer transaction is rolled back
-    after the test. A SAVEPOINT is restarted after every commit/rollback so
-    test code can call session.commit() freely without ending the outer
-    transaction — every test leaves the database exactly as it found it.
+def _isolated_session[SessionT: Session](
+    db_engine: Engine, session_class: type[SessionT]
+) -> Generator[SessionT]:
+    """Yield a session bound to a connection whose outer transaction is
+    rolled back after the test. A SAVEPOINT is restarted after every
+    commit/rollback so test code can call session.commit() freely without
+    ending the outer transaction — every test leaves the database exactly
+    as it found it.
     """
     connection = db_engine.connect()
     outer_transaction = connection.begin()
@@ -74,7 +80,9 @@ def db_session(db_engine: Engine) -> Generator[Session]:
         )
         connection.exec_driver_sql(f"SET LOCAL search_path TO {schema_sql}")
 
-    session = sessionmaker(bind=connection, expire_on_commit=False)()
+    session = sessionmaker(
+        bind=connection, expire_on_commit=False, class_=session_class
+    )()
 
     nested = connection.begin_nested()
 
@@ -90,6 +98,42 @@ def db_session(db_engine: Engine) -> Generator[Session]:
         session.close()
         outer_transaction.rollback()
         connection.close()
+
+
+@pytest.fixture
+def db_session(db_engine: Engine) -> Generator[Session]:
+    """Plain session — commit() always succeeds regardless of audit state.
+
+    Use `audited_db_session` instead when the test must verify that a
+    service actually satisfies the production commit-time audit guard
+    (AuditAwareSession); this fixture cannot detect a missing
+    audit.record()/skip_audit() call, by design.
+    """
+    yield from _isolated_session(db_engine, session_class=Session)
+
+
+@pytest.fixture
+def audited_db_session(db_engine: Engine) -> Generator[AuditAwareSession]:
+    """Session backed by AuditAwareSession, matching production wiring
+    (see SQLConnectionFactory.create_session_factory). A commit with no
+    recorded audit event and no explicit skip_audit() raises
+    MissingAuditRecordError here exactly as it would in production —
+    pair with `real_audit_service` to catch a service that forgets to
+    call either on some code path.
+    """
+    yield from _isolated_session(db_engine, session_class=AuditAwareSession)
+
+
+@pytest.fixture
+def real_audit_service(audited_db_session: Session) -> AuditPort:
+    """Real AuditPort implementation wired to `audited_db_session`.
+
+    Unlike a mocked AuditPort, calling `.record()` here actually flips
+    the AuditAwareSession commit guard, so a service branch that forgets
+    to record an audit event (or call skip_audit()) fails the test the
+    same way it would fail in production.
+    """
+    return SqlAuditService(AuditRepository(audited_db_session))
 
 
 @pytest.fixture(autouse=True)

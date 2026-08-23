@@ -1,6 +1,8 @@
 """Tests for device activation code service."""
 
 from datetime import UTC, datetime, timedelta
+from types import SimpleNamespace
+from unittest.mock import MagicMock
 from uuid import uuid4
 
 import pytest
@@ -9,6 +11,7 @@ from app.core.errors import (
     BadRequestError,
     GoneError,
 )
+from app.modules.core_data.models import User
 from app.modules.device_identity.repositories.device_activation_codes import (
     DeviceActivationCodeRepository,
 )
@@ -45,11 +48,10 @@ class TestPublicKeyConversion:
 
     def test_valid_p256_point(self):
         """Valid uncompressed P-256 point converts to PEM."""
-        # Real P-256 uncompressed point (04 + X + Y)
+        # Real, on-curve P-256 uncompressed point (04 + X + Y, 65 bytes)
         point_hex = (
-            "04"
-            "c7354436129084dd2dc5ea8a71b4e21fbfc10a32ef84bea0e07c8e35a0203d51"
-            "7896a5dfe6eca31c9ee8d39a9e2849be82f9f8f8f8f8f8f8f8f8f8f8f8f8f8f8f8"
+            "049fc1ad37e02898f02ea3a307dfe05047780b32c21e9b7f953f7bc03a378b970"
+            "97777161e42d76f97118b31e5981b9f205bb1d07a8234995599eb57f40ed4b1c3"
         )
         pem = public_key_point_hex_to_pem(point_hex)
         assert pem.startswith("-----BEGIN PUBLIC KEY-----")
@@ -70,15 +72,15 @@ class TestPublicKeyConversion:
     def test_wrong_prefix_raises(self):
         """Missing uncompressed marker (04) raises BadRequestError."""
         point_hex = (
-            "05"  # Wrong prefix (should be 04)
-            "c7354436129084dd2dc5ea8a71b4e21fbfc10a32ef84bea0e07c8e35a0203d51"
-            "7896a5dfe6eca31c9ee8d39a9e2849be82f9f8f8f8f8f8f8f8f8f8f8f8f8f8f8f8"
+            "05"  # Wrong prefix (should be 04); rest is a real, correctly-sized point
+            "9fc1ad37e02898f02ea3a307dfe05047780b32c21e9b7f953f7bc03a378b970"
+            "97777161e42d76f97118b31e5981b9f205bb1d07a8234995599eb57f40ed4b1c3"
         )
         with pytest.raises(BadRequestError, match="expected uncompressed P-256 point"):
             public_key_point_hex_to_pem(point_hex)
 
 
-def test_code_generation_idempotency(mocker):
+def test_code_generation_idempotency(monkeypatch):
     """Codes generated from same entropy are identical (deterministic)."""
     # Mock secrets.choice to return predictable sequence
     import app.modules.device_identity.services.activation_codes as ac_module
@@ -91,7 +93,7 @@ def test_code_generation_idempotency(mocker):
         choices_made.append(result)
         return result
 
-    mocker.patch.object(ac_module.secrets, "choice", side_effect=mock_choice)
+    monkeypatch.setattr(ac_module.secrets, "choice", mock_choice)
 
     # Generate a code
     from app.modules.device_identity.services.activation_codes import _generate_code
@@ -101,25 +103,54 @@ def test_code_generation_idempotency(mocker):
     assert len(code.split("-")) == 3  # 10 chars split into 4-4-2
 
 
-@pytest.mark.asyncio
-async def test_redeem_idempotency_same_device(db_session, mocker):
-    """Redeeming same code with same SN+key twice returns 200 +
-    already_registered=True."""
-    # Setup
-    code_repo = DeviceActivationCodeRepository(db_session)
-    cred_repo = DeviceCredentialRepository(db_session)
-    audit = mocker.MagicMock()
-    settings = mocker.MagicMock(device_activation_code_expire_seconds=900)
+def _create_user(session) -> User:
+    """Minimal persisted user, needed to satisfy
+    device_activation_codes.created_by_user_id's FK to users.id."""
+    unique = uuid4().hex[:8]
+    user = User(
+        username=f"creator-{unique}",
+        email=f"creator-{unique}@example.com",
+        first_name="Creator",
+        last_name="Test",
+        hashed_password="not-used",
+    )
+    session.add(user)
+    session.flush()
+    return user
 
-    service = DeviceActivationCodeService(code_repo, cred_repo, audit, settings)
+
+@pytest.mark.asyncio
+async def test_redeem_idempotency_same_device(audited_db_session, real_audit_service):
+    """Redeeming same code with same SN+key twice returns 200 +
+    already_registered=True, without violating the commit-time audit guard.
+
+    Uses audited_db_session + real_audit_service (not a mocked AuditPort)
+    so this test actually exercises AuditAwareSession's MissingAuditRecordError
+    guard the way production does — a prior regression here (the idempotent
+    redeem branch returned without calling audit.record() or skip_audit())
+    went undetected because a fully-mocked AuditPort can never fail that
+    guard regardless of what the service does.
+    """
+    # Setup
+    code_repo = DeviceActivationCodeRepository(audited_db_session)
+    cred_repo = DeviceCredentialRepository(audited_db_session)
+    settings = SimpleNamespace(device_activation_code_expire_seconds=900)
+
+    service = DeviceActivationCodeService(
+        code_repo, cred_repo, real_audit_service, settings
+    )
+
+    # audited_db_session sees only its own connection's transaction, so a
+    # user created via the plain db_session fixture wouldn't be visible
+    # here for the created_by_user_id FK — this test creates its own.
+    creator = _create_user(audited_db_session)
 
     # Create a code
-    _code_obj, plaintext = service.generate(uuid4())
+    _code_obj, plaintext = service.generate(creator.id)
     serial = "WW-TEST-SN-001"
     point_hex = (
-        "04"
-        "c7354436129084dd2dc5ea8a71b4e21fbfc10a32ef84bea0e07c8e35a0203d51"
-        "7896a5dfe6eca31c9ee8d39a9e2849be82f9f8f8f8f8f8f8f8f8f8f8f8f8f8f8f8"
+        "049fc1ad37e02898f02ea3a307dfe05047780b32c21e9b7f953f7bc03a378b970"
+        "97777161e42d76f97118b31e5981b9f205bb1d07a8234995599eb57f40ed4b1c3"
     )
 
     # Redeem first time
@@ -133,24 +164,24 @@ async def test_redeem_idempotency_same_device(db_session, mocker):
 
 
 @pytest.mark.asyncio
-async def test_redeem_expired_code_raises(db_session, mocker):
+async def test_redeem_expired_code_raises(db_session, monkeypatch):
     """Redeeming expired code raises GoneError."""
     code_repo = DeviceActivationCodeRepository(db_session)
     cred_repo = DeviceCredentialRepository(db_session)
-    audit = mocker.MagicMock()
-    settings = mocker.MagicMock(device_activation_code_expire_seconds=1)
+    audit = MagicMock()
+    settings = SimpleNamespace(device_activation_code_expire_seconds=1)
 
     service = DeviceActivationCodeService(code_repo, cred_repo, audit, settings)
 
     # Create code with minimal TTL
-    _code_obj, plaintext = service.generate(uuid4())
+    creator = _create_user(db_session)
+    _code_obj, plaintext = service.generate(creator.id)
 
     # Mock time to pass expiry
-    mocker.patch(
+    future_now = datetime.now(UTC) + timedelta(seconds=10)
+    monkeypatch.setattr(
         "app.modules.device_identity.services.activation_codes.datetime",
-        wraps=mocker.MagicMock(
-            now=mocker.MagicMock(return_value=datetime.now(UTC) + timedelta(seconds=10))
-        ),
+        MagicMock(now=MagicMock(return_value=future_now)),
     )
 
     with pytest.raises(GoneError, match="expired"):
@@ -158,17 +189,18 @@ async def test_redeem_expired_code_raises(db_session, mocker):
 
 
 @pytest.mark.asyncio
-async def test_cancel_expired_code_raises(db_session, mocker):
+async def test_cancel_expired_code_raises(db_session):
     """Cancelling expired code raises GoneError."""
     code_repo = DeviceActivationCodeRepository(db_session)
     cred_repo = DeviceCredentialRepository(db_session)
-    audit = mocker.MagicMock()
-    settings = mocker.MagicMock(device_activation_code_expire_seconds=1)
+    audit = MagicMock()
+    settings = SimpleNamespace(device_activation_code_expire_seconds=1)
 
     service = DeviceActivationCodeService(code_repo, cred_repo, audit, settings)
 
     # Create and immediately expire
-    code_obj, _ = service.generate(uuid4())
+    creator = _create_user(db_session)
+    code_obj, _ = service.generate(creator.id)
     code_obj.expires_at = datetime.now(UTC) - timedelta(seconds=1)
     db_session.flush()
 
