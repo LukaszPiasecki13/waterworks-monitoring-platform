@@ -260,8 +260,8 @@ class DeviceActivationCodeService:
                     entity_type=EntityType.DEVICE_IDENTITY_ACTIVATION_CODE.value,
                     entity_id=str(code.id),
                     action="REDEEM",
-                    actor_id=None,
-                    actor_display_name=None,
+                    actor_id=str(credential.id),
+                    actor_display_name=f"device:{serial_number}",
                     changes={"status": ("unused", "used")},
                 )
             )

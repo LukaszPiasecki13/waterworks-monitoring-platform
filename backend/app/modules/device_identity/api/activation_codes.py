@@ -36,7 +36,7 @@ async def create_activation_code(
     Requires PLATFORM_MANAGE_DEVICE_PROVISIONING permission.
     Returns the plaintext code only once — store it securely.
     """
-    code, plaintext = service.generate(creator_user_id=context.user_id)
+    code, plaintext = service.generate(creator_user_id=context.actor.id)
     return ActivationCodeCreateResponse(
         id=code.id,
         activation_code=plaintext,
@@ -78,7 +78,7 @@ async def cancel_activation_code(
     """
     result = service.cancel(
         code_id=code_id,
-        actor_id=str(context.user_id),
-        actor_display_name=context.user_email,
+        actor_id=str(context.actor.id),
+        actor_display_name=context.actor.email,
     )
     return ActivationCodeCancelResponse(**result)
