@@ -179,6 +179,16 @@ Jeśli w przyszłości wymaga się soft-resetu (np. do cofnięcia zmian APN bez 
 
 `ModemLink::init()`, `waitForNetwork()` i `connectGprs()` zawierają pętle czekające. Wewnątrz każdej: `esp_task_wdt_reset()` co 200-500ms, aby nie triggerować watchdoga. W `main.cpp::setup()` ogólnie (np. okno na INFO, pętle AT): również `esp_task_wdt_reset()` dostępny.
 
+### 7.3 Regression: RESET pin held HIGH (2026-08-23, FIXED)
+
+**Problem:** Modem AT init timeout po 10.3s. Przyczyna: `ModemPower::powerOn()` ustawiała pin RESET na HIGH ale nigdy go nie zwalniała, trzymając modem w trwałym resecie. Modem nie mógł się bootować.
+
+**Root cause:** Na płytce KAmod pin RESET jest active-HIGH (HIGH = reset asserted, LOW = normal operation). Kodeks musiał ustawiać RESET = LOW po inicjalizacji, aby zwolnić modem.
+
+**Fix:** [`lib/ModemPower/src/ModemPower.cpp:16`](../../../firmware/lib/ModemPower/src/ModemPower.cpp#L16) — zmiana `digitalWrite(reset_pin_, HIGH)` na `digitalWrite(reset_pin_, LOW)`. Sekwencja teraz pasuje do udokumentowanej procedury (linia 49–57) i `hardReset()` (linie 30–38).
+
+**Weryfikacja (2026-08-23):** Modem AT init teraz kompletuje się w **132ms** zamiast timeout'u. Network auto-connect, GPRS/LTE online, żadnych watchdog'ów. ✓
+
 ## 8. Referencje
 
 - **KAmod wiki:** https://wiki.kamamilabs.com/index.php?title=KAmod_LTE_CAT1-GNSS_z_modu%C5%82em_A7670E-FASE_(PL)
