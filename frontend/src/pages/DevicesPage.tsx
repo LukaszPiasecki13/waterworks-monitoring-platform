@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/Button';
 import { Card, CardContent } from '@/components/ui/Card';
 import { DataTable } from '@/components/ui/DataTable';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
-import { Plus, Pencil, Trash2, Cpu } from 'lucide-react';
+import { Plus, Pencil, Unlink, Cpu } from 'lucide-react';
 import type { Device, DeviceAssignRequest, DeviceUpdateRequest } from '@/types/coreData';
 import { DeviceFormDialog, type DeviceFormData } from '@/components/dialogs/DeviceFormDialog';
 
@@ -24,10 +24,10 @@ export function DevicesPage() {
     messages: {
       createSuccess: 'Urządzenie przypisane',
       updateSuccess: 'Urządzenie zaktualizowane',
-      deleteSuccess: 'Urządzenie usunięte',
+      deleteSuccess: 'Urządzenie odłączone od organizacji',
       createErrorFallback: 'Błąd przy przypisywaniu',
       updateErrorFallback: 'Błąd przy aktualizacji',
-      deleteErrorFallback: 'Błąd przy usuwaniu',
+      deleteErrorFallback: 'Błąd przy odłączaniu',
     },
     toCreateInput: (data) => ({
       serial_number: data.external_id ?? '',
@@ -67,12 +67,12 @@ export function DevicesPage() {
                   <Pencil className="h-4 w-4" />
                 </Button>
                 <Button
-                  variant="destructive"
+                  variant="outline"
                   size="sm"
                   onClick={() => crud.requestDelete(row.id)}
-                  aria-label={`Usuń urządzenie ${row.external_id}`}
+                  aria-label={`Odłącz urządzenie ${row.external_id}`}
                 >
-                  <Trash2 className="h-4 w-4" />
+                  <Unlink className="h-4 w-4" />
                 </Button>
               </div>
             ),
@@ -127,12 +127,11 @@ export function DevicesPage() {
           <ConfirmDialog
             open={!!crud.deleteId}
             onOpenChange={(open) => !open && crud.cancelDelete()}
-            title="Usuń urządzenie"
-            description="Ta akcja nie może być cofnięta."
-            message="Czy na pewno chcesz usunąć to urządzenie?"
-            confirmText="Usuń"
+            title="Odłącz urządzenie"
+            description="Urządzenie powróci do puli nieprzypisanych"
+            message="Czy chcesz odłączyć to urządzenie od organizacji? Będzie dostępne do przypisania innym organizacjom."
+            confirmText="Odłącz"
             cancelText="Anuluj"
-            isDestructive
             isLoading={crud.isDeleting}
             onConfirm={crud.confirmDelete}
           />

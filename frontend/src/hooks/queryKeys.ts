@@ -69,6 +69,7 @@ export const queryKeys = {
     all: ['platformDevices'] as const,
     list: (params?: object) => ['platformDevices', 'list', params] as const,
     detail: (id: string) => ['platformDevices', 'detail', id] as const,
+    stats: () => ['platformDevices', 'stats'] as const,
   },
 
   platformAudit: {

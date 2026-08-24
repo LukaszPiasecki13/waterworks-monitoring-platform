@@ -4,6 +4,8 @@ import type {
   DeviceAssignRequest,
   DeviceAssignResponse,
   DeviceClaimStatusResponse,
+  DeviceDetail,
+  DeviceStats,
   DeviceUpdateRequest,
 } from '@/types/coreData';
 
@@ -11,6 +13,20 @@ interface ListParams {
   skip?: number
   limit?: number
   water_object_id?: string
+  search?: string
+  is_active?: boolean
+  credential_status?: 'unclaimed' | 'claimed' | 'revoked'
+  organization_id?: string
+  assigned?: 'assigned' | 'unassigned'
+  sort_by?: 'last_seen_at' | 'created_at' | 'external_id'
+  sort_dir?: 'asc' | 'desc'
+}
+
+export interface PaginatedDevices {
+  items: Device[];
+  total: number;
+  skip: number;
+  limit: number;
 }
 
 export const devicesService = {
@@ -52,19 +68,18 @@ export const devicesService = {
   },
 
   // Platform-level methods (no org scoping)
-  async listAll(params?: ListParams): Promise<Device[]> {
+  async listAll(params?: ListParams): Promise<PaginatedDevices> {
     const response = await apiClient.get('/api/v1/platform/devices', { params });
-    if (response.data && Array.isArray(response.data.items)) {
-      return response.data.items;
-    }
-    if (Array.isArray(response.data)) {
-      return response.data;
-    }
-    return [];
+    return response.data;
   },
 
-  async getDetail(id: string): Promise<Device> {
+  async getDetail(id: string): Promise<DeviceDetail> {
     const response = await apiClient.get(`/api/v1/platform/devices/${id}`);
+    return response.data;
+  },
+
+  async getStats(): Promise<DeviceStats> {
+    const response = await apiClient.get('/api/v1/platform/devices/stats');
     return response.data;
   },
 

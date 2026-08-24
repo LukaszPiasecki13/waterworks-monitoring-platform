@@ -1,4 +1,5 @@
 import * as React from 'react';
+import { ChevronUp, ChevronDown } from 'lucide-react';
 import { cn } from '@/lib/cn';
 
 interface ColumnDef<T> {
@@ -31,6 +32,9 @@ interface DataTableProps<T> {
   currentPage?: number;
   totalCount?: number;
   onPageChange?: (page: number) => void;
+  sortBy?: string | null;
+  sortDir?: 'asc' | 'desc';
+  onSort?: (key: string, dir: 'asc' | 'desc') => void;
 }
 
 export function DataTable<T extends object>({
@@ -47,7 +51,15 @@ export function DataTable<T extends object>({
   currentPage = 1,
   totalCount,
   onPageChange,
+  sortBy,
+  sortDir = 'asc',
+  onSort,
 }: DataTableProps<T>) {
+  const handleHeaderClick = (columnKey: string, isSortable?: boolean) => {
+    if (!isSortable || !onSort) return;
+    const newDir = sortBy === columnKey && sortDir === 'asc' ? 'desc' : 'asc';
+    onSort(columnKey, newDir);
+  };
   if (isLoading) {
     return (
       <div className="flex justify-center items-center h-64">
@@ -122,10 +134,23 @@ export function DataTable<T extends object>({
               {columns.map((col) => (
                 <th
                   key={String(col.key)}
-                  className="px-6 py-3 text-left text-sm font-semibold text-neutral-900"
+                  className={cn(
+                    'px-6 py-3 text-left text-sm font-semibold text-neutral-900',
+                    col.sortable && onSort && 'cursor-pointer hover:bg-neutral-100'
+                  )}
                   style={{ width: col.width }}
+                  onClick={() => handleHeaderClick(String(col.key), col.sortable)}
                 >
-                  {col.label}
+                  <div className="flex items-center gap-2">
+                    <span>{col.label}</span>
+                    {col.sortable && sortBy === String(col.key) && (
+                      sortDir === 'asc' ? (
+                        <ChevronUp className="h-4 w-4 text-brand-600" />
+                      ) : (
+                        <ChevronDown className="h-4 w-4 text-brand-600" />
+                      )
+                    )}
+                  </div>
                 </th>
               ))}
             </tr>
@@ -143,7 +168,7 @@ export function DataTable<T extends object>({
                 {columns.map((col) => (
                   <td
                     key={`${idx}-${String(col.key)}`}
-                    className="px-6 py-4 text-sm text-neutral-900"
+                    className="px-6 py-4 text-sm font-normal text-neutral-900"
                   >
                     {col.render
                       ? col.render(row, idx)

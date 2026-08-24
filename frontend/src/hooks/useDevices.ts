@@ -2,12 +2,22 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { devicesService } from '@/services/devicesService';
 import { queryKeys } from './queryKeys';
 import { useActiveEnvironmentStore } from '@/stores/activeEnvironmentStore';
-import type { DeviceAssignRequest, DeviceUpdateRequest } from '@/types/coreData';
+import type {
+  DeviceAssignRequest,
+  DeviceUpdateRequest,
+} from '@/types/coreData';
 
 interface ListParams {
   skip?: number
   limit?: number
   water_object_id?: string
+  search?: string
+  is_active?: boolean
+  credential_status?: 'unclaimed' | 'claimed' | 'revoked'
+  organization_id?: string
+  assigned?: 'assigned' | 'unassigned'
+  sort_by?: 'last_seen_at' | 'created_at' | 'external_id'
+  sort_dir?: 'asc' | 'desc'
 }
 
 export function useDevices(params?: ListParams) {
@@ -116,5 +126,12 @@ export function useDeletePlatformDevice() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.platformDevices.all });
     },
+  });
+}
+
+export function usePlatformDeviceStats() {
+  return useQuery({
+    queryKey: queryKeys.platformDevices.stats(),
+    queryFn: () => devicesService.getStats(),
   });
 }
