@@ -67,7 +67,12 @@ bool DeviceAuthClient::attemptAuth() {
   HttpResponse challengeResp = http_.post(CHALLENGE_RESOURCE, challengePayload, "");
 
   if (challengeResp.statusCode == 404) {
-    SerialMon.println("[AUTH] ERROR: SN not registered (404)");
+    SerialMon.println("[AUTH] ERROR: Device not found (404)");
+    // If provisioning was completed, this means device was deleted from platform
+    if (identity_.isProvisioningCompleted()) {
+      SerialMon.println("[AUTH] Provisioned device not found, clearing state");
+      identity_.clearProvisioningState();
+    }
     return false;
   }
   if (challengeResp.statusCode == 401) {

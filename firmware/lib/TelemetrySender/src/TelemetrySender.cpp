@@ -1,4 +1,5 @@
 #include <Arduino.h>
+#include <ArduinoJson.h>
 #include <Config.h>
 #include "TelemetrySender.h"
 #include <ModemLink.h>
@@ -71,6 +72,19 @@ void TelemetrySender::update(unsigned long now) {
 
     led_.blinkError();
     next_allowed_send_ms_ = millis() + error_retry_ms_;
+
+    // Check if device was deleted from platform (401 Device not found)
+    if (resp.statusCode == 401) {
+      JsonDocument doc;
+      DeserializationError err = deserializeJson(doc, resp.body);
+      if (!err) {
+        const char* detail = doc["detail"];
+        if (detail && strcmp(detail, "Device not found") == 0) {
+          SerialMon.println("[LOOP] Device deleted from platform, clearing provisioning state");
+          identity_.clearProvisioningState();
+        }
+      }
+    }
 
     // Track if error is permanent (device not assigned, etc.)
     last_error_was_permanent_ = (resp.statusCode == 409 || resp.statusCode == 410 || resp.statusCode == 403);

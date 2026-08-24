@@ -18,10 +18,13 @@ class DeviceIdentity {
 
   bool isProvisioningCompleted() const;
   void markProvisioningCompleted();
+  void clearProvisioningState();
 
   bool hasValidSession(uint32_t nowUnixSec) const;
   String sessionToken() const;
   void setSessionToken(const String& token, uint32_t expiresAtUnixSec);
+
+  bool needsReprovisioning() const { return needs_reprovisioning_; }
 
  private:
   static const size_t PRIV_KEY_SIZE = 32;
@@ -29,6 +32,7 @@ class DeviceIdentity {
   String serial_number_;
   uint8_t priv_key_raw_[PRIV_KEY_SIZE];
   bool has_key_ = false;
+  bool needs_reprovisioning_ = false;
 
   void loadOrGenerateKey();
   void generateSerialNumber();

@@ -3,6 +3,7 @@
 #include "Watchdog.h"
 #include <ModemLink.h>
 #include <ModemPower.h>
+#include <TelemetrySender.h>
 
 #define SerialMon Serial
 
@@ -11,6 +12,12 @@ Watchdog::Watchdog(ModemLink& modem, ModemPower& power, unsigned long stuckThres
 
 void Watchdog::check(unsigned long now, unsigned long lastSuccessMs) {
   if (now - lastSuccessMs <= stuck_threshold_ms_) {
+    return;
+  }
+
+  // If last error was permanent (409, 410, 403), don't trigger recovery
+  // Device is waiting for backend configuration, not a modem issue
+  if (telemetry_sender_ && telemetry_sender_->hasLastErrorWasPermanent()) {
     return;
   }
 

@@ -155,6 +155,16 @@ void DeviceIdentity::markProvisioningCompleted() {
   prefs.end();
 }
 
+void DeviceIdentity::clearProvisioningState() {
+  prefs.begin("devid", false);
+  prefs.putBool("claimed", false);
+  prefs.remove("tok");
+  prefs.remove("tok_exp");
+  prefs.end();
+  needs_reprovisioning_ = true;
+  Serial.println("[DEVID] Provisioning state cleared, device needs reprovisioning");
+}
+
 bool DeviceIdentity::hasValidSession(uint32_t nowUnixSec) const {
   prefs.begin("devid", true);
   uint32_t expires_at = prefs.getUInt("tok_exp", 0);

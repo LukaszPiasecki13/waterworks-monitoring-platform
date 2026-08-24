@@ -141,6 +141,13 @@ void setup() {
 void loop() {
   esp_task_wdt_reset();
 
+  // Check if device was deleted from platform and needs to restart
+  if (deviceIdentity.needsReprovisioning()) {
+    SerialMon.println("[BOOT] Device deleted from platform, clearing state and restarting...");
+    delay(1000);
+    esp_restart();
+  }
+
   // Generate EC key on first iteration if needed (expensive: mbedtls_ecp_gen_key)
   // This was moved from setup() to avoid blocking and triggering watchdog
   if (!keyGenerated) {
