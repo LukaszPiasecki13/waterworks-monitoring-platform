@@ -11,9 +11,9 @@ from app.modules.core_data.dependencies import (
 from app.modules.core_data.schemas.devices import (
     DeviceResponse,
     DeviceUpdateRequest,
+    ListAllDevicesRequest,
     ListDevicesRequest,
 )
-from app.modules.core_data.schemas.users import PaginatedResponse
 from app.modules.core_data.services.device_lifecycle import DeviceLifecycleService
 from app.modules.core_data.services.devices import DeviceService
 from app.modules.security.access import OrganizationAccess, PlatformContext
@@ -34,7 +34,7 @@ router = APIRouter(prefix="/orgs/{org_id}/devices", tags=["devices"])
 platform_router = APIRouter(prefix="/devices", tags=["platform-devices"])
 
 
-@router.get("", response_model=PaginatedResponse[DeviceResponse])
+@router.get("", response_model=list[DeviceResponse])
 def list_devices(
     org_id: UUID = Path(...),
     query: ListDevicesRequest = Depends(),
@@ -42,12 +42,8 @@ def list_devices(
     service: DeviceService = Depends(get_device_service),
 ):
     """List devices."""
-    devices, total = service.list_all(query, organization_id=org_id)
-    return PaginatedResponse(
-        items=devices,
-        total=total,
-        skip=query.skip,
-        limit=query.limit,
+    return service.list_devices(
+        organization_id=org_id, water_object_id=query.water_object_id
     )
 
 
@@ -87,9 +83,9 @@ def delete_device(
 
 
 # Platform-level endpoints
-@platform_router.get("", response_model=PaginatedResponse[DeviceResponse])
+@platform_router.get("", response_model=list[DeviceResponse])
 def list_all_devices(
-    query: ListDevicesRequest = Depends(),
+    query: ListAllDevicesRequest = Depends(),
     service: DeviceService = Depends(get_device_service),
     context: PlatformContext = Depends(
         require_platform_permission(PLATFORM_MANAGE_DEVICE_PROVISIONING)
@@ -99,12 +95,9 @@ def list_all_devices(
 
     Requires PLATFORM_MANAGE_DEVICE_PROVISIONING permission.
     """
-    devices, total = service.list_all(query)
-    return PaginatedResponse(
-        items=devices,
-        total=total,
-        skip=query.skip,
-        limit=query.limit,
+    return service.list_devices(
+        organization_id=query.organization_id,
+        search=query.search,
     )
 
 
@@ -116,9 +109,10 @@ def get_all_devices_detail(
         require_platform_permission(PLATFORM_MANAGE_DEVICE_PROVISIONING)
     ),
 ):
-    """Get device by ID (platform-level, no org scope).
+    """Get device detail (platform-level).
 
     Requires PLATFORM_MANAGE_DEVICE_PROVISIONING permission.
+    Measurement points should be fetched separately via their dedicated endpoint.
     """
     return service.get_by_id(device_id)
 

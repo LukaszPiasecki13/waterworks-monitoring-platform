@@ -25,13 +25,33 @@ class DeviceResponse(BaseSchema):
     last_seen_at: datetime | None = None
     last_diagnostics_at: datetime | None = None
     is_active: bool
+    created_at: datetime
+    device_credential_id: UUID | None = None
 
     model_config = ConfigDict(from_attributes=True)
 
 
-class ListDevicesRequest(BaseSchema):
-    """List devices query parameters."""
+class DeviceStatsResponse(BaseSchema):
+    """Aggregate device counts for platform-admin KPI strip."""
 
-    skip: int = Field(0, ge=0)
-    limit: int = Field(100, ge=1, le=1000)
+    total: int
+    active: int
+    unassigned: int
+    unclaimed: int
+
+
+class ListDevicesRequest(BaseSchema):
+    """List devices query parameters (organization-scoped)."""
+
     water_object_id: UUID | None = None
+    search: str | None = Field(None, max_length=128)
+
+
+class ListAllDevicesRequest(BaseSchema):
+    """List all devices (platform-level).
+
+    Supports search and optional org filter only; no pagination.
+    """
+
+    search: str | None = Field(None, max_length=128)
+    organization_id: UUID | None = None

@@ -50,6 +50,4 @@ class WaterObjectResponse(BaseSchema):
 class ListWaterObjectsRequest(BaseSchema):
     """List water objects query parameters."""
 
-    skip: int = Field(0, ge=0)
-    limit: int = Field(100, ge=1, le=1000)
     organization_id: UUID | None = None

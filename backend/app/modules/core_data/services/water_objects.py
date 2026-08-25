@@ -55,9 +55,11 @@ class WaterObjectService:
             )
         )
 
-    def get_by_id(self, obj_id: UUID, org_access: OrganizationAccess):
-        """Get water object by ID."""
-        return self.repo.find_in_organization(obj_id, org_access.organization_id)
+    def get_by_id(self, obj_id: UUID, organization_id: UUID | None = None):
+        """Get water object by ID, optionally scoped to organization."""
+        if organization_id is not None:
+            return self.repo.find_in_organization(obj_id, organization_id)
+        return self.repo.find_by_id(obj_id)
 
     def list_all(self, query, org_access: OrganizationAccess):
         """List water objects in organization."""

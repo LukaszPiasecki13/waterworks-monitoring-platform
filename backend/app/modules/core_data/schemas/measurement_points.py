@@ -7,7 +7,9 @@ from pydantic import ConfigDict, Field
 
 from app.core.schemas import BaseSchema
 
-PointType = Literal["pressure", "flow_rate", "total_volume", "power_status"]
+PointType = Literal[
+    "pressure", "flow_rate", "total_volume", "power_status", "temperature"
+]
 
 
 class MeasurementPointCreateRequest(BaseSchema):

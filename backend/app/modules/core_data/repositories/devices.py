@@ -2,7 +2,6 @@
 
 from uuid import UUID
 
-from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.core.errors import NotFoundError
@@ -70,41 +69,25 @@ class DeviceRepository(SQLRepository):
 
     def list_all_with_org_filter(
         self,
+        *,
         organization_id: UUID | None = None,
         water_object_id: UUID | None = None,
-        skip: int = 0,
-        limit: int = 100,
+        search: str | None = None,
     ) -> list[Device]:
-        """List devices with org isolation via water_object join."""
+        """Return Device objects matching filters.
+
+        Sorting and other filtering are frontend concerns.
+        """
         query = self.session.query(Device)
-
         if water_object_id is not None:
             query = query.filter(Device.water_object_id == water_object_id)
-
         if organization_id is not None:
-            query = query.join(
+            query = query.outerjoin(
                 WaterObject, Device.water_object_id == WaterObject.id
             ).filter(WaterObject.organization_id == organization_id)
-
-        return query.order_by(Device.external_id).offset(skip).limit(limit).all()
-
-    def count_with_org_filter(
-        self,
-        organization_id: UUID | None = None,
-        water_object_id: UUID | None = None,
-    ) -> int:
-        """Count devices with org isolation."""
-        query = self.session.query(func.count(Device.id))
-
-        if water_object_id is not None:
-            query = query.filter(Device.water_object_id == water_object_id)
-
-        if organization_id is not None:
-            query = query.join(
-                WaterObject, Device.water_object_id == WaterObject.id
-            ).filter(WaterObject.organization_id == organization_id)
-
-        return query.scalar() or 0
+        if search:
+            query = query.filter(Device.external_id.ilike(f"%{search}%"))
+        return query.all()
 
     def create(
         self,

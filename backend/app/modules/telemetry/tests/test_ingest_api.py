@@ -259,3 +259,51 @@ def test_ingest_rejects_device_id_mismatch(db_session: Session) -> None:
 
     assert response.status_code == 403
     assert "mismatch" in response.json()["detail"].lower()
+
+
+def test_ingest_accepts_temperature_measurement(db_session: Session) -> None:
+    """Accept valid temperature measurement from PT100 sensor."""
+    from app.modules.security.services.token import TokenService
+
+    token_service = TokenService(
+        secret_key="test-secret",
+        access_token_expire_minutes=60,
+        refresh_token_expire_days=7,
+        device_token_expire_hours=36,
+    )
+
+    token, _device = _seed_device_with_token(db_session, "gw-2026-0001", token_service)
+    headers = {"Authorization": f"Bearer {token}"}
+
+    # Payload with temperature data
+    temp_payload = {
+        "v": 1,
+        "device_id": "gw-2026-0001",
+        "seq": 1001,
+        "sent_at": "2026-08-24T12:00:00Z",
+        "windows": [
+            {
+                "window_start": "2026-08-24T12:00:00Z",
+                "window_seconds": 30,
+                "points": [
+                    {
+                        "point_id": "pt100_temperature",
+                        "type": "temperature",
+                        "unit": "°C",
+                        "quality": "good",
+                        "avg": 22.45,
+                        "min": -10,
+                        "max": 100,
+                    }
+                ],
+            }
+        ],
+    }
+
+    with _client(db_session, token_service) as client:
+        response = client.post("/telemetry/ingest", json=temp_payload, headers=headers)
+
+    assert response.status_code == 202
+    assert response.json()["status"] == "accepted"
+    assert response.json()["device_id"] == "gw-2026-0001"
+    assert response.json()["seq"] == 1001

@@ -3,7 +3,7 @@
 from uuid import UUID
 
 from app.core.audit import AuditEntry, AuditPort, EntityType, calculate_delta
-from app.core.errors import ConflictError
+from app.core.errors import ConflictError, NotFoundError
 from app.modules.core_data.models.device import Device
 from app.modules.core_data.repositories.devices import DeviceRepository
 from app.modules.core_data.repositories.water_objects import WaterObjectRepository
@@ -58,14 +58,19 @@ class DeviceService:
             )
         )
 
-    def get_by_id(self, device_id: UUID, organization_id: UUID | None = None):
-        """Get device by ID, optionally filtered by organization.
+    def get_by_id(self, device_id: UUID, organization_id: UUID | None = None) -> Device:
+        """Get Device (ORM object) by ID, optionally scoped to organization.
 
         If organization_id is None, retrieves device without org scope.
+        Raises NotFoundError if not found or outside org scope.
         """
-        if organization_id:
-            return self.repo.find_in_organization(device_id, organization_id)
-        return self.repo.find_by_id(device_id)
+        if organization_id is not None:
+            device = self.repo.get_in_organization(device_id, organization_id)
+        else:
+            device = self.repo.get_by_id(device_id)
+        if device is None:
+            raise NotFoundError("Device not found")
+        return device
 
     def find_by_id_unscoped(self, device_id: UUID) -> Device:
         """Find device by ID without org scope (for device_identity internal use).
@@ -78,23 +83,19 @@ class DeviceService:
         """Get device by external ID, returns None if not found."""
         return self.repo.get_by_external_id(external_id)
 
-    def list_all(self, query, organization_id: UUID | None = None):
-        """List devices, optionally filtered by organization.
-
-        If organization_id is None, lists all devices (platform-level).
-        Query can optionally filter by water_object_id (org-scoped only).
-        """
-        devices = self.repo.list_all_with_org_filter(
+    def list_devices(
+        self,
+        *,
+        organization_id: UUID | None = None,
+        water_object_id: UUID | None = None,
+        search: str | None = None,
+    ) -> list[Device]:
+        """List devices with basic backend filters; frontend handles the rest."""
+        return self.repo.list_all_with_org_filter(
             organization_id=organization_id,
-            water_object_id=query.water_object_id if organization_id else None,
-            skip=query.skip,
-            limit=query.limit,
+            water_object_id=water_object_id,
+            search=search,
         )
-        count = self.repo.count_with_org_filter(
-            organization_id=organization_id,
-            water_object_id=query.water_object_id if organization_id else None,
-        )
-        return devices, count
 
     def create_claimed(
         self,
