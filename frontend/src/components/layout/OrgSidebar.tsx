@@ -1,26 +1,28 @@
 import { Link, useLocation } from 'react-router-dom'
 import { useActivePermissions } from '@/hooks/useActivePermissions'
 import { cn } from '@/lib/cn'
-import { BarChart3, Droplets, GaugeCircle, Users } from 'lucide-react'
+import { BarChart3, Droplets, GaugeCircle } from 'lucide-react'
 import { UserMenu } from './UserMenu'
 import type { PermissionCode } from '@/types/permissions'
 
 interface NavItem {
   label: string
-  path: string
+  path?: string
   icon: React.ReactNode
   permissions?: PermissionCode[]
   requireAll?: boolean
   section?: 'monitoring' | 'config' | 'admin'
+  onClick?: () => void
 }
 
 interface OrgSidebarProps {
   isOpen?: boolean
   onClose?: () => void
   collapsed?: boolean
+  onOpenSettings?: () => void
 }
 
-export function OrgSidebar({ isOpen = true, onClose, collapsed = false }: OrgSidebarProps) {
+export function OrgSidebar({ isOpen = true, onClose, collapsed = false, onOpenSettings }: OrgSidebarProps) {
   const location = useLocation()
   const { hasPermission, hasAnyPermission } = useActivePermissions()
 
@@ -44,20 +46,6 @@ export function OrgSidebar({ isOpen = true, onClose, collapsed = false }: OrgSid
       icon: <GaugeCircle className="h-5 w-5" />,
       permissions: ['CAN_VIEW_ASSETS'],
       section: 'config',
-    },
-    {
-      label: 'Członkowie',
-      path: '/admin/members',
-      icon: <Users className="h-5 w-5" />,
-      permissions: ['CAN_MANAGE_USERS'],
-      section: 'admin',
-    },
-    {
-      label: 'Grupy organizacji',
-      path: '/admin/groups',
-      icon: <Users className="h-5 w-5" />,
-      permissions: ['CAN_VIEW_SECURITY'],
-      section: 'admin',
     },
   ]
 
@@ -112,12 +100,35 @@ export function OrgSidebar({ isOpen = true, onClose, collapsed = false }: OrgSid
               </div>
               <div className="space-y-1">
                 {section.items.map((item) => {
-                  const isActive = location.pathname === item.path
+                  const isActive = item.path ? location.pathname === item.path : false
+
+                  if (item.onClick) {
+                    return (
+                      <button
+                        key={item.label}
+                        onClick={() => {
+                          item.onClick?.()
+                          handleLinkClick()
+                        }}
+                        title={collapsed ? item.label : undefined}
+                        className={cn(
+                          'w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors',
+                          'text-neutral-700 hover:bg-neutral-100',
+                          collapsed && 'lg:justify-center'
+                        )}
+                      >
+                        <div className="flex-shrink-0 text-neutral-400">
+                          {item.icon}
+                        </div>
+                        {!collapsed && item.label}
+                      </button>
+                    )
+                  }
 
                   return (
                     <Link
                       key={item.path}
-                      to={item.path}
+                      to={item.path as string}
                       onClick={handleLinkClick}
                       title={collapsed ? item.label : undefined}
                       className={cn(
@@ -146,7 +157,7 @@ export function OrgSidebar({ isOpen = true, onClose, collapsed = false }: OrgSid
         })}
       </nav>
 
-      <UserMenu accountPath="/account" onNavigate={handleLinkClick} collapsed={collapsed} />
+      <UserMenu onNavigate={handleLinkClick} onOpenSettings={onOpenSettings} collapsed={collapsed} />
     </aside>
   )
 }

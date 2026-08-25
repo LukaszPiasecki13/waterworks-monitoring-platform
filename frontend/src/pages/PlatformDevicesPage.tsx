@@ -1,11 +1,10 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { usePlatformDevices, useDeletePlatformDevice } from '@/hooks/useDevices';
 import { useActivePermissions } from '@/hooks/useActivePermissions';
 import { Button } from '@/components/ui/Button';
 import { Card, CardContent } from '@/components/ui/Card';
 import { DataTable } from '@/components/ui/DataTable';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
-import { Badge } from '@/components/ui/Badge';
 import { Trash2, Cpu } from 'lucide-react';
 import { toast } from '@/components/ui/Toast';
 import { parseApiError } from '@/lib/errors';
@@ -15,8 +14,6 @@ import { DeviceFilterBar } from '@/components/devices/DeviceFilterBar';
 import { DeviceDetailDrawer } from '@/components/devices/DeviceDetailDrawer';
 import { getFreshness, formatRelativeTime } from '@/lib/deviceFreshness';
 
-const PAGE_SIZE = 20;
-
 export function PlatformDevicesPage() {
   const { hasPermission } = useActivePermissions();
   const canManage = hasPermission('PLATFORM_MANAGE_DEVICE_PROVISIONING');
@@ -25,11 +22,8 @@ export function PlatformDevicesPage() {
   // Filter state
   const [search, setSearch] = useState('');
   const [isActive, setIsActive] = useState<boolean | null>(null);
-  const [credentialStatus, setCredentialStatus] = useState<string | null>(null);
-  const [assigned, setAssigned] = useState<string | null>(null);
   const [sortBy, setSortBy] = useState('external_id');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
-  const [page, setPage] = useState(1);
 
   // Detail drawer state
   const [selectedDeviceId, setSelectedDeviceId] = useState<string | null>(null);
@@ -37,19 +31,27 @@ export function PlatformDevicesPage() {
   // Delete state
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
-  const { data: paginatedDevices, isLoading } = usePlatformDevices({
-    skip: (page - 1) * PAGE_SIZE,
-    limit: PAGE_SIZE,
+  const { data: fetchedDevices, isLoading } = usePlatformDevices({
     search: search || undefined,
-    is_active: isActive === null ? undefined : isActive,
-    credential_status: credentialStatus ? (credentialStatus as 'unclaimed' | 'claimed' | 'revoked') : undefined,
-    assigned: assigned ? (assigned as 'assigned' | 'unassigned') : undefined,
-    sort_by: sortBy as 'last_seen_at' | 'created_at' | 'external_id',
-    sort_dir: sortDir,
   });
 
-  const devices = paginatedDevices?.items || [];
-  const total = paginatedDevices?.total || 0;
+  const devices = useMemo(() => {
+    const items = Array.isArray(fetchedDevices) ? fetchedDevices : [];
+    let filtered = items;
+    if (isActive !== null) {
+      filtered = filtered.filter(d => d.is_active === isActive);
+    }
+    const sorted = [...filtered].sort((a, b) => {
+      const aValue = a[sortBy as keyof Device];
+      const bValue = b[sortBy as keyof Device];
+      if (aValue == null) return 1;
+      if (bValue == null) return -1;
+      if (aValue < bValue) return sortDir === 'asc' ? -1 : 1;
+      if (aValue > bValue) return sortDir === 'asc' ? 1 : -1;
+      return 0;
+    });
+    return sorted;
+  }, [fetchedDevices, isActive, sortBy, sortDir]);
 
   const handleDeleteConfirm = async () => {
     if (!deleteId) return;
@@ -75,22 +77,6 @@ export function PlatformDevicesPage() {
       label: 'Urządzenie (SN)',
       sortable: true,
       render: (row: Device) => <span className="text-sm text-neutral-900">{row.external_id}</span>,
-    },
-    {
-      key: 'organization_name',
-      label: 'Organizacja / Obiekt',
-      render: (row: Device) => (
-        <div className="text-sm text-neutral-900">
-          {row.organization_name || row.water_object_name ? (
-            <>
-              <div>{row.organization_name || '—'}</div>
-              <div className="text-neutral-600 text-xs">{row.water_object_name || '—'}</div>
-            </>
-          ) : (
-            <span className="text-neutral-600">— nie przypisane —</span>
-          )}
-        </div>
-      ),
     },
     {
       key: 'last_seen_at',
@@ -121,21 +107,6 @@ export function PlatformDevicesPage() {
       key: 'firmware_version',
       label: 'Firmware',
       render: (row: Device) => <span className="text-sm text-neutral-900">{row.firmware_version || '—'}</span>,
-    },
-    {
-      key: 'credential_status',
-      label: 'Poświadczenie',
-      render: (row: Device) => {
-        const variant =
-          row.credential_status === 'claimed'
-            ? 'success'
-            : row.credential_status === 'unclaimed'
-              ? 'neutral'
-              : row.credential_status === 'revoked'
-                ? 'danger'
-                : 'neutral';
-        return <Badge variant={variant}>{row.credential_status || 'unknown'}</Badge>;
-      },
     },
     {
       key: 'created_at',
@@ -187,10 +158,6 @@ export function PlatformDevicesPage() {
           onSearchChange={setSearch}
           isActive={isActive}
           onIsActiveChange={setIsActive}
-          credentialStatus={credentialStatus}
-          onCredentialStatusChange={setCredentialStatus}
-          assigned={assigned}
-          onAssignedChange={setAssigned}
         />
 
         <CardContent className="p-0">
@@ -198,17 +165,12 @@ export function PlatformDevicesPage() {
             columns={columns}
             data={devices}
             isLoading={isLoading}
-            currentPage={page}
-            totalCount={total}
-            pageSize={PAGE_SIZE}
-            onPageChange={setPage}
             onRowClick={(row) => setSelectedDeviceId(row.id)}
             sortBy={sortBy}
             sortDir={sortDir}
             onSort={(key, dir) => {
               setSortBy(key);
               setSortDir(dir);
-              setPage(1);
             }}
             emptyState={
               canManage

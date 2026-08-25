@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { cn } from '@/lib/cn'
 import { Switch } from '@/components/ui/Switch'
 import { Button } from '@/components/ui/Button'
 import { toast } from '@/components/ui/Toast'
@@ -68,7 +69,7 @@ export function GroupPermissionsTab({
 
   return (
     <div className="flex flex-col flex-1 min-h-0 gap-4 px-6 py-4">
-      <div className="rounded-lg border border-neutral-200 flex-1 flex flex-col overflow-hidden">
+      <div className="flex-1 flex flex-col overflow-hidden">
         {permissionsByCategory.length === 0 ? (
           <div className="p-8 text-center text-sm text-neutral-500 flex-1 flex items-center justify-center">
             Brak dostępnych uprawnień
@@ -149,8 +150,4 @@ export function GroupPermissionsTab({
       )}
     </div>
   )
-}
-
-function cn(...classes: (string | boolean | undefined)[]) {
-  return classes.filter(Boolean).join(' ')
 }

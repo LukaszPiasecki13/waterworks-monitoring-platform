@@ -4,6 +4,7 @@ import { useAuthStore } from '@/stores/authStore'
 import { useActiveEnvironmentStore } from '@/stores/activeEnvironmentStore'
 import { Topbar } from './Topbar'
 import { OrgSidebar } from './OrgSidebar'
+import { SettingsDialog } from '@/components/settings/SettingsDialog'
 
 interface OrgShellProps {
   children: React.ReactNode
@@ -12,6 +13,7 @@ interface OrgShellProps {
 export function OrgShell({ children }: OrgShellProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [collapsed, setCollapsed] = useState(false)
+  const [settingsOpen, setSettingsOpen] = useState(false)
   const environment = useActiveEnvironmentStore((s) => s.environment)
   const userContext = useAuthStore((s) => s.userContext)
 
@@ -32,7 +34,7 @@ export function OrgShell({ children }: OrgShellProps) {
 
   return (
     <div className="flex h-screen bg-neutral-50">
-      <OrgSidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} collapsed={collapsed} />
+      <OrgSidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} collapsed={collapsed} onOpenSettings={() => setSettingsOpen(true)} />
 
       {sidebarOpen && (
         <div
@@ -46,6 +48,8 @@ export function OrgShell({ children }: OrgShellProps) {
         <Topbar onMenuClick={() => setSidebarOpen(!sidebarOpen)} collapsed={collapsed} onToggleSidebar={() => setCollapsed((c) => !c)} />
         <main className="flex-1 overflow-auto">{children}</main>
       </div>
+
+      <SettingsDialog scope="org" open={settingsOpen} onOpenChange={setSettingsOpen} />
     </div>
   )
 }

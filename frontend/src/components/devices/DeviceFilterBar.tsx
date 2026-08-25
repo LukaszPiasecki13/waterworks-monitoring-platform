@@ -6,10 +6,6 @@ interface DeviceFilterBarProps {
   onSearchChange: (value: string) => void;
   isActive: boolean | null;
   onIsActiveChange: (value: boolean | null) => void;
-  credentialStatus: string | null;
-  onCredentialStatusChange: (value: string | null) => void;
-  assigned: string | null;
-  onAssignedChange: (value: string | null) => void;
 }
 
 export function DeviceFilterBar({
@@ -17,10 +13,6 @@ export function DeviceFilterBar({
   onSearchChange,
   isActive,
   onIsActiveChange,
-  credentialStatus,
-  onCredentialStatusChange,
-  assigned,
-  onAssignedChange,
 }: DeviceFilterBarProps) {
   const [searchTimeout, setSearchTimeout] = useState<ReturnType<typeof setTimeout> | null>(null);
 
@@ -32,7 +24,7 @@ export function DeviceFilterBar({
 
   return (
     <div className="bg-white border-b border-neutral-200 p-4">
-      <div className="grid grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 gap-4">
         <div>
           <label className="block text-sm text-neutral-600 mb-2">Wyszukaj</label>
           <Input
@@ -55,33 +47,6 @@ export function DeviceFilterBar({
             <option value="">— wszystkie —</option>
             <option value="true">Aktywne</option>
             <option value="false">Nieaktywne</option>
-          </select>
-        </div>
-
-        <div>
-          <label className="block text-sm text-neutral-600 mb-2">Przypisanie</label>
-          <select
-            value={assigned ?? ''}
-            onChange={(e) => onAssignedChange(e.target.value || null)}
-            className="w-full px-3 py-2 border border-neutral-300 rounded-md bg-white text-sm"
-          >
-            <option value="">— wszystkie —</option>
-            <option value="assigned">Przypisane</option>
-            <option value="unassigned">Nieprzypisane</option>
-          </select>
-        </div>
-
-        <div>
-          <label className="block text-sm text-neutral-600 mb-2">Poświadczenie</label>
-          <select
-            value={credentialStatus ?? ''}
-            onChange={(e) => onCredentialStatusChange(e.target.value || null)}
-            className="w-full px-3 py-2 border border-neutral-300 rounded-md bg-white text-sm"
-          >
-            <option value="">— wszystkie —</option>
-            <option value="claimed">Claimed</option>
-            <option value="unclaimed">Unclaimed</option>
-            <option value="revoked">Revoked</option>
           </select>
         </div>
       </div>

@@ -1,7 +1,12 @@
 import { useMemo } from 'react'
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/Tabs'
+import { ChevronDown } from 'lucide-react'
 import { useOrganizations } from '@/hooks/useOrganizations'
-import { Badge } from '@/components/ui/Badge'
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+} from '@/components/ui/DropdownMenu'
 
 interface OrgSwitcherTabsProps {
   selectedOrgId: string | null
@@ -16,7 +21,7 @@ export function OrgSwitcherTabs({
 }: OrgSwitcherTabsProps) {
   const { data: organizations = [] } = useOrganizations()
 
-  const tabs = useMemo(
+  const items = useMemo(
     () => [
       { id: null, name: 'Platforma', label: 'Platforma', count: groupCounts['platform'] || 0 },
       ...organizations.map((org) => ({
@@ -29,18 +34,30 @@ export function OrgSwitcherTabs({
     [organizations, groupCounts]
   )
 
-  const activeTab = selectedOrgId === null ? 'platform' : selectedOrgId
+  const selectedItem = items.find((item) => item.id === selectedOrgId) || items[0]
 
   return (
-    <Tabs value={activeTab} onValueChange={(val) => onSelectOrg(val === 'platform' ? null : val)}>
-      <TabsList>
-        {tabs.map((tab) => (
-          <TabsTrigger key={tab.id || 'platform'} value={tab.id || 'platform'}>
-            <span>{tab.label}</span>
-            {tab.count > 0 && <Badge variant="info" className="ml-2">{tab.count}</Badge>}
-          </TabsTrigger>
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button className="w-full flex items-center justify-between px-3 py-2.5 text-sm font-medium text-neutral-900 hover:text-brand-700 transition-colors text-left">
+          <span>Zakres: {selectedItem.label}</span>
+          <ChevronDown className="h-4 w-4 text-neutral-500" />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" className="w-48">
+        {items.map((item) => (
+          <DropdownMenuItem
+            key={item.id || 'platform'}
+            onClick={() => onSelectOrg(item.id)}
+            className="flex items-center justify-between"
+          >
+            <span className={selectedItem.id === item.id ? 'font-semibold' : ''}>
+              {item.label}
+            </span>
+            <span className="text-xs text-neutral-500 ml-2">{item.count} grup</span>
+          </DropdownMenuItem>
         ))}
-      </TabsList>
-    </Tabs>
+      </DropdownMenuContent>
+    </DropdownMenu>
   )
 }

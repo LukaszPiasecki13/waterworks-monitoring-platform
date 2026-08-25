@@ -60,7 +60,7 @@ export function GroupDetailPanel({
             <div className="flex items-center gap-2 mb-1">
               <h2 className="text-xl font-bold text-neutral-900 truncate">{group.name}</h2>
               {group.is_system && (
-                <Badge className="bg-amber-100 text-amber-900 text-xs">systemowa</Badge>
+                <Badge variant="warning" className="text-xs">systemowa</Badge>
               )}
             </div>
             {group.description && (
@@ -94,17 +94,11 @@ export function GroupDetailPanel({
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col">
         <div className="border-b border-neutral-200 px-6">
-          <TabsList className="rounded-none border-0 bg-transparent p-0 h-auto">
-            <TabsTrigger
-              value="members"
-              className="rounded-none border-b-2 border-transparent px-0 py-3 text-sm font-medium text-neutral-600 data-[state=active]:border-blue-500 data-[state=active]:text-neutral-900 data-[state=active]:bg-transparent data-[state=active]:shadow-none mr-6"
-            >
+          <TabsList variant="underline">
+            <TabsTrigger value="members" variant="underline">
               Członkowie · {memberCount}
             </TabsTrigger>
-            <TabsTrigger
-              value="permissions"
-              className="rounded-none border-b-2 border-transparent px-0 py-3 text-sm font-medium text-neutral-600 data-[state=active]:border-blue-500 data-[state=active]:text-neutral-900 data-[state=active]:bg-transparent data-[state=active]:shadow-none"
-            >
+            <TabsTrigger value="permissions" variant="underline">
               Uprawnienia · {group.permissions.length}
             </TabsTrigger>
           </TabsList>

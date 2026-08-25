@@ -28,10 +28,6 @@ interface DataTableProps<T> {
   emptyMessage?: string;
   emptyState?: EmptyState;
   onRowClick?: (row: T, index: number) => void;
-  pageSize?: number;
-  currentPage?: number;
-  totalCount?: number;
-  onPageChange?: (page: number) => void;
   sortBy?: string | null;
   sortDir?: 'asc' | 'desc';
   onSort?: (key: string, dir: 'asc' | 'desc') => void;
@@ -47,10 +43,6 @@ export function DataTable<T extends object>({
   emptyMessage = 'Brak danych',
   emptyState,
   onRowClick,
-  pageSize = 20,
-  currentPage = 1,
-  totalCount,
-  onPageChange,
   sortBy,
   sortDir = 'asc',
   onSort,
@@ -123,8 +115,6 @@ export function DataTable<T extends object>({
     );
   }
 
-  const totalPages = totalCount ? Math.ceil(totalCount / pageSize) : 1;
-
   return (
     <div className="space-y-4">
       <div className="rounded-lg border border-neutral-200 overflow-hidden">
@@ -169,6 +159,7 @@ export function DataTable<T extends object>({
                   <td
                     key={`${idx}-${String(col.key)}`}
                     className="px-6 py-4 text-sm font-normal text-neutral-900"
+                    style={{ width: col.width }}
                   >
                     {col.render
                       ? col.render(row, idx)
@@ -180,30 +171,6 @@ export function DataTable<T extends object>({
           </tbody>
         </table>
       </div>
-
-      {totalPages > 1 && (
-        <div className="flex items-center justify-between">
-          <div className="text-sm text-neutral-600">
-            Strona {currentPage} z {totalPages}
-          </div>
-          <div className="flex gap-2">
-            <button
-              onClick={() => onPageChange?.(Math.max(1, currentPage - 1))}
-              disabled={currentPage === 1}
-              className="px-3 py-1.5 rounded border border-neutral-300 text-sm font-medium hover:bg-neutral-50 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Poprzednia
-            </button>
-            <button
-              onClick={() => onPageChange?.(Math.min(totalPages, currentPage + 1))}
-              disabled={currentPage === totalPages}
-              className="px-3 py-1.5 rounded border border-neutral-300 text-sm font-medium hover:bg-neutral-50 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Następna
-            </button>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

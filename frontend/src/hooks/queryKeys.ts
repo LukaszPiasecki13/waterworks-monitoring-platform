@@ -13,6 +13,7 @@ export const queryKeys = {
       params,
     ] as const,
     detail: (id: string) => ['organizations', 'detail', id] as const,
+    batch: (ids: string[]) => ['organizations', 'batch', ids] as const,
   },
 
   waterObjects: {
@@ -20,6 +21,7 @@ export const queryKeys = {
     list: (params?: object) => ['waterObjects', 'list', params] as const,
     detail: (id: string) => ['waterObjects', 'detail', id] as const,
     byOrganization: (orgId: string) => ['waterObjects', 'org', orgId] as const,
+    batch: (ids: string[]) => ['waterObjects', 'batch', ids] as const,
   },
 
   devices: {
@@ -27,6 +29,12 @@ export const queryKeys = {
     list: (params?: object) => ['devices', 'list', params] as const,
     detail: (id: string) => ['devices', 'detail', id] as const,
     byWaterObject: (objectId: string) => ['devices', 'object', objectId] as const,
+  },
+
+  credentials: {
+    all: ['credentials'] as const,
+    detail: (deviceId: string) => ['credentials', 'detail', deviceId] as const,
+    batch: (deviceIds: string[]) => ['credentials', 'batch', deviceIds] as const,
   },
 
   measurementPoints: {
@@ -69,7 +77,6 @@ export const queryKeys = {
     all: ['platformDevices'] as const,
     list: (params?: object) => ['platformDevices', 'list', params] as const,
     detail: (id: string) => ['platformDevices', 'detail', id] as const,
-    stats: () => ['platformDevices', 'stats'] as const,
   },
 
   platformAudit: {

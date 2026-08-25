@@ -1,25 +1,27 @@
 import { Link, useLocation } from 'react-router-dom'
 import { useActivePermissions } from '@/hooks/useActivePermissions'
 import { cn } from '@/lib/cn'
-import { Building2, Users, Lock, FileText, KeyRound, Cpu } from 'lucide-react'
+import { Building2, FileText, KeyRound, Cpu } from 'lucide-react'
 import { UserMenu } from './UserMenu'
 import type { PermissionCode } from '@/types/permissions'
 
 interface NavItem {
   label: string
-  path: string
+  path?: string
   icon: React.ReactNode
   permissions?: PermissionCode[]
   requireAll?: boolean
+  onClick?: () => void
 }
 
 interface PlatformSidebarProps {
   isOpen?: boolean
   onClose?: () => void
   collapsed?: boolean
+  onOpenSettings?: () => void
 }
 
-export function PlatformSidebar({ isOpen = true, onClose, collapsed = false }: PlatformSidebarProps) {
+export function PlatformSidebar({ isOpen = true, onClose, collapsed = false, onOpenSettings }: PlatformSidebarProps) {
   const location = useLocation()
   const { hasPermission, hasAnyPermission } = useActivePermissions()
 
@@ -28,18 +30,6 @@ export function PlatformSidebar({ isOpen = true, onClose, collapsed = false }: P
       label: 'Organizacje',
       path: '/platform/organizations',
       icon: <Building2 className="h-5 w-5" />,
-      permissions: ['PLATFORM_VIEW_ORGANIZATIONS'],
-    },
-    {
-      label: 'Użytkownicy',
-      path: '/platform/users',
-      icon: <Users className="h-5 w-5" />,
-      permissions: ['PLATFORM_VIEW_USERS'],
-    },
-    {
-      label: 'Grupy',
-      path: '/platform/groups',
-      icon: <Lock className="h-5 w-5" />,
       permissions: ['PLATFORM_VIEW_ORGANIZATIONS'],
     },
     {
@@ -103,12 +93,35 @@ export function PlatformSidebar({ isOpen = true, onClose, collapsed = false }: P
           </div>
           <div className="space-y-1">
             {visibleItems.map((item) => {
-              const isActive = location.pathname === item.path
+              const isActive = item.path ? location.pathname === item.path : false
+
+              if (item.onClick) {
+                return (
+                  <button
+                    key={item.label}
+                    onClick={() => {
+                      item.onClick?.()
+                      handleLinkClick()
+                    }}
+                    title={collapsed ? item.label : undefined}
+                    className={cn(
+                      'w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors',
+                      'text-neutral-700 hover:bg-neutral-100',
+                      collapsed && 'lg:justify-center'
+                    )}
+                  >
+                    <div className="flex-shrink-0 text-neutral-400">
+                      {item.icon}
+                    </div>
+                    {!collapsed && item.label}
+                  </button>
+                )
+              }
 
               return (
                 <Link
                   key={item.path}
-                  to={item.path}
+                  to={item.path!}
                   onClick={handleLinkClick}
                   title={collapsed ? item.label : undefined}
                   className={cn(
@@ -135,7 +148,7 @@ export function PlatformSidebar({ isOpen = true, onClose, collapsed = false }: P
         </div>
       </nav>
 
-      <UserMenu accountPath="/platform/account" onNavigate={onClose} collapsed={collapsed} />
+      <UserMenu onNavigate={onClose} onOpenSettings={onOpenSettings} collapsed={collapsed} />
     </aside>
   )
 }

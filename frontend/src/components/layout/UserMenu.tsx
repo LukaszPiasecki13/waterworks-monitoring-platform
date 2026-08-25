@@ -12,23 +12,18 @@ import {
 import { Settings, LogOut } from 'lucide-react'
 
 interface UserMenuProps {
-  accountPath: '/account' | '/platform/account'
   onNavigate?: () => void
+  onOpenSettings?: () => void
   collapsed?: boolean
 }
 
-export function UserMenu({ accountPath, onNavigate, collapsed = false }: UserMenuProps) {
-  const navigate = useNavigate()
+export function UserMenu({ onNavigate, onOpenSettings, collapsed = false }: UserMenuProps) {
   const user = useAuthStore((s) => s.user)
   const clear = useActiveEnvironmentStore((s) => s.clear)
+  const navigate = useNavigate()
 
   if (!user) {
     return null
-  }
-
-  const handleNavigateToAccount = () => {
-    navigate(accountPath)
-    onNavigate?.()
   }
 
   const handleLogout = () => {
@@ -68,11 +63,15 @@ export function UserMenu({ accountPath, onNavigate, collapsed = false }: UserMen
           </button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start" side="top" className="w-56">
-          <DropdownMenuItem onClick={handleNavigateToAccount}>
-            <Settings className="h-4 w-4 mr-2" />
-            Ustawienia konta
-          </DropdownMenuItem>
-          <DropdownMenuSeparator />
+          {onOpenSettings && (
+            <>
+              <DropdownMenuItem onClick={() => { onOpenSettings(); onNavigate?.() }}>
+                <Settings className="h-4 w-4 mr-2" />
+                Ustawienia
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+            </>
+          )}
           <DropdownMenuItem onClick={handleLogout} className="text-red-600 focus:text-red-600 focus:bg-red-50">
             <LogOut className="h-4 w-4 mr-2" />
             Wyloguj się

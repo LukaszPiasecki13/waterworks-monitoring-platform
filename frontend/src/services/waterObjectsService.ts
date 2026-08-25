@@ -5,23 +5,10 @@ import type {
   WaterObjectUpdateRequest,
 } from '@/types/coreData';
 
-interface ListParams {
-  skip?: number
-  limit?: number
-}
-
 export const waterObjectsService = {
-  async list(orgId: string, params?: ListParams): Promise<WaterObject[]> {
-    const response = await apiClient.get(`/api/v1/orgs/${orgId}/objects`, { params });
-    // Backend returns PaginatedResponse, extract items
-    if (response.data && Array.isArray(response.data.items)) {
-      return response.data.items;
-    }
-    // Fallback if response is already an array
-    if (Array.isArray(response.data)) {
-      return response.data;
-    }
-    return [];
+  async list(orgId: string): Promise<WaterObject[]> {
+    const response = await apiClient.get(`/api/v1/orgs/${orgId}/objects`);
+    return Array.isArray(response.data) ? response.data : [];
   },
 
   async get(orgId: string, id: string): Promise<WaterObject> {
@@ -41,5 +28,11 @@ export const waterObjectsService = {
 
   async delete(orgId: string, id: string): Promise<void> {
     await apiClient.delete(`/api/v1/orgs/${orgId}/objects/${id}`);
+  },
+
+  // Platform-level methods (no org scoping)
+  async getPlatformDetail(id: string): Promise<WaterObject> {
+    const response = await apiClient.get(`/api/v1/platform/objects/${id}`);
+    return response.data;
   },
 };

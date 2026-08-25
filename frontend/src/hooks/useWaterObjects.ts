@@ -4,12 +4,7 @@ import { queryKeys } from './queryKeys';
 import { useActiveEnvironmentStore } from '@/stores/activeEnvironmentStore';
 import type { WaterObjectCreateRequest, WaterObjectUpdateRequest } from '@/types/coreData';
 
-interface ListParams {
-  skip?: number
-  limit?: number
-}
-
-export function useWaterObjects(params?: ListParams) {
+export function useWaterObjects() {
   const activeOrgId = useActiveEnvironmentStore((state) => {
     if (state.environment?.type === 'organization') {
       return state.environment.organizationId
@@ -18,8 +13,8 @@ export function useWaterObjects(params?: ListParams) {
   })
 
   return useQuery({
-    queryKey: queryKeys.waterObjects.list(params),
-    queryFn: () => waterObjectsService.list(activeOrgId!, params),
+    queryKey: queryKeys.waterObjects.list(),
+    queryFn: () => waterObjectsService.list(activeOrgId!),
     enabled: !!activeOrgId,
   });
 }

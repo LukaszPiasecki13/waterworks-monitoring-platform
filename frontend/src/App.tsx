@@ -17,20 +17,12 @@ import { AccountPage } from '@/pages/AccountPage'
 import { WaterObjectsPage } from '@/pages/WaterObjectsPage'
 import { DevicesPage } from '@/pages/DevicesPage'
 import { DeviceMeasurementPointsPage } from '@/pages/DeviceMeasurementPointsPage'
-import { MembersPage } from '@/pages/MembersPage'
-import { OrgGroupsPage } from '@/pages/OrgGroupsPage'
 import { ForbiddenPage } from '@/pages/ForbiddenPage'
 import { NotFoundPage } from '@/pages/NotFoundPage'
 
 // Lazy-loaded platform pages (code split)
 const PlatformOrganizationsPage = lazy(() =>
   import('@/pages/PlatformOrganizationsPage').then((m) => ({ default: m.PlatformOrganizationsPage }))
-)
-const PlatformUsersPage = lazy(() =>
-  import('@/pages/PlatformUsersPage').then((m) => ({ default: m.PlatformUsersPage }))
-)
-const PlatformGroupsPage = lazy(() =>
-  import('@/pages/PlatformGroupsPage').then((m) => ({ default: m.PlatformGroupsPage }))
 )
 const PlatformActivationCodesPage = lazy(() =>
   import('@/pages/PlatformActivationCodesPage').then((m) => ({ default: m.PlatformActivationCodesPage }))
@@ -92,22 +84,8 @@ const router = createBrowserRouter(
               </RequirePermission>
             }
           />
-          <Route
-            path="/admin/members"
-            element={
-              <RequirePermission permission="CAN_MANAGE_ORGANIZATIONS">
-                <MembersPage />
-              </RequirePermission>
-            }
-          />
-          <Route
-            path="/admin/groups"
-            element={
-              <RequirePermission permission="CAN_VIEW_SECURITY">
-                <OrgGroupsPage />
-              </RequirePermission>
-            }
-          />
+          <Route path="/admin/members" element={<Navigate to="/" replace />} />
+          <Route path="/admin/groups" element={<Navigate to="/" replace />} />
         </Route>
 
         {/* Platform-plane routes */}
@@ -123,26 +101,8 @@ const router = createBrowserRouter(
               </RequirePermission>
             }
           />
-          <Route
-            path="/platform/users"
-            element={
-              <RequirePermission permission="PLATFORM_VIEW_USERS">
-                <Suspense fallback={<LoadingFallback />}>
-                  <PlatformUsersPage />
-                </Suspense>
-              </RequirePermission>
-            }
-          />
-          <Route
-            path="/platform/groups"
-            element={
-              <RequirePermission permission="PLATFORM_MANAGE_ORGANIZATIONS">
-                <Suspense fallback={<LoadingFallback />}>
-                  <PlatformGroupsPage />
-                </Suspense>
-              </RequirePermission>
-            }
-          />
+          <Route path="/platform/users" element={<Navigate to="/platform/organizations" replace />} />
+          <Route path="/platform/groups" element={<Navigate to="/platform/organizations" replace />} />
           <Route
             path="/platform/activation-codes"
             element={

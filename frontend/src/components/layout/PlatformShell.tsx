@@ -3,6 +3,7 @@ import { Navigate } from 'react-router-dom'
 import { useActiveEnvironmentStore } from '@/stores/activeEnvironmentStore'
 import { Topbar } from './Topbar'
 import { PlatformSidebar } from './PlatformSidebar'
+import { SettingsDialog } from '@/components/settings/SettingsDialog'
 
 interface PlatformShellProps {
   children: React.ReactNode
@@ -11,6 +12,7 @@ interface PlatformShellProps {
 export function PlatformShell({ children }: PlatformShellProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [collapsed, setCollapsed] = useState(false)
+  const [settingsOpen, setSettingsOpen] = useState(false)
   const environment = useActiveEnvironmentStore((s) => s.environment)
 
   // Guard: Only redirect if environment is null (not set)
@@ -22,7 +24,7 @@ export function PlatformShell({ children }: PlatformShellProps) {
 
   return (
     <div className="flex h-screen bg-neutral-50">
-      <PlatformSidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} collapsed={collapsed} />
+      <PlatformSidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} collapsed={collapsed} onOpenSettings={() => setSettingsOpen(true)} />
 
       {sidebarOpen && (
         <div
@@ -36,6 +38,8 @@ export function PlatformShell({ children }: PlatformShellProps) {
         <Topbar onMenuClick={() => setSidebarOpen(!sidebarOpen)} collapsed={collapsed} onToggleSidebar={() => setCollapsed((c) => !c)} />
         <main className="flex-1 overflow-auto">{children}</main>
       </div>
+
+      <SettingsDialog scope="platform" open={settingsOpen} onOpenChange={setSettingsOpen} />
     </div>
   )
 }

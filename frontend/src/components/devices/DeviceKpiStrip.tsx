@@ -8,7 +8,6 @@ export function DeviceKpiStrip() {
     { label: 'Łącznie urządzeń', value: stats?.total ?? 0 },
     { label: 'Aktywne', value: stats?.active ?? 0 },
     { label: 'Nieprzypisane', value: stats?.unassigned ?? 0 },
-    { label: 'Unclaimed', value: stats?.unclaimed ?? 0 },
   ];
 
   return (

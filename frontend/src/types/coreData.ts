@@ -56,11 +56,7 @@ export interface Device {
   last_diagnostics_at: string | null;
   is_active: boolean;
   created_at: string;
-  organization_id: string | null;
-  organization_name: string | null;
-  water_object_name: string | null;
-  credential_status: string | null;
-  claimed_at: string | null;
+  device_credential_id: string | null;
 }
 
 export interface DeviceAssignRequest {
@@ -213,31 +209,6 @@ export interface SecurityGroupSaveRequest {
   description?: string;
   permission_codes: string[];
   user_ids: string[];
-}
-
-/* Device Detail & Stats */
-export interface DeviceMeasurementPointSummary {
-  id: string;
-  external_id: string;
-  point_type: string;
-  unit: string;
-  min_technical: number | null;
-  max_technical: number | null;
-  is_active: boolean;
-}
-
-export interface DeviceDetail extends Device {
-  location_description: string | null;
-  latitude: number | null;
-  longitude: number | null;
-  measurement_points: DeviceMeasurementPointSummary[];
-}
-
-export interface DeviceStats {
-  total: number;
-  active: number;
-  unassigned: number;
-  unclaimed: number;
 }
 
 /* Audit Event */

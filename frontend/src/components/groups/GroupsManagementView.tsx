@@ -1,12 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 import { GroupFormDialog, type GroupFormData } from '@/components/dialogs/GroupFormDialog'
 import { GroupSidebarList } from './GroupSidebarList'
 import { GroupDetailPanel } from './GroupDetailPanel'
 import type { SecurityGroupSummary, SecurityPermission } from '@/types/coreData'
-import { Plus } from 'lucide-react'
 
 interface SelectableUser {
   id: string
@@ -17,8 +15,8 @@ interface GroupsManagementViewProps {
   groups: SecurityGroupSummary[]
   isLoading: boolean
   canManage: boolean
-  title: string
-  subtitle: string
+  title?: string
+  subtitle?: string
   availablePermissions: SecurityPermission[]
   availableUsers: SelectableUser[]
   onCreateGroup: (data: GroupFormData) => Promise<SecurityGroupSummary>
@@ -148,30 +146,24 @@ export function GroupsManagementView({
   }
 
   return (
-    <div className="px-6 py-8">
-      <div className="mb-6 flex items-center justify-between">
-        <div>
+    <>
+      {title && (
+        <div className="mb-6">
           <h1 className="text-3xl font-bold text-neutral-900">{title}</h1>
-          <p className="text-neutral-600">{subtitle}</p>
+          {subtitle && <p className="text-neutral-600 mt-1">{subtitle}</p>}
         </div>
-        {canManage && (
-          <Button onClick={handleOpenCreate}>
-            <Plus className="mr-2 h-4 w-4" />
-            Nowa grupa
-          </Button>
-        )}
-      </div>
-
-      {tabs && <div className="mb-6">{tabs}</div>}
-
+      )}
       <Card className="overflow-hidden p-0">
         <div className="flex gap-0">
-          <div className="w-64 border-r border-neutral-200 flex flex-col">
-            <GroupSidebarList
-              groups={groups}
-              selectedId={selectedGroupId}
-              onSelect={setSelectedGroupId}
-            />
+        <div className="w-64 border-r border-neutral-200 flex flex-col">
+          <GroupSidebarList
+            groups={groups}
+            selectedId={selectedGroupId}
+            onSelect={setSelectedGroupId}
+            tabs={tabs}
+            canManage={canManage}
+            onCreateGroup={handleOpenCreate}
+          />
           </div>
 
           <GroupDetailPanel
@@ -218,6 +210,6 @@ export function GroupsManagementView({
           />
         </>
       )}
-    </div>
+    </>
   )
 }

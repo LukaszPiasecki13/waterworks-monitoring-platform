@@ -23,24 +23,35 @@ const DialogTrigger = React.forwardRef<HTMLButtonElement, DialogTriggerProps>(
 
 DialogTrigger.displayName = 'DialogTrigger';
 
+interface DialogContentProps extends React.ComponentPropsWithoutRef<typeof RadixDialog.Content> {
+  size?: 'default' | 'fullscreen';
+}
+
 const DialogContent = React.forwardRef<
   React.ElementRef<typeof RadixDialog.Content>,
-  React.ComponentPropsWithoutRef<typeof RadixDialog.Content>
->(({ className, ...props }, ref) => (
-  <RadixDialog.Portal>
-    <RadixDialog.Overlay className="fixed inset-0 bg-black/50 z-50" />
-    <RadixDialog.Content
-      ref={ref}
-      className={cn(
-        'fixed left-1/2 top-1/2 z-50 w-full max-w-lg -translate-x-1/2 -translate-y-1/2',
-        'rounded-lg border border-neutral-200 bg-white shadow-lg p-6',
-        'focus-visible:outline-none',
-        className
-      )}
-      {...props}
-    />
-  </RadixDialog.Portal>
-));
+  DialogContentProps
+>(({ className, size = 'default', ...props }, ref) => {
+  const sizeClasses = size === 'fullscreen'
+    ? 'w-[90vw] h-[85vh] max-w-6xl left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2'
+    : 'max-w-lg -translate-x-1/2 -translate-y-1/2 left-1/2 top-1/2';
+
+  return (
+    <RadixDialog.Portal>
+      <RadixDialog.Overlay className="fixed inset-0 bg-black/50 z-50" />
+      <RadixDialog.Content
+        ref={ref}
+        className={cn(
+          'fixed z-50 w-full',
+          sizeClasses,
+          'rounded-lg border border-neutral-200 bg-white shadow-lg p-6',
+          'focus-visible:outline-none',
+          className
+        )}
+        {...props}
+      />
+    </RadixDialog.Portal>
+  );
+});
 
 DialogContent.displayName = 'DialogContent';
 

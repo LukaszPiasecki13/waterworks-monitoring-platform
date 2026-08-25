@@ -1,5 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { devicesService } from '@/services/devicesService';
+import { organizationsService } from '@/services/organizationsService';
+import { waterObjectsService } from '@/services/waterObjectsService';
 import { queryKeys } from './queryKeys';
 import { useActiveEnvironmentStore } from '@/stores/activeEnvironmentStore';
 import type {
@@ -8,16 +10,14 @@ import type {
 } from '@/types/coreData';
 
 interface ListParams {
-  skip?: number
-  limit?: number
   water_object_id?: string
   search?: string
-  is_active?: boolean
-  credential_status?: 'unclaimed' | 'claimed' | 'revoked'
   organization_id?: string
-  assigned?: 'assigned' | 'unassigned'
-  sort_by?: 'last_seen_at' | 'created_at' | 'external_id'
-  sort_dir?: 'asc' | 'desc'
+}
+
+interface PlatformListParams {
+  search?: string
+  organization_id?: string
 }
 
 export function useDevices(params?: ListParams) {
@@ -103,7 +103,7 @@ export function useDeleteDevice() {
 }
 
 // Platform-level device hooks (no org scoping)
-export function usePlatformDevices(params?: ListParams) {
+export function usePlatformDevices(params?: PlatformListParams) {
   return useQuery({
     queryKey: queryKeys.platformDevices.list(params),
     queryFn: () => devicesService.listAll(params),
@@ -130,8 +130,35 @@ export function useDeletePlatformDevice() {
 }
 
 export function usePlatformDeviceStats() {
+  const { data: devices, isLoading } = usePlatformDevices();
+  const devicesArray = Array.isArray(devices) ? devices : [];
+
+  return {
+    data: devicesArray.length > 0 ? {
+      total: devicesArray.length,
+      active: devicesArray.filter((d) => d.is_active).length,
+      unassigned: devicesArray.filter((d) => !d.water_object_id).length,
+    } : undefined,
+    isLoading,
+  };
+}
+
+
+export function useOrganization(id: string | null) {
   return useQuery({
-    queryKey: queryKeys.platformDevices.stats(),
-    queryFn: () => devicesService.getStats(),
+    queryKey: queryKeys.organizations.detail(id ?? ''),
+    queryFn: () => organizationsService.get(id!),
+    enabled: !!id,
   });
 }
+
+
+export function useWaterObject(id: string | null) {
+  return useQuery({
+    queryKey: queryKeys.waterObjects.detail(id ?? ''),
+    queryFn: () => waterObjectsService.getPlatformDetail(id!),
+    enabled: !!id,
+  });
+}
+
+
