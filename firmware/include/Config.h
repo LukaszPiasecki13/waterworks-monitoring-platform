@@ -20,6 +20,15 @@ const int MODEM_RESET_PIN = 5;
 const int MODEM_POWER_ENABLE_PIN = -1;
 
 // =========================
+// SPI & PT100 Sensor
+// =========================
+
+const int PT100_SPI_CS = 14;
+const int PT100_SPI_MOSI = 11;
+const int PT100_SPI_MISO = 13;
+const int PT100_SPI_SCK = 12;
+
+// =========================
 // SIM / Network
 // =========================
 

@@ -14,9 +14,9 @@ Status każdej pozycji jest oznaczony w tabeli:
 | **A7670E** | modem LTE-M/2G (UART, AT-command) | zweryfikowane — [`ModemLink`](../../../firmware/lib/ModemLink/src/ModemLink.cpp), [`ModemPower`](../../../firmware/lib/ModemPower/src/ModemPower.cpp) |
 | **RGB LED on-board (WS2812, GPIO48)** | sygnalizacja stanu | zweryfikowane — [`StatusLed`](../../../firmware/lib/StatusLed/src/StatusLed.cpp), Adafruit_NeoPixel |
 | **PT-506** | czujnik ciśnienia, wyjście 4-20mA | **draft, niepodłączony w kodzie** — brak biblioteki odczytu, brak `analogRead()` w repo |
-| **PT100 + MAX31865** | czujnik temperatury (RTD przez konwerter SPI) | **draft, niepodłączony w kodzie** — brak biblioteki odczytu, brak inicjalizacji SPI w repo |
+| **PT100 + MAX31865** | czujnik temperatury (RTD przez konwerter SPI) | **zweryfikowane** — [`TelemetryPayload`](../../../firmware/lib/TelemetryPayload/src/TelemetryPayload.cpp), `adafruit/Adafruit MAX31865 @ 1.5.0` |
 
-`TelemetryPayload` generuje obecnie wartości syntetyczne (funkcja sinus, [`TelemetryPayload.cpp`](../../../firmware/lib/TelemetryPayload/src/TelemetryPayload.cpp)) — żaden fizyczny czujnik nie jest jeszcze odczytywany na produkcji.
+`TelemetryPayload` od wersji 2026-08-24 odczytuje PT100 przez MAX31865 (SPI). PT-506 wciąż generuje wartości syntetyczne (funkcja sinus).
 
 ## 2. Piny — zweryfikowane w kodzie
 
@@ -26,20 +26,22 @@ Status każdej pozycji jest oznaczony w tabeli:
 | 18 | UART1 RX | A7670E TX | `MODEM_RX_PIN`, [`Config.h:16`](../../../firmware/include/Config.h#L16) |
 | 4 | PWRKEY | A7670E | `MODEM_PWRKEY_PIN`, [`Config.h:18`](../../../firmware/include/Config.h#L18) |
 | 5 | RESET | A7670E | `MODEM_RESET_PIN`, [`Config.h:19`](../../../firmware/include/Config.h#L19) |
+| 11 | SPI MOSI | MAX31865 (PT100) | `PT100_SPI_MOSI`, [`Config.h:27`](../../../firmware/include/Config.h#L27) |
+| 12 | SPI SCK | MAX31865 (PT100) | `PT100_SPI_SCK`, [`Config.h:29`](../../../firmware/include/Config.h#L29) |
+| 13 | SPI MISO | MAX31865 (PT100) | `PT100_SPI_MISO`, [`Config.h:28`](../../../firmware/include/Config.h#L28) |
+| 14 | SPI CS | MAX31865 (PT100) | `PT100_SPI_CS`, [`Config.h:26`](../../../firmware/include/Config.h#L26) — Chip Select |
 | 48 | RGB LED (WS2812, on-board) | — | `LED_PIN`, [`Config.h:15`](../../../firmware/include/Config.h#L15); zob. [§4](#4-led-rgb-gpio48) |
 | — | POWER_ENABLE | nieużywane (`-1`) | `MODEM_POWER_ENABLE_PIN`, [`Config.h:20`](../../../firmware/include/Config.h#L20) — moduł A7670E na tej płytce nie ma osobnej linii enable |
 
 ## 3. Piny — draft (planowane, nie w kodzie)
 
-Poniższe piny pochodzą z pierwotnej wersji tego dokumentu i **nie mają odpowiednika w obecnym firmware** (brak biblioteki sensora, brak inicjalizacji SPI/ADC w `src/main.cpp`). Do potwierdzenia na fizycznej płytce przed lutowaniem i przed napisaniem sterownika — część GPIO na ESP32-S3-DevKitC-1 może być zajęta pod PSRAM/flash lub pełnić funkcję strappingową, zależnie od wariantu modułu.
+Poniższe piny pochodzą z pierwotnej wersji tego dokumentu i **nie mają odpowiednika w obecnym firmware** (brak biblioteki sensora, brak inicjalizacji ADC w `src/main.cpp`). Do potwierdzenia na fizycznej płytce przed lutowaniem i przed napisaniem sterownika — część GPIO na ESP32-S3-DevKitC-1 może być zajęta pod PSRAM/flash lub pełnić funkcję strappingową, zależnie od wariantu modułu.
 
 | GPIO | Funkcja | Podłączone do | Uwagi |
 |---|---|---|---|
 | 1 | ADC1_CH0 | PT-506 (4-20mA) | przez rezystor 250Ω |
-| 12 | SPI SCK | MAX31865 | |
-| 11 | SPI MOSI | MAX31865 | |
-| 13 | SPI MISO | MAX31865 | |
-| 10 | SPI CS | MAX31865 | |
+
+**Uwaga**: Piny PT100/MAX31865 (od 2026-08-24) są jawnie zdefiniowane w `Config.h` i przekazywane do `SPI.begin()`: 11 (MOSI), 12 (SCK), 13 (MISO), 14 (CS). Wszystkie 4 piny SPI sąsiadują fizycznie, co ułatwia okablowanie. Zob. [sekcja 2](#2-piny--zweryfikowane-w-kodzie) i [05_pt100_temperature_sensor.md](./05_pt100_temperature_sensor.md).
 
 ## 4. LED RGB (GPIO48)
 
@@ -51,7 +53,8 @@ Zapalanie LED: `pixels.setPixelColor(0, pixels.Color(R, G, B)); pixels.show();`
 
 ## 5. Znane ograniczenia
 
-- **Brak sensorów w firmware.** PT-506 i PT100/MAX31865 nie mają bibliotek w `lib/` ani odczytu w `src/main.cpp` — telemetria wysyła dane syntetyczne.
+- **PT-506 (czujnik ciśnienia) — draft.** Brak biblioteki odczytu ADC; telemetria PT-506 wciąż wysyła dane syntetyczne (sinus).
+- **PT100 (czujnik temperatury) — zweryfikowany.** Odczyt przez MAX31865 (SPI), biblioteka `adafruit/Adafruit MAX31865`. Zob. [05_pt100_temperature_sensor.md](./05_pt100_temperature_sensor.md) po szczegóły.
 
 ## 6. Interfejsy
 

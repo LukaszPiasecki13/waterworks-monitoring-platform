@@ -3,6 +3,7 @@
 #include <sys/time.h>
 #include <time.h>
 #include <Arduino.h>
+#include <Logger.h>
 
 extern RTC_DATA_ATTR uint32_t rtcSyncedTimeUtcSec;
 extern RTC_DATA_ATTR uint32_t rtcSyncMillis;
@@ -18,54 +19,40 @@ void TimeSync::init() {
 bool TimeSync::sync(ModemLink& modemLink) {
   TinyGsm& modem = modemLink.modem();
 
-  Serial.println("[TimeSync] Attempting NTP sync via pool.ntp.org...");
+  LOG_INFO("[TIME]", "Attempting NTP sync via pool.ntp.org...");
   bool ntpSuccess = modem.NTPServerSync("pool.ntp.org", 0);
   if (!ntpSuccess) {
-    Serial.println("[TimeSync] NTPServerSync via pool.ntp.org FAILED, trying time.nist.gov...");
+    LOG_INFO("[TIME]", "NTPServerSync via pool.ntp.org FAILED, trying time.nist.gov...");
     ntpSuccess = modem.NTPServerSync("time.nist.gov", 0);
     if (!ntpSuccess) {
-      Serial.println("[TimeSync] NTPServerSync via time.nist.gov also FAILED");
-      Serial.println("[TimeSync] Will try reading modem's cached time...");
+      LOG_INFO("[TIME]", "NTPServerSync via time.nist.gov also FAILED");
+      LOG_INFO("[TIME]", "Will try reading modem's cached time...");
     }
   } else {
-    Serial.println("[TimeSync] NTPServerSync OK");
+    LOG_INFO("[TIME]", "NTPServerSync OK");
   }
 
   delay(500);  // Give modem time to process
 
   int year = 0, month = 0, day = 0, hour = 0, minute = 0, second = 0;
   float tz = 0.0f;
-  Serial.println("[TimeSync] Reading network time from modem...");
+  LOG_INFO("[TIME]", "Reading network time from modem...");
   if (!modem.getNetworkTime(&year, &month, &day, &hour, &minute, &second, &tz)) {
-    Serial.println("[TimeSync] getNetworkTime FAILED - no time available");
+    LOG_INFO("[TIME]", "getNetworkTime FAILED - no time available");
     return false;
   }
 
   if (year < 2020) {
-    Serial.print("[TimeSync] Got invalid time from modem (year=");
-    Serial.print(year);
-    Serial.println(") - retrying");
+    LOG_WARN("[TIME]", "Got invalid time from modem (year=%d) - retrying", year);
     delay(1000);
     if (!modem.getNetworkTime(&year, &month, &day, &hour, &minute, &second, &tz)) {
-      Serial.println("[TimeSync] Retry failed");
+      LOG_INFO("[TIME]", "Retry failed");
       return false;
     }
   }
 
-  Serial.print("[TimeSync] Got valid time: ");
-  Serial.print(year);
-  Serial.print("-");
-  Serial.print(month);
-  Serial.print("-");
-  Serial.print(day);
-  Serial.print(" ");
-  Serial.print(hour);
-  Serial.print(":");
-  Serial.print(minute);
-  Serial.print(":");
-  Serial.print(second);
-  Serial.print(" TZ:");
-  Serial.println(tz);
+  LOG_INFO("[TIME]", "Got valid time: %04d-%02d-%02d %02d:%02d:%02d TZ:%.1f", year, month, day, hour, minute, second,
+           tz);
 
   struct tm timeinfo = {};
   timeinfo.tm_year = year - 1900;

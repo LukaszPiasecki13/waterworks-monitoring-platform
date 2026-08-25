@@ -15,8 +15,6 @@ static Preferences prefs;
 void DeviceIdentity::begin() {
 #ifdef OVERRIDE_SERIAL_NUMBER
   serial_number_ = OVERRIDE_SERIAL_NUMBER;
-  Serial.print("[DEVID] Using override serial number: ");
-  Serial.println(serial_number_);
 #else
   prefs.begin("devid", true);
   serial_number_ = prefs.getString("sn", "");
@@ -33,12 +31,9 @@ void DeviceIdentity::begin() {
   if (serial_number_.isEmpty()) {
     generateSerialNumber();
   } else {
-    Serial.print("[DEVID] Loaded serial number from NVS: ");
-    Serial.println(serial_number_);
   }
 
   if (has_key_) {
-    Serial.println("[DEVID] Loaded EC key from NVS");
   }
 #endif
 }
@@ -107,22 +102,16 @@ String DeviceIdentity::signBase64(const uint8_t* msg, size_t len) {
   int sign_ret = mbedtls_ecdsa_write_signature(&key, MBEDTLS_MD_SHA256, hash, 32, der_sig, &sig_len,
                                                mbedtls_ctr_drbg_random, &ctr_drbg);
   if (sign_ret != 0) {
-    Serial.print("[DEVID] ecdsa_write_signature failed: ");
-    Serial.println(sign_ret);
     mbedtls_ecp_keypair_free(&key);
     mbedtls_ctr_drbg_free(&ctr_drbg);
     mbedtls_entropy_free(&entropy);
     return "";
   }
-  Serial.print("[DEVID] DER signature length: ");
-  Serial.println(sig_len);
 
   uint8_t b64_buf[128];
   size_t b64_len = 0;
   int b64_ret = mbedtls_base64_encode(b64_buf, sizeof(b64_buf), &b64_len, der_sig, sig_len);
   if (b64_ret != 0) {
-    Serial.print("[DEVID] base64_encode failed: ");
-    Serial.println(b64_ret);
     mbedtls_ecp_keypair_free(&key);
     mbedtls_ctr_drbg_free(&ctr_drbg);
     mbedtls_entropy_free(&entropy);
@@ -162,7 +151,6 @@ void DeviceIdentity::clearProvisioningState() {
   prefs.remove("tok_exp");
   prefs.end();
   needs_reprovisioning_ = true;
-  Serial.println("[DEVID] Provisioning state cleared, device needs reprovisioning");
 }
 
 bool DeviceIdentity::hasValidSession(uint32_t nowUnixSec) const {
@@ -196,8 +184,6 @@ void DeviceIdentity::loadOrGenerateKey() {
     return;
   }
 
-  Serial.println("[DEVID] Generating new EC key (SECP256R1)...");
-
   mbedtls_entropy_context entropy;
   mbedtls_ctr_drbg_context ctr_drbg;
   mbedtls_entropy_init(&entropy);
@@ -224,8 +210,6 @@ void DeviceIdentity::loadOrGenerateKey() {
   mbedtls_ecp_keypair_free(&key);
   mbedtls_ctr_drbg_free(&ctr_drbg);
   mbedtls_entropy_free(&entropy);
-
-  Serial.println("[DEVID] EC key generated and saved");
 }
 
 void DeviceIdentity::generateSerialNumber() {
@@ -244,9 +228,6 @@ void DeviceIdentity::generateSerialNumber() {
   prefs.begin("devid", false);
   prefs.putString("sn", serial_number_);
   prefs.end();
-
-  Serial.print("[DEVID] Generated serial number: ");
-  Serial.println(serial_number_);
 }
 
 bool DeviceIdentity::decodeBase64Url(const char* base64url_str, size_t b64url_len, uint8_t* out, size_t out_len,

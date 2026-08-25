@@ -2,8 +2,15 @@
 #include <cmath>
 #include <time.h>
 #include "TelemetryPayload.h"
+#include "Config.h"
+#include <Logger.h>
 
-TelemetryPayload::TelemetryPayload(const String& deviceId) : device_id_(deviceId), getUtcTime_(nullptr) {}
+TelemetryPayload::TelemetryPayload(const String& deviceId, ISensor* sensor)
+    : device_id_(deviceId), getUtcTime_(nullptr), pt100_sensor_(sensor) {
+  if (pt100_sensor_ && !pt100_sensor_->init()) {
+    LOG_ERROR("[PT100]", "Failed to initialize sensor");
+  }
+}
 
 float TelemetryPayload::calculateSineValue(uint32_t seq) {
   const float BASE_VALUE = 100.0f;
@@ -33,7 +40,11 @@ String TelemetryPayload::formatIso8601(uint64_t utcMs) {
 }
 
 String TelemetryPayload::build(uint32_t seq, unsigned long timestampMs) {
-  float sineValue = calculateSineValue(seq);
+  float temperature = 0.0f;
+  bool hasReading = pt100_sensor_ && pt100_sensor_->read(temperature);
+  if (!hasReading) {
+    LOG_WARN(pt100_sensor_ ? pt100_sensor_->getTag() : "[SENSOR]", "Read failed, skipping point");
+  }
 
   JsonDocument doc;
 
@@ -64,16 +75,18 @@ String TelemetryPayload::build(uint32_t seq, unsigned long timestampMs) {
   window["window_seconds"] = 30;
 
   JsonArray points = window["points"].to<JsonArray>();
-  JsonObject point = points.add<JsonObject>();
+  if (hasReading) {
+    JsonObject point = points.add<JsonObject>();
 
-  point["point_id"] = "sensor_data";
-  point["type"] = "sensor_value";
-  point["unit"] = "mm";
-  point["quality"] = "good";
-  point["avg"] = roundf(sineValue * 100.0f) / 100.0f;
-  point["min"] = 50;
-  point["max"] = 150;
-  point["value"] = roundf(sineValue * 100.0f) / 100.0f;
+    point["point_id"] = "pt100_temperature";
+    point["type"] = "temperature";
+    point["unit"] = "°C";
+    point["quality"] = "good";
+    point["avg"] = roundf(temperature * 100.0f) / 100.0f;
+    point["min"] = -10;
+    point["max"] = 100;
+    point["value"] = roundf(temperature * 100.0f) / 100.0f;
+  }
 
   String payload;
   serializeJson(doc, payload);

@@ -1,9 +1,8 @@
 #include <TinyGsmClient.h>
 #include <Config.h>
 #include <esp_task_wdt.h>
+#include <Logger.h>
 #include "ModemLink.h"
-
-#define SerialMon Serial
 
 ModemLink::ModemLink(HardwareSerial& serialAT, uint32_t baudRate)
     : serial_at_(serialAT), baud_rate_(baudRate), modem_(nullptr) {}
@@ -13,13 +12,13 @@ bool ModemLink::init(const char* apn, const char* gprsUser, const char* gprsPass
   gprs_user_ = gprsUser;
   gprs_pass_ = gprsPass;
 
-  SerialMon.println("[MODEM] Starting UART...");
+  LOG_INFO("[MODEM]", "Starting UART...");
   esp_task_wdt_reset();
   serial_at_.begin(baud_rate_, SERIAL_8N1, MODEM_RX_PIN, MODEM_TX_PIN);
   delay(5000);
   esp_task_wdt_reset();
 
-  SerialMon.println("[MODEM] Clearing RX buffer...");
+  LOG_INFO("[MODEM]", "Clearing RX buffer...");
   delay(500);
   esp_task_wdt_reset();
   while (serial_at_.available()) {
@@ -28,45 +27,41 @@ bool ModemLink::init(const char* apn, const char* gprsUser, const char* gprsPass
   delay(500);
   esp_task_wdt_reset();
 
-  SerialMon.println("[MODEM] Auto-bauding...");
+  LOG_INFO("[MODEM]", "Auto-bauding...");
   TinyGsmAutoBaud(serial_at_, 9600, 115200);
   delay(1000);
   esp_task_wdt_reset();
 
   modem_ = new TinyGsm(serial_at_);
 
-  SerialMon.println("[MODEM] Initializing modem (modem.init())...");
+  LOG_INFO("[MODEM]", "Initializing modem (modem.init())...");
   unsigned long initStart = millis();
   bool initOk = false;
   int initAttempts = 0;
   while (millis() - initStart < 10000) {
     initAttempts++;
-    SerialMon.print("[MODEM] Init attempt ");
-    SerialMon.println(initAttempts);
+    LOG_INFO("[MODEM]", "Init attempt %d", initAttempts);
     esp_task_wdt_reset();
     if (modem_->init()) {
       initOk = true;
-      SerialMon.println("[MODEM] Init OK");
+      LOG_INFO("[MODEM]", "Init OK");
       break;
     }
-    SerialMon.print("[MODEM] Init failed, elapsed: ");
-    SerialMon.print(millis() - initStart);
-    SerialMon.println("ms");
+    LOG_WARN("[MODEM]", "Init failed, elapsed: %lu ms", millis() - initStart);
     delay(500);
   }
 
   if (!initOk) {
-    SerialMon.println("[MODEM] modem.init() failed after all attempts");
+    LOG_ERROR("[MODEM]", "modem.init() failed after all attempts");
     return false;
   }
 
-  SerialMon.println("[MODEM] Getting modem info...");
+  LOG_INFO("[MODEM]", "Getting modem info...");
   String modemInfo = modem_->getModemInfo();
-  SerialMon.print("[MODEM] Info: ");
-  SerialMon.println(modemInfo);
+  LOG_INFO("[MODEM]", "Info: %s", modemInfo.c_str());
 
   if (strlen(simPin) > 0) {
-    SerialMon.println("[MODEM] Unlocking SIM...");
+    LOG_INFO("[MODEM]", "Unlocking SIM...");
     modem_->simUnlock(simPin);
   }
 
@@ -82,7 +77,7 @@ bool ModemLink::init(const char* apn, const char* gprsUser, const char* gprsPass
 }
 
 bool ModemLink::waitForNetwork() {
-  SerialMon.println("[NET] Waiting for network (timeout 60s)...");
+  LOG_INFO("[NET]", "Waiting for network (timeout 60s)...");
   unsigned long netStart = millis();
   bool netOk = false;
 
@@ -92,33 +87,29 @@ bool ModemLink::waitForNetwork() {
       break;
     }
     esp_task_wdt_reset();
-    SerialMon.print(".");
+    LOG_DEBUG("[NET]", ".");
   }
 
   if (!netOk) {
-    SerialMon.println();
-    SerialMon.println("[NET] Network connection timeout");
+    LOG_ERROR("[NET]", "Network connection timeout");
     return false;
   }
-
-  SerialMon.println();
 
   if (!modem_->isNetworkConnected()) {
-    SerialMon.println("[NET] Network not connected");
+    LOG_ERROR("[NET]", "Network not connected");
     return false;
   }
 
-  SerialMon.println("[NET] Network connected");
+  LOG_INFO("[NET]", "Network connected");
 
   int signal = modem_->getSignalQuality();
-  SerialMon.print("[NET] Signal quality: ");
-  SerialMon.println(signal);
+  LOG_INFO("[NET]", "Signal quality: %d", signal);
 
   return true;
 }
 
 bool ModemLink::connectGprs() {
-  SerialMon.println("[DATA] Connecting GPRS/LTE (timeout 30s)...");
+  LOG_INFO("[DATA]", "Connecting GPRS/LTE (timeout 30s)...");
   unsigned long gprsStart = millis();
   bool gprsOk = false;
 
@@ -128,45 +119,41 @@ bool ModemLink::connectGprs() {
       break;
     }
     esp_task_wdt_reset();
-    SerialMon.print(".");
+    LOG_DEBUG("[NET]", ".");
     delay(500);
   }
 
   if (!gprsOk) {
-    SerialMon.println();
-    SerialMon.println("[DATA] GPRS/LTE connection timeout");
+    LOG_ERROR("[DATA]", "GPRS/LTE connection timeout");
     return false;
   }
-
-  SerialMon.println();
 
   if (!modem_->isGprsConnected()) {
-    SerialMon.println("[DATA] GPRS/LTE not connected");
+    LOG_ERROR("[DATA]", "GPRS/LTE not connected");
     return false;
   }
 
-  SerialMon.println("[DATA] GPRS/LTE connected");
-  SerialMon.print("[DATA] Local IP: ");
-  SerialMon.println(modem_->localIP());
+  LOG_INFO("[DATA]", "GPRS/LTE connected");
+  LOG_INFO("[DATA]", "Local IP: %s", modem_->localIP().toString().c_str());
 
   return true;
 }
 
 bool ModemLink::ensureConnected() {
   if (!modem_->isNetworkConnected()) {
-    SerialMon.println("[NET] Network lost, reconnecting...");
+    LOG_WARN("[NET]", "Network lost, reconnecting...");
 
     esp_task_wdt_reset();
     if (!modem_->waitForNetwork(60000L)) {
       esp_task_wdt_reset();
-      SerialMon.println("[NET] Reconnect network failed");
+      LOG_ERROR("[NET]", "Reconnect network failed");
       return false;
     }
     esp_task_wdt_reset();
   }
 
   if (!modem_->isGprsConnected()) {
-    SerialMon.println("[DATA] GPRS/LTE lost, reconnecting APN...");
+    LOG_WARN("[DATA]", "GPRS/LTE lost, reconnecting APN...");
     modem_->gprsDisconnect();
     esp_task_wdt_reset();
     delay(1000);
@@ -174,7 +161,7 @@ bool ModemLink::ensureConnected() {
 
     if (!modem_->gprsConnect(apn_, gprs_user_, gprs_pass_)) {
       esp_task_wdt_reset();
-      SerialMon.println("[DATA] Reconnect APN failed");
+      LOG_ERROR("[DATA]", "Reconnect APN failed");
       return false;
     }
     esp_task_wdt_reset();

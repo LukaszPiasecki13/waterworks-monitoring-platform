@@ -8,8 +8,6 @@
 #include <TimeSync.h>
 #include <Config.h>
 
-#define SerialMon Serial
-
 DeviceAuthClient::DeviceAuthClient(DeviceIdentity& identity, TelemetryHttpClient& http, unsigned long pollIntervalMs)
     : identity_(identity), http_(http), poll_interval_ms_(pollIntervalMs) {}
 
@@ -20,7 +18,6 @@ uint32_t DeviceAuthClient::parseIso8601ToUnix(const String& iso8601) {
   int parsed = sscanf(iso8601.c_str(), "%d-%d-%dT%d:%d:%d.%d", &year, &month, &day, &hour, &minute, &second, &ms);
 
   if (parsed < 6) {
-    SerialMon.println("[CLAIM] Failed to parse ISO8601 timestamp");
     return 0;
   }
 
@@ -55,9 +52,6 @@ uint32_t DeviceAuthClient::parseIso8601ToUnix(const String& iso8601) {
 bool DeviceAuthClient::attemptAuth() {
   String sn = identity_.serialNumber();
 
-  SerialMon.print("[AUTH] Attempting auth for SN: ");
-  SerialMon.println(sn);
-
   // Step 1: POST /devices/auth/challenge
   JsonDocument challengeReq;
   challengeReq["serial_number"] = sn;
@@ -67,35 +61,27 @@ bool DeviceAuthClient::attemptAuth() {
   HttpResponse challengeResp = http_.post(CHALLENGE_RESOURCE, challengePayload, "");
 
   if (challengeResp.statusCode == 404) {
-    SerialMon.println("[AUTH] ERROR: Device not found (404)");
     // If provisioning was completed, this means device was deleted from platform
     if (identity_.isProvisioningCompleted()) {
-      SerialMon.println("[AUTH] Provisioned device not found, clearing state");
       identity_.clearProvisioningState();
     }
     return false;
   }
   if (challengeResp.statusCode == 401) {
-    SerialMon.println("[AUTH] ERROR: Device revoked (401)");
     return false;
   }
   if (challengeResp.statusCode != 200) {
-    SerialMon.print("[AUTH] Challenge request failed: ");
-    SerialMon.println(challengeResp.statusCode);
     return false;
   }
 
   JsonDocument challengeDoc;
   DeserializationError err = deserializeJson(challengeDoc, challengeResp.body);
   if (err) {
-    SerialMon.print("[AUTH] Failed to parse challenge response: ");
-    SerialMon.println(err.c_str());
     return false;
   }
 
   String challenge = challengeDoc["challenge"];
   if (challenge.isEmpty()) {
-    SerialMon.println("[AUTH] No challenge in response");
     return false;
   }
 
@@ -104,13 +90,11 @@ bool DeviceAuthClient::attemptAuth() {
   size_t challengeBytesLen = 0;
   if (!DeviceIdentity::decodeBase64Url(challenge.c_str(), challenge.length(), challengeBytes, sizeof(challengeBytes),
                                        challengeBytesLen)) {
-    SerialMon.println("[AUTH] Failed to decode base64url challenge");
     return false;
   }
 
   String signature = identity_.signBase64(challengeBytes, challengeBytesLen);
   if (signature.isEmpty()) {
-    SerialMon.println("[AUTH] Failed to sign challenge");
     return false;
   }
 
@@ -124,23 +108,16 @@ bool DeviceAuthClient::attemptAuth() {
   HttpResponse verifyResp = http_.post(VERIFY_RESOURCE, verifyPayload, "");
 
   if (verifyResp.statusCode == 410 || verifyResp.statusCode == 401) {
-    SerialMon.print("[AUTH] Verify failed (");
-    SerialMon.print(verifyResp.statusCode);
-    SerialMon.println(")");
     return false;
   }
 
   if (verifyResp.statusCode != 200) {
-    SerialMon.print("[AUTH] Verify request failed: ");
-    SerialMon.println(verifyResp.statusCode);
     return false;
   }
 
   JsonDocument verifyDoc;
   err = deserializeJson(verifyDoc, verifyResp.body);
   if (err) {
-    SerialMon.print("[AUTH] Failed to parse verify response: ");
-    SerialMon.println(err.c_str());
     return false;
   }
 
@@ -148,20 +125,15 @@ bool DeviceAuthClient::attemptAuth() {
   String expiresAtStr = verifyDoc["expires_at"];
 
   if (token.isEmpty() || expiresAtStr.isEmpty()) {
-    SerialMon.println("[AUTH] Missing token or expires_at in verify response");
     return false;
   }
 
   uint32_t expiresAtUnix = parseIso8601ToUnix(expiresAtStr);
   if (expiresAtUnix == 0) {
-    SerialMon.println("[AUTH] Failed to parse expires_at");
     return false;
   }
 
   identity_.setSessionToken(token, expiresAtUnix);
-
-  SerialMon.print("[AUTH] SUCCESS: Token obtained, expires at: ");
-  SerialMon.println(expiresAtUnix);
 
   return true;
 }

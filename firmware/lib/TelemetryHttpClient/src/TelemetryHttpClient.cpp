@@ -3,8 +3,6 @@
 #include "TelemetryHttpClient.h"
 #include <ModemLink.h>
 
-#define SerialMon Serial
-
 TelemetryHttpClient::TelemetryHttpClient(ModemLink& modem, const char* server, int port, const char* deviceKey)
     : modem_(modem), server_(server), port_(port), device_key_(deviceKey), http_(nullptr) {
   TinyGsmClientSecure* client = new TinyGsmClientSecure(modem_.modem());
@@ -19,9 +17,6 @@ TelemetryHttpClient::~TelemetryHttpClient() {
 
 HttpResponse TelemetryHttpClient::post(const char* resource, const String& payload, const String& bearerToken) {
   HttpResponse resp = {-1, 0, ""};
-
-  SerialMon.print("[HTTP] POST size=");
-  SerialMon.println(payload.length());
 
   unsigned long startMs = millis();
 
@@ -48,15 +43,6 @@ HttpResponse TelemetryHttpClient::post(const char* resource, const String& paylo
   resp.statusCode = http_->responseStatusCode();
   resp.body = http_->responseBody();
   resp.durationMs = millis() - startMs;
-
-  SerialMon.print("[HTTP] Status: ");
-  SerialMon.println(resp.statusCode);
-
-  SerialMon.print("[HTTP] Duration ms: ");
-  SerialMon.println(resp.durationMs);
-
-  SerialMon.print("[HTTP] Response: ");
-  SerialMon.println(resp.body);
 
   http_->stop();
 
