@@ -112,9 +112,91 @@ flowchart TB
     end
 ```
 
-- **Detach** (`core_data`) zeruje tylko `water_object_id` — urządzenie, jego telemetria historyczna i credential zostają nietknięte, więc może zostać przypisane innej organizacji.
-- **Pełne usunięcie** (`device_identity`, orkiestrowane przez `DeviceLifecycleService`) kasuje dane w trzech modułach (telemetry → core_data → device_identity) w jednej transakcji — błąd na dowolnym kroku wycofuje wszystko.
-- **Efekt pełnego usunięcia:** numer seryjny zostaje zwolniony i może być zarejestrowany ponownie — wcześniejszy `409 DEVICE_ALREADY_REGISTERED` na ponowny redeem po platform-delete już nie występuje.
+### 5.1 Detach — odłączenie z organizacji
+
+**Operacja:** `DELETE /api/v1/orgs/{org_id}/devices/{device_id}`
+
+**Implementacja:** [`core_data/services/devices.py::detach_from_organization()`](../../backend/app/modules/core_data/services/devices.py)
+
+- Zeruje **wyłącznie** `Device.water_object_id` (to znaczy ustawia na `NULL`)
+- Pozostawia bez zmian `Device.is_active`, telemetrię, credentialem i kody aktywacyjne
+- Urządzenie przechodzi do puli nieprzypisanych — dowolna organizacja może go przypisać ponownie przez istniejący endpoint `/orgs/{org_id}/devices` (assign)
+- Audit action: `UPDATE` (spójne z `assign_water_object`, zmiana historii to zmiana wartości jednej kolumny)
+- **Całkowicie odwracalna:** brak kaskadowych zmian, żaden zewnętrzny system nie widzi usunięcia
+
+### 5.2 Pełne usunięcie — kasowanie z platformy
+
+**Operacja:** `DELETE /api/v1/platform/devices/{device_id}`
+
+**Implementacja:** [`device_identity/services/device_lifecycle.py::DeviceLifecycleService.delete_device_completely()`](../../backend/app/modules/device_identity/services/device_lifecycle.py)
+
+Orkiestruje kaskadowe kasowanie danych w trzech modułach w **jednej atomowej transakcji**:
+
+#### Porządek operacji
+
+1. **Telemetria** — usuwa pakiety pomiarowe (`TelemetryPacket`)
+   - Metoda: [`telemetry/services/ingest.py::delete_all_for_device(external_id)`](../../backend/app/modules/telemetry/services/ingest.py)
+   - Bulk DELETE po `device_id` (pamiętaj: to string, nie FK) — unika wczytywania 100k+ wierszy do pamięci
+   - Transakcja należy do wołającego (orchestratora)
+
+2. **Device record** — usuwa urządzenie i mierniki
+   - Metoda: [`core_data/services/devices.py::delete_device_record(device_id, ...)`](../../backend/app/modules/core_data/services/devices.py)
+   - Logika: `session.delete(Device)` → FK `MeasurementPoint.device_id` z `ondelete="CASCADE"` automatycznie kasuje mierniki
+   - Żaden commit, transakcja należy do orchestratora
+   - Audit: action `DELETE` dla CORE_DATA_DEVICE
+
+3. **Credential** — usuwa klucz publiczny
+   - Metoda: [`device_identity/repositories/device_credentials.py::delete(credential)`](../../backend/app/modules/device_identity/repositories/device_credentials.py)
+   - Efekt: FK `DeviceActivationCode.redeemed_by_credential_id` z `ondelete="SET NULL"` zeruje referencję
+   - Kod aktywacyjny zostaje w bazie jako audit trail, tylko `redeemed_by_credential_id` zmienia się na `NULL`
+   - Audit: action `DELETE` dla DEVICE_IDENTITY_CREDENTIAL
+
+#### Gwarancja atomowości
+
+```python
+# Pseudokod orchestratora
+with device_service.repo.transaction():  # ← Jedna transakcja
+    telemetry_service.delete_all_for_device(device.external_id)  # flush tylko
+    device_service.delete_device_record(device_id, ...)  # flush tylko
+    credential_repo.delete(credential)  # flush tylko
+    # Jeśli tu się cokolwiek wyśle, cała transakcja rollback
+# ← commit następuje tutaj automatycznie
+```
+
+Jeśli któryś krok się nie powiedzie (np. FK constraint, błąd permissji, błąd walidacji logiki), całość rollbackuje — urządzenie, credential i telemetria zostają w bazie tak, jakby operacja się nie rozpoczęła.
+
+### 5.3 Efekt pełnego usunięcia
+
+- **Numer seryjny zwolniony** — może być zarejestrowany ponownie (poprzednio `409 DEVICE_ALREADY_REGISTERED` na zawsze)
+- **Historia pomiarów usunięta** — telemetria nie będzie dostępna w dashboardzie
+- **Kod aktywacyjny zachowany (audit trail)** — widać, jakie kody byly w systemie, ale `redeemed_by_credential_id` jest `NULL`
+- **Brak zmian dla firmware** — urządzenie dostaje `401 Device not found` przy kolejnym `verify()`, a firmware jest odpowiedzialny za obsługę tego stanu (patrz sekcja niżej)
+
+### 5.4 Obsługa usunięcia na firmware
+
+Firmware automatycznie wykrywa, gdy `DeviceCredential` zostanie skasowany (sygnały: **401 "Device not found"** z
+telemetry POST lub **404** z challenge request) i sam się resetuje do stanu provisioning:
+
+#### Sygnały wykrycia
+
+- **401 "Device not found"** — [`TelemetrySender::update()`](../../firmware/lib/TelemetrySender/src/TelemetrySender.cpp) otrzymuje `{"detail": "Device not found"}` na telemetry POST. Ten ciąg znaków jest unikalny dla przypadku, gdy token wskazuje na skasany `device_id`.
+- **404 na challenge** — [`DeviceAuthClient::attemptAuth()`](../../firmware/lib/DeviceAuthClient/src/DeviceAuthClient.cpp) nie znajduje `serial_number` w `DeviceCredential`. W kontekście już sfinalizowanej provisioning (`isProvisioningCompleted()==true`) nie może to oznaczać "nigdy nie zarejestrowany" — jednoznacznie oznacza delete.
+
+#### Przepływ
+
+1. Firmware parsuje bądź kod bądź JSON i wykrywa sygnał delete
+2. Wołaje `DeviceIdentity::clearProvisioningState()` — czyści flagę `claimed` oraz token/wygaśnięcie w NVS, ustawia wewnętrzną flagę `needs_reprovisioning_=true`
+3. Na następnej iteracji `main.cpp::loop()` sprawdzamy `needsReprovisioning()` i wykonujemy `esp_restart()`
+4. Po restarcie `setup()` czyta świeży stan z NVS: `claimed=false`, naturalnie wejdzie do ścieżki `EnrollmentClient` oczekującej na `ACTIVATE <kod>` po Serial
+5. Klucz EC (`priv_key_raw_`) pozostaje bez zmian — redeem wyśle aktualny `public_key_point`, backend założy nowy `DeviceCredential` z tym samym kluczem publicznym
+
+#### Wymagania operacyjne
+
+Po usunięciu urządzenia z platformy administrator musi:
+1. Wygenerować nowy kod aktywacyjny (stary `DeviceCredential` już nie istnieje)
+2. Wpisać kod po Serial: `ACTIVATE <kod>`
+
+Nie wymaga fizycznej ingerencji w hardware (reset via code jest automatyczny) — analogicznie do pierwszego uruchomienia urządzenia.
 
 ## 6. Znane ograniczenia
 
