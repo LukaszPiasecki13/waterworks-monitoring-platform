@@ -1,7 +1,7 @@
 import { Link, useLocation } from 'react-router-dom'
 import { useActivePermissions } from '@/hooks/useActivePermissions'
 import { cn } from '@/lib/cn'
-import { BarChart3, Droplets, GaugeCircle } from 'lucide-react'
+import { BarChart3, GaugeCircle } from 'lucide-react'
 import { UserMenu } from './UserMenu'
 import type { PermissionCode } from '@/types/permissions'
 
@@ -28,17 +28,10 @@ export function OrgSidebar({ isOpen = true, onClose, collapsed = false, onOpenSe
 
   const navItems: NavItem[] = [
     {
-      label: 'Pulpit',
-      path: '/dashboard',
+      label: 'Obiekty',
+      path: '/objects',
       icon: <BarChart3 className="h-5 w-5" />,
       section: 'monitoring',
-    },
-    {
-      label: 'Obiekty wodne',
-      path: '/admin/objects',
-      icon: <Droplets className="h-5 w-5" />,
-      permissions: ['CAN_VIEW_ASSETS'],
-      section: 'config',
     },
     {
       label: 'Urządzenia',

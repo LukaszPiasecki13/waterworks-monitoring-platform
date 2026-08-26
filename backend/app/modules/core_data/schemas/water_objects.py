@@ -17,8 +17,6 @@ class WaterObjectCreateRequest(BaseSchema):
     name: str = Field(..., min_length=1, max_length=255)
     object_type: ObjectType
     location_description: str | None = Field(None, max_length=500)
-    latitude: float | None = None
-    longitude: float | None = None
 
 
 class WaterObjectUpdateRequest(BaseSchema):
@@ -27,8 +25,6 @@ class WaterObjectUpdateRequest(BaseSchema):
     name: str | None = Field(None, min_length=1, max_length=255)
     object_type: ObjectType | None = None
     location_description: str | None = Field(None, max_length=500)
-    latitude: float | None = None
-    longitude: float | None = None
     is_active: bool | None = None
 
 

@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -14,8 +14,6 @@ const waterObjectSchema = z.object({
   name: z.string().min(1, 'Nazwa jest wymagana').min(2, 'Minimum 2 znaki'),
   object_type: z.string().min(1, 'Typ obiektu jest wymagany'),
   location_description: z.string().optional(),
-  latitude: z.number().optional(),
-  longitude: z.number().optional(),
 });
 
 export type WaterObjectFormData = z.infer<typeof waterObjectSchema>;
@@ -47,18 +45,30 @@ export function WaterObjectFormDialog({
   } = useForm<WaterObjectFormData>({
     resolver: zodResolver(waterObjectSchema),
   });
+  const nameInputRef = useRef<HTMLInputElement | null>(null);
+  const { ref: nameRegisterRef, ...nameRegisterProps } = register('name');
 
+  // Reset form immediately when waterObjectId changes (clear old data before loading new)
+  useEffect(() => {
+    if (!waterObjectId) {
+      reset({
+        name: '',
+        object_type: '',
+        location_description: '',
+      });
+    } else {
+      reset(); // Clear old data while loading new
+    }
+  }, [waterObjectId, reset]);
+
+  // Populate form with loaded data
   useEffect(() => {
     if (waterObjectId && waterObject) {
       reset({
         name: waterObject.name,
         object_type: waterObject.object_type,
         location_description: waterObject.location_description || '',
-        latitude: waterObject.latitude,
-        longitude: waterObject.longitude,
       });
-    } else {
-      reset();
     }
   }, [waterObjectId, waterObject, reset]);
 
@@ -75,7 +85,17 @@ export function WaterObjectFormDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
+      <DialogContent
+        onOpenAutoFocus={(e) => {
+          e.preventDefault();
+          const input = nameInputRef.current;
+          if (input) {
+            input.focus();
+            const len = input.value.length;
+            input.setSelectionRange(len, len);
+          }
+        }}
+      >
         <DialogHeader>
           <DialogTitle>{waterObjectId ? 'Edytuj obiekt wodny' : 'Nowy obiekt wodny'}</DialogTitle>
         </DialogHeader>
@@ -83,8 +103,21 @@ export function WaterObjectFormDialog({
           <form onSubmit={handleSubmit(handleFormSubmit)} className="space-y-4">
             <FormField label="Nazwa" error={errors.name?.message} required>
               <Input
-                {...register('name')}
+                {...nameRegisterProps}
+                ref={(el) => {
+                  nameRegisterRef(el);
+                  nameInputRef.current = el;
+                }}
                 placeholder="Nazwa obiektu"
+                onFocus={(e) => {
+                  const len = e.currentTarget.value.length;
+                  e.currentTarget.setSelectionRange(len, len);
+                }}
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  const len = e.currentTarget.value.length;
+                  e.currentTarget.setSelectionRange(len, len);
+                }}
               />
             </FormField>
 
@@ -106,25 +139,6 @@ export function WaterObjectFormDialog({
                 className="resize-none"
               />
             </FormField>
-
-            <div className="grid grid-cols-2 gap-4">
-              <FormField label="Szerokość" error={errors.latitude?.message}>
-                <Input
-                  {...register('latitude', { valueAsNumber: true })}
-                  type="number"
-                  placeholder="Szerokość"
-                  step="0.000001"
-                />
-              </FormField>
-              <FormField label="Długość" error={errors.longitude?.message}>
-                <Input
-                  {...register('longitude', { valueAsNumber: true })}
-                  type="number"
-                  placeholder="Długość"
-                  step="0.000001"
-                />
-              </FormField>
-            </div>
           </form>
         </DialogBody>
         <DialogFooter>

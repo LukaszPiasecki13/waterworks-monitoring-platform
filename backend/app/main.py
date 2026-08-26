@@ -30,7 +30,6 @@ from app.modules.device_identity.api.activation_redeem import (
 )
 from app.modules.device_identity.api.claims import claims_router
 from app.modules.device_identity.api.device_auth import device_auth_router
-from app.modules.device_identity.api.device_credentials import device_credentials_router
 from app.modules.device_identity.api.provisioning import provisioning_router
 from app.modules.security.api import (
     auth_router,
@@ -120,7 +119,6 @@ app.include_router(platform_router, prefix=f"{API_V1_PREFIX}/platform")
 app.include_router(platform_audit_router, prefix=f"{API_V1_PREFIX}/platform")
 app.include_router(provisioning_router, prefix=f"{API_V1_PREFIX}/platform")
 app.include_router(activation_codes_router, prefix=f"{API_V1_PREFIX}/platform")
-app.include_router(device_credentials_router, prefix=f"{API_V1_PREFIX}/platform")
 app.include_router(devices_platform_router, prefix=f"{API_V1_PREFIX}/platform")
 app.include_router(water_objects_platform_router, prefix=f"{API_V1_PREFIX}/platform")
 

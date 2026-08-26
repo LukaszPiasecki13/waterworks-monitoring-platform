@@ -11,10 +11,9 @@ import { PlatformShell } from '@/components/layout/PlatformShell'
 import { LoginPage } from '@/pages/LoginPage'
 import { EnvironmentPickerPage } from '@/pages/EnvironmentPickerPage'
 import { NoAccessPage } from '@/pages/NoAccessPage'
-import { DashboardPage } from '@/pages/DashboardPage'
+import { ObjectsPage } from '@/pages/ObjectsPage'
 import { ObjectDetailPage } from '@/pages/ObjectDetailPage'
 import { AccountPage } from '@/pages/AccountPage'
-import { WaterObjectsPage } from '@/pages/WaterObjectsPage'
 import { DevicesPage } from '@/pages/DevicesPage'
 import { DeviceMeasurementPointsPage } from '@/pages/DeviceMeasurementPointsPage'
 import { ForbiddenPage } from '@/pages/ForbiddenPage'
@@ -56,18 +55,11 @@ const router = createBrowserRouter(
       <Route element={<ProtectedRoute />}>
         {/* Organization-plane routes */}
         <Route element={<OrgShell><Outlet /></OrgShell>}>
-          <Route path="/" element={<Navigate to="/dashboard" replace />} />
-          <Route path="/dashboard" element={<DashboardPage />} />
+          <Route path="/" element={<Navigate to="/objects" replace />} />
+          <Route path="/dashboard" element={<Navigate to="/objects" replace />} />
+          <Route path="/objects" element={<ObjectsPage />} />
           <Route path="/objects/:objectId" element={<ObjectDetailPage />} />
           <Route path="/account" element={<AccountPage />} />
-          <Route
-            path="/admin/objects"
-            element={
-              <RequirePermission permission="CAN_VIEW_ASSETS">
-                <WaterObjectsPage />
-              </RequirePermission>
-            }
-          />
           <Route
             path="/admin/devices"
             element={

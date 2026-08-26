@@ -27,10 +27,15 @@ export function useWaterObject(id: string) {
     return null
   })
 
+  // First try to get data from list cache
+  const { data: allObjects } = useWaterObjects();
+  const objectFromList = allObjects?.find((obj) => obj.id === id);
+
   return useQuery({
     queryKey: queryKeys.waterObjects.detail(id),
     queryFn: () => waterObjectsService.get(activeOrgId!, id),
-    enabled: !!id && !!activeOrgId,
+    enabled: !!id && !!activeOrgId && !objectFromList, // Only fetch if not in list cache
+    initialData: objectFromList, // Use list data as initial value
   });
 }
 

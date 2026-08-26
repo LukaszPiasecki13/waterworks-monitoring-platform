@@ -65,8 +65,6 @@ class WaterObjectService:
         """List water objects in organization."""
         objs = self.repo.list_all(
             organization_id=org_access.organization_id,
-            skip=query.skip,
-            limit=query.limit,
         )
         count = self.repo.count(organization_id=org_access.organization_id)
         return objs, count
@@ -82,8 +80,6 @@ class WaterObjectService:
                 name=request.name,
                 object_type=request.object_type,
                 location_description=request.location_description,
-                latitude=request.latitude,
-                longitude=request.longitude,
             )
             self.repo.flush()
             self.repo.refresh(obj)
