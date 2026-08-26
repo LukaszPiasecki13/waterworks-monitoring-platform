@@ -1,15 +1,11 @@
 """Pydantic schemas for measurement points."""
 
-from typing import Literal
 from uuid import UUID
 
 from pydantic import ConfigDict, Field
 
 from app.core.schemas import BaseSchema
-
-PointType = Literal[
-    "pressure", "flow_rate", "total_volume", "power_status", "temperature"
-]
+from app.modules.core_data.schemas.point_types import PointType
 
 
 class MeasurementPointCreateRequest(BaseSchema):

@@ -6,6 +6,7 @@ from typing import Literal
 from pydantic import ConfigDict, Field, model_validator
 
 from app.core.schemas import BaseSchema
+from app.modules.core_data.schemas.point_types import ErrorCode
 
 
 class MeasurementPoint(BaseSchema):
@@ -37,17 +38,25 @@ class MeasurementPoint(BaseSchema):
 class MeasurementWindow(BaseSchema):
     window_start: datetime
     window_seconds: int = Field(gt=0, le=3600)
-    points: list[MeasurementPoint] = Field(min_length=1)
+    points: list[MeasurementPoint] = Field(min_length=0)
+
+
+class ErrorEntry(BaseSchema):
+    code: ErrorCode
+    point_id: str | None = Field(None, min_length=1, max_length=128)
+    severity: Literal["info", "warning", "critical"]
+    message: str | None = Field(None, max_length=512)
 
 
 class MeasurementPacketRequest(BaseSchema):
     model_config = ConfigDict(extra="forbid")
 
-    v: int = Field(ge=1)
+    v: int = Field(ge=2, le=2)
     device_id: str = Field(min_length=1, max_length=128)
     seq: int = Field(ge=0)
     sent_at: datetime
     windows: list[MeasurementWindow] = Field(min_length=1)
+    errors: list[ErrorEntry] = Field(default_factory=list)
 
 
 class TelemetryIngestResponse(BaseSchema):

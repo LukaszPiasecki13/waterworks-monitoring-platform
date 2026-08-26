@@ -1,4 +1,4 @@
-"""Tests for telemetry ingest guard on unassigned devices."""
+"""Tests for telemetry ingest service."""
 
 from datetime import UTC, datetime
 from unittest.mock import MagicMock

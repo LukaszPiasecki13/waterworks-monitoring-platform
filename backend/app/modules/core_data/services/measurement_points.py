@@ -2,8 +2,11 @@
 
 from uuid import UUID
 
+from sqlalchemy.exc import IntegrityError
+
 from app.core.audit import AuditEntry, AuditPort, EntityType, calculate_delta
 from app.core.errors import ConflictError
+from app.modules.core_data.models.measurement_point import MeasurementPoint
 from app.modules.core_data.repositories.devices import DeviceRepository
 from app.modules.core_data.repositories.measurement_points import (
     MeasurementPointRepository,
@@ -134,3 +137,37 @@ class MeasurementPointService:
             old_state = self._state(point)
             self.repo.delete(point)
             self._record_audit("DELETE", point, org_access, old_state, {})
+
+    def get_or_create_internal(
+        self, device_id: UUID, external_id: str, point_type: str, unit: str
+    ) -> MeasurementPoint:
+        """Get or create measurement point (auto-provisioning, no audit).
+
+        Used for internal operations like firmware auto-provisioning when a new
+        sensor is detected. Does not record audit trail.
+
+        Must be called within an active transaction.
+        """
+        existing = self.repo.get_by_device_and_external_id(device_id, external_id)
+        if existing:
+            return existing
+
+        try:
+            point = MeasurementPoint(
+                device_id=device_id,
+                external_id=external_id,
+                point_type=point_type,
+                unit=unit,
+                is_active=True,
+            )
+            self.repo.session.add(point)
+            self.repo.flush()
+        except IntegrityError:
+            self.repo.session.rollback()
+            existing = self.repo.get_by_device_and_external_id(device_id, external_id)
+            if existing:
+                return existing
+            raise
+
+        self.repo.refresh(point)
+        return point

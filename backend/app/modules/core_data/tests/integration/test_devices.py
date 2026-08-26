@@ -17,9 +17,15 @@ from app.modules.core_data.models import (
     WaterObject,
 )
 from app.modules.core_data.repositories.devices import DeviceRepository
+from app.modules.core_data.repositories.measurement_points import (
+    MeasurementPointRepository,
+)
 from app.modules.core_data.repositories.water_objects import WaterObjectRepository
 from app.modules.core_data.services.device_lifecycle import DeviceLifecycleService
 from app.modules.core_data.services.devices import DeviceService
+from app.modules.core_data.services.measurement_points import (
+    MeasurementPointService,
+)
 from app.modules.device_identity.models.device_credential import DeviceCredential
 from app.modules.device_identity.repositories.device_credentials import (
     DeviceCredentialRepository,
@@ -220,8 +226,10 @@ def test_complete_device_deletion_with_lifecycle_service(
     water_obj_repo = WaterObjectRepository(db_session)
     credential_repo = DeviceCredentialRepository(db_session)
     telemetry_packet_repo = TelemetryPacketRepository(db_session)
+    point_repo = MeasurementPointRepository(db_session)
     device_service = DeviceService(device_repo, water_obj_repo, MagicMock())
-    telemetry_service = TelemetryIngestService(telemetry_packet_repo)
+    point_service = MeasurementPointService(point_repo, device_repo, MagicMock())
+    telemetry_service = TelemetryIngestService(telemetry_packet_repo, point_service)
     audit_mock = MagicMock(spec=AuditPort)
     lifecycle_service = DeviceLifecycleService(
         device_service, credential_repo, telemetry_service, audit_mock
@@ -265,8 +273,10 @@ def test_complete_deletion_raises_not_found_for_missing_device(
     water_obj_repo = WaterObjectRepository(db_session)
     credential_repo = DeviceCredentialRepository(db_session)
     telemetry_packet_repo = TelemetryPacketRepository(db_session)
+    point_repo = MeasurementPointRepository(db_session)
     device_service = DeviceService(device_repo, water_obj_repo, MagicMock())
-    telemetry_service = TelemetryIngestService(telemetry_packet_repo)
+    point_service = MeasurementPointService(point_repo, device_repo, MagicMock())
+    telemetry_service = TelemetryIngestService(telemetry_packet_repo, point_service)
     lifecycle_service = DeviceLifecycleService(
         device_service, credential_repo, telemetry_service, MagicMock()
     )
