@@ -22,6 +22,7 @@ from app.modules.core_data.api import (
     water_objects_platform_router,
     water_objects_router,
 )
+from app.modules.core_data.registry import RegistryLoadError, SensorRegistry
 from app.modules.device_identity.api.activation_codes import (
     activation_codes_router,
 )
@@ -52,6 +53,13 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(application: FastAPI):
+    # Load sensor registry at startup (thread-safe, single-load)
+    try:
+        SensorRegistry.initialize()
+    except RegistryLoadError as e:
+        logger.error(f"CRITICAL: {e}")
+        raise
+
     # Seed security (permissions + system groups)
     try:
         session = create_session()

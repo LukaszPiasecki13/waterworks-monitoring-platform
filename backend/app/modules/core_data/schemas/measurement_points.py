@@ -5,7 +5,6 @@ from uuid import UUID
 from pydantic import ConfigDict, Field
 
 from app.core.schemas import BaseSchema
-from app.modules.core_data.schemas.point_types import PointType
 
 
 class MeasurementPointCreateRequest(BaseSchema):
@@ -13,7 +12,7 @@ class MeasurementPointCreateRequest(BaseSchema):
 
     device_id: UUID
     external_id: str = Field(..., min_length=1, max_length=128)
-    point_type: PointType
+    point_type: str
     unit: str = Field(..., min_length=1, max_length=20)
     min_technical: float | None = None
     max_technical: float | None = None
@@ -22,7 +21,7 @@ class MeasurementPointCreateRequest(BaseSchema):
 class MeasurementPointUpdateRequest(BaseSchema):
     """Update measurement point request."""
 
-    point_type: PointType | None = None
+    point_type: str | None = None
     unit: str | None = Field(None, min_length=1, max_length=20)
     min_technical: float | None = None
     max_technical: float | None = None

@@ -3,10 +3,10 @@
 from datetime import datetime
 from typing import Literal
 
-from pydantic import ConfigDict, Field, model_validator
+from pydantic import ConfigDict, Field, field_validator, model_validator
 
 from app.core.schemas import BaseSchema
-from app.modules.core_data.schemas.point_types import ErrorCode
+from app.modules.core_data.registry import SensorRegistry
 
 
 class MeasurementPoint(BaseSchema):
@@ -42,10 +42,21 @@ class MeasurementWindow(BaseSchema):
 
 
 class ErrorEntry(BaseSchema):
-    code: ErrorCode
+    code: str
     point_id: str | None = Field(None, min_length=1, max_length=128)
     severity: Literal["info", "warning", "critical"]
     message: str | None = Field(None, max_length=512)
+
+    @field_validator("code")
+    @classmethod
+    def validate_error_code(cls, v: str) -> str:
+        """Validate error code against registry (runtime check)."""
+        if not SensorRegistry.is_valid_error_code(v):
+            valid_codes = SensorRegistry.error_codes()
+            raise ValueError(
+                f"Invalid error code '{v}'. Must be one of: {', '.join(valid_codes)}"
+            )
+        return v
 
 
 class MeasurementPacketRequest(BaseSchema):

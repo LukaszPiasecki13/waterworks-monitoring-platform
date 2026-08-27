@@ -1,24 +1,16 @@
 #include <ArduinoJson.h>
-#include <cmath>
 #include <time.h>
 #include "TelemetryPayload.h"
 #include "Config.h"
 #include <Logger.h>
 
-TelemetryPayload::TelemetryPayload(const String& deviceId, ISensor* sensor)
-    : device_id_(deviceId), getUtcTime_(nullptr), pt100_sensor_(sensor) {
-  if (pt100_sensor_ && !pt100_sensor_->init()) {
-    LOG_ERROR("[PT100]", "Failed to initialize sensor");
+TelemetryPayload::TelemetryPayload(const String& deviceId, const std::vector<ISensor*>& sensors)
+    : device_id_(deviceId), sensors_(sensors), getUtcTime_(nullptr) {
+  for (auto sensor : sensors_) {
+    if (sensor && !sensor->init()) {
+      LOG_ERROR(sensor->getTag(), "Failed to initialize");
+    }
   }
-}
-
-float TelemetryPayload::calculateSineValue(uint32_t seq) {
-  const float BASE_VALUE = 100.0f;
-  const float AMPLITUDE = 50.0f;
-  const float PERIOD = 100.0f;
-
-  float angle = (seq % (uint32_t)PERIOD) * 2.0f * M_PI / PERIOD;
-  return BASE_VALUE + AMPLITUDE * sin(angle);
 }
 
 String TelemetryPayload::formatIso8601(uint64_t utcMs) {
@@ -39,53 +31,83 @@ String TelemetryPayload::formatIso8601(uint64_t utcMs) {
   return String(buffer);
 }
 
-String TelemetryPayload::build(uint32_t seq, unsigned long timestampMs) {
-  float temperature = 0.0f;
-  bool hasReading = pt100_sensor_ && pt100_sensor_->read(temperature);
-  if (!hasReading) {
-    LOG_WARN(pt100_sensor_ ? pt100_sensor_->getTag() : "[SENSOR]", "Read failed, skipping point");
+void TelemetryPayload::sample(uint64_t utcMs) {
+  if (windows_buffer_.size() >= RETAIN_WINDOWS_MAX) {
+    dropOldestWindow();
+    addError("WINDOW_DROPPED_BUFFER_FULL", nullptr, "warning", "Buffer full");
   }
 
+  MeasurementWindow window;
+  window.window_start_ms = utcMs;
+  window.window_seconds = WINDOW_SECONDS;
+
+  for (auto sensor : sensors_) {
+    if (sensor) {
+      SensorReading reading = sensor->read();
+      window.readings.push_back({sensor, reading});
+    }
+  }
+
+  windows_buffer_.push_back(window);
+}
+
+void TelemetryPayload::dropOldestWindow() {
+  if (!windows_buffer_.empty()) {
+    windows_buffer_.erase(windows_buffer_.begin());
+  }
+}
+
+bool TelemetryPayload::isReadyToSend() const { return windows_buffer_.size() >= WINDOWS_PER_BATCH; }
+
+String TelemetryPayload::build(uint32_t seq) {
   JsonDocument doc;
 
-  doc["v"] = 1;
+  doc["v"] = 2;
   doc["device_id"] = device_id_;
   doc["seq"] = seq;
 
-  String timestamp;
-  if (getUtcTime_) {
-    uint64_t utcMs = getUtcTime_();
-    timestamp = formatIso8601(utcMs);
+  uint64_t utcMs = getUtcTime_ ? getUtcTime_() : 0;
+  String sentAt = formatIso8601(utcMs);
+  doc["sent_at"] = sentAt;
+
+  JsonArray windowsArr = doc["windows"].to<JsonArray>();
+  for (size_t i = 0; i < WINDOWS_PER_BATCH && i < windows_buffer_.size(); ++i) {
+    const MeasurementWindow& w = windows_buffer_[i];
+    JsonObject windowObj = windowsArr.add<JsonObject>();
+
+    String windowStart = formatIso8601(w.window_start_ms);
+    windowObj["window_start"] = windowStart;
+    windowObj["window_seconds"] = w.window_seconds;
+
+    JsonArray pointsArr = windowObj["points"].to<JsonArray>();
+    for (const auto& [sensor, reading] : w.readings) {
+      if (reading.ok) {
+        JsonObject pointObj = pointsArr.add<JsonObject>();
+        pointObj["point_id"] = sensor->pointId();
+        pointObj["type"] = sensor->pointType();
+        pointObj["unit"] = sensor->unit();
+        pointObj["quality"] = "good";
+        pointObj["value"] = reading.value;
+      } else {
+        addError("SENSOR_FAULT", sensor->pointId(), "error", "Read failed");
+      }
+    }
   }
-  if (timestamp.isEmpty()) {
-    unsigned long seconds = timestampMs / 1000;
-    unsigned long ms = timestampMs % 1000;
-    unsigned long minutes = (seconds / 60) % 60;
-    unsigned long secs = seconds % 60;
-    char buffer[30];
-    snprintf(buffer, sizeof(buffer), "2026-08-10T%02lu:%02lu:%02lu.%03luZ", (seconds / 3600) % 24, minutes, secs, ms);
-    timestamp = String(buffer);
-  }
-  doc["sent_at"] = timestamp;
+  windows_sent_count_ = (WINDOWS_PER_BATCH < windows_buffer_.size()) ? WINDOWS_PER_BATCH : windows_buffer_.size();
 
-  JsonArray windows = doc["windows"].to<JsonArray>();
-  JsonObject window = windows.add<JsonObject>();
-
-  window["window_start"] = timestamp;
-  window["window_seconds"] = 30;
-
-  JsonArray points = window["points"].to<JsonArray>();
-  if (hasReading) {
-    JsonObject point = points.add<JsonObject>();
-
-    point["point_id"] = "pt100_temperature";
-    point["type"] = "temperature";
-    point["unit"] = "°C";
-    point["quality"] = "good";
-    point["avg"] = roundf(temperature * 100.0f) / 100.0f;
-    point["min"] = -10;
-    point["max"] = 100;
-    point["value"] = roundf(temperature * 100.0f) / 100.0f;
+  if (!errors_buffer_.empty()) {
+    JsonArray errorsArr = doc["errors"].to<JsonArray>();
+    for (const auto& err : errors_buffer_) {
+      JsonObject errObj = errorsArr.add<JsonObject>();
+      errObj["code"] = err.code;
+      if (err.point_id) {
+        errObj["point_id"] = err.point_id;
+      }
+      errObj["severity"] = err.severity;
+      if (err.message) {
+        errObj["message"] = err.message;
+      }
+    }
   }
 
   String payload;
@@ -93,4 +115,23 @@ String TelemetryPayload::build(uint32_t seq, unsigned long timestampMs) {
   return payload;
 }
 
+void TelemetryPayload::acknowledge() {
+  if (windows_sent_count_ > 0 && windows_sent_count_ <= windows_buffer_.size()) {
+    windows_buffer_.erase(windows_buffer_.begin(), windows_buffer_.begin() + windows_sent_count_);
+    windows_sent_count_ = 0;
+  }
+  errors_buffer_.clear();
+}
+
 void TelemetryPayload::setGetUtcTime(std::function<uint64_t()> getUtcTime) { getUtcTime_ = getUtcTime; }
+
+void TelemetryPayload::addError(const char* code, const char* pointId, const char* severity, const char* message) {
+  if (!code || !severity) {
+    LOG_ERROR("[PAYLOAD]", "addError: code and severity are required");
+    return;
+  }
+  if (errors_buffer_.size() >= MAX_ERRORS) {
+    errors_buffer_.erase(errors_buffer_.begin());
+  }
+  errors_buffer_.push_back({code, pointId, severity, message});
+}

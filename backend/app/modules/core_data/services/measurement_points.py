@@ -5,8 +5,9 @@ from uuid import UUID
 from sqlalchemy.exc import IntegrityError
 
 from app.core.audit import AuditEntry, AuditPort, EntityType, calculate_delta
-from app.core.errors import ConflictError
+from app.core.errors import BadRequestError, ConflictError
 from app.modules.core_data.models.measurement_point import MeasurementPoint
+from app.modules.core_data.registry import SensorRegistry
 from app.modules.core_data.repositories.devices import DeviceRepository
 from app.modules.core_data.repositories.measurement_points import (
     MeasurementPointRepository,
@@ -86,6 +87,13 @@ class MeasurementPointService:
         self, request: MeasurementPointCreateRequest, org_access: OrganizationAccess
     ):
         """Create measurement point in organization."""
+        # Validate point_type against registry
+        if not SensorRegistry.is_valid_point_type(request.point_type):
+            raise BadRequestError(
+                f"Unknown point_type: {request.point_type}. "
+                f"Valid types: {', '.join(SensorRegistry.point_type_ids())}"
+            )
+
         with self.repo.transaction():
             self.device_repo.find_in_organization(
                 request.device_id, org_access.organization_id
@@ -117,6 +125,15 @@ class MeasurementPointService:
         org_access: OrganizationAccess,
     ):
         """Update measurement point."""
+        # Validate point_type if provided
+        if request.point_type and not SensorRegistry.is_valid_point_type(
+            request.point_type
+        ):
+            raise BadRequestError(
+                f"Unknown point_type: {request.point_type}. "
+                f"Valid types: {', '.join(SensorRegistry.point_type_ids())}"
+            )
+
         with self.repo.transaction() as tx:
             point = self.repo.find_in_organization(point_id, org_access.organization_id)
             old_state = self._state(point)

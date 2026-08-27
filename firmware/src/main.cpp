@@ -2,6 +2,7 @@
 #include <HardwareSerial.h>
 #include <Esp.h>
 #include <esp_task_wdt.h>
+#include <vector>
 
 #include <Config.h>
 #include <RtcState.h>
@@ -35,7 +36,7 @@ StatusLed led(LED_PIN);
 DeviceIdentity deviceIdentity;
 ModemPower modemPower(MODEM_PWRKEY_PIN, MODEM_RESET_PIN, MODEM_POWER_ENABLE_PIN);
 ModemLink modemLink(SerialAT, MODEM_BAUD);
-PT100Sensor* pt100Sensor = nullptr;
+std::vector<ISensor*> sensors;
 TelemetryPayload* telemetryPayload = nullptr;
 
 TelemetryHttpClient* httpClient = nullptr;
@@ -91,9 +92,9 @@ void initializeTimeSync() {
 }
 
 void initializeSensors() {
-  if (!pt100Sensor) {
-    pt100Sensor = new PT100Sensor(PT100_SPI_CS);
-    LOG_INFO("[BOOT]", "PT100 sensor initialized");
+  if (sensors.empty()) {
+    sensors.push_back(new PT100Sensor(PT100_SPI_CS));
+    LOG_INFO("[BOOT]", "Sensors initialized");
   }
 }
 
@@ -108,11 +109,11 @@ void initializeTelemetry() {
   initializeSensors();
   initializeHttpClient();
 
-  telemetryPayload = new TelemetryPayload(deviceIdentity.serialNumber(), pt100Sensor);
+  telemetryPayload = new TelemetryPayload(deviceIdentity.serialNumber(), sensors);
   telemetryPayload->setGetUtcTime([]() { return TimeSync::getUtcTimestamp(); });
   deviceAuthClient = new DeviceAuthClient(deviceIdentity, *httpClient, CLAIM_POLL_INTERVAL_MS);
   telemetrySender = new TelemetrySender(modemLink, *httpClient, *telemetryPayload, led, deviceIdentity,
-                                        SEND_INTERVAL_MS, ERROR_RETRY_MS);
+                                        SAMPLE_INTERVAL_MS, ERROR_RETRY_MS);
   watchdog->setTelemetrySender(telemetrySender);
 
   rtcRestartCounter = 0;

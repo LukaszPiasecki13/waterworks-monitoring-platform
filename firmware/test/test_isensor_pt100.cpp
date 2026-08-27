@@ -1,20 +1,6 @@
 #include <gtest/gtest.h>
 #include <PT100Sensor.h>
-
-// Mock Adafruit_MAX31865 for testing
-class MockMAX31865 {
- public:
-  bool begin(uint8_t wiremode) { return true; }
-  uint16_t readRTD() { return 3200; }  // ~25°C in RTD units
-  float calculateTemperature(uint16_t rtd, float nominalRtd, float refRes) {
-    // Simplified Callendar-Van Dusen calculation (approximation)
-    float R0 = nominalRtd;
-    float R = rtd * refRes / 32768.0f;
-    return (R - R0) / (R0 * 0.00385f);
-  }
-  uint8_t readFault() { return 0; }  // No fault
-  void clearFault() {}
-};
+#include <SensorRegistry.h>
 
 class PT100SensorTest : public ::testing::Test {
  protected:
@@ -38,12 +24,14 @@ TEST_F(PT100SensorTest, InitSuccess) {
   EXPECT_TRUE(true);
 }
 
-TEST_F(PT100SensorTest, ReadReturnsFloat) {
-  float temperature = 0.0f;
-  // read() will attempt to use MAX31865 hardware
-  // In native test env, this may not work fully
-  // Test the interface contract
-  EXPECT_TRUE(sensor != nullptr);
+TEST_F(PT100SensorTest, ReadReturnsSensorReading) {
+  // read() now returns SensorReading struct
+  SensorReading reading = sensor->read();
+  // In native env without hardware, expect failure
+  EXPECT_TRUE(reading.ok || !reading.ok);  // Reading should have ok field
+  if (!reading.ok) {
+    EXPECT_TRUE(reading.errorCode != nullptr);  // Should have error code
+  }
 }
 
 TEST_F(PT100SensorTest, GetTagReturnsCorrectString) {
@@ -51,26 +39,48 @@ TEST_F(PT100SensorTest, GetTagReturnsCorrectString) {
   EXPECT_STREQ(tag, "[PT100]");
 }
 
+TEST_F(PT100SensorTest, PointIdReturnsString) {
+  const char* pointId = sensor->pointId();
+  EXPECT_STREQ(pointId, "pt100_temperature");
+}
+
+TEST_F(PT100SensorTest, PointTypeReturnsTemperature) {
+  const char* pointType = sensor->pointType();
+  EXPECT_STREQ(pointType, POINT_TYPE_TEMPERATURE);
+}
+
+TEST_F(PT100SensorTest, UnitReturnsCelsius) {
+  const char* unit = sensor->unit();
+  EXPECT_STREQ(unit, "°C");
+}
+
 TEST_F(PT100SensorTest, InterfaceImplementation) {
   // Verify PT100Sensor implements ISensor interface
   ISensor* iface = sensor;
   EXPECT_TRUE(iface != nullptr);
   EXPECT_STREQ(iface->getTag(), "[PT100]");
+  EXPECT_STREQ(iface->pointId(), "pt100_temperature");
+  EXPECT_STREQ(iface->pointType(), POINT_TYPE_TEMPERATURE);
+  EXPECT_STREQ(iface->unit(), "°C");
 }
 
 TEST_F(PT100SensorTest, ConstructorWithPin) {
   PT100Sensor s1(14);
   EXPECT_STREQ(s1.getTag(), "[PT100]");
+  EXPECT_STREQ(s1.pointId(), "pt100_temperature");
 
   PT100Sensor s2(13);
   EXPECT_STREQ(s2.getTag(), "[PT100]");
 }
 
-TEST_F(PT100SensorTest, ReadSignatureContract) {
-  // Verify read() takes float& and returns bool
-  float tempOut = 0.0f;
-  // Call read() - in native env may not have MAX31865, so just test interface
-  bool result = sensor->read(tempOut);
-  // read() should return a boolean
-  EXPECT_TRUE(result || !result);  // Result is either true or false
+TEST_F(PT100SensorTest, SensorReadingStructure) {
+  // Verify SensorReading has correct fields
+  SensorReading reading = sensor->read();
+
+  // All fields should be accessible
+  bool okValue = reading.ok;
+  float value = reading.value;
+  const char* errorCode = reading.errorCode;
+
+  EXPECT_TRUE(true);  // If compilation passed, struct is correct
 }

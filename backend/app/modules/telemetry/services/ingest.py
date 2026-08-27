@@ -3,13 +3,13 @@
 from collections.abc import Iterator
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import Literal, get_args
+from typing import Literal
 from uuid import UUID
 
 from app.core.errors import BadRequestError, ConflictError, ForbiddenError
 from app.modules.core_data.models.device import Device
 from app.modules.core_data.models.measurement_point import MeasurementPoint
-from app.modules.core_data.schemas.point_types import PointType
+from app.modules.core_data.registry import SensorRegistry
 from app.modules.core_data.services.measurement_points import MeasurementPointService
 from app.modules.telemetry.exceptions import TelemetryPacketAlreadyExistsError
 from app.modules.telemetry.models.telemetry_error import TelemetryError
@@ -21,8 +21,6 @@ from app.modules.telemetry.schemas.measurement_packet import (
 from app.modules.telemetry.schemas.measurement_packet import (
     MeasurementPoint as PacketPoint,
 )
-
-_VALID_POINT_TYPES: frozenset[str] = frozenset(get_args(PointType))
 
 
 @dataclass(frozen=True)
@@ -48,7 +46,7 @@ def _authorize(packet: MeasurementPacketRequest, device: Device) -> None:
 
 def _validate_point_type(point_type: str) -> None:
     """Validate point_type is in catalog. Raises BadRequestError if not."""
-    if point_type not in _VALID_POINT_TYPES:
+    if point_type not in SensorRegistry.point_type_ids():
         raise BadRequestError(
             f"Unknown point_type: {point_type}", code="UNKNOWN_POINT_TYPE"
         )

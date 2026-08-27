@@ -1,0 +1,83 @@
+---
+# Sensor Registry — Single source of truth for measurement types and error codes
+# Used by backend (runtime loading) and firmware (embedded JSON)
+# CRITICAL: schema_version must match firmware/include/SensorRegistry.h SCHEMA_VERSION
+
+schema_version: 1
+
+point_types:
+  - id: temperature
+    canonical_unit: "°C"
+    description: "Temperature measurement (PT100/RTD, thermistor, etc.)"
+
+  - id: pressure
+    canonical_unit: "bar"
+    description: "Fluid pressure measurement (4-20mA transducer, etc.)"
+
+  - id: flow_rate
+    canonical_unit: "m³/h"
+    description: "Flow rate measurement (turbine meter, magnetic flowmeter, etc.)"
+
+  - id: level
+    canonical_unit: "m"
+    description: "Liquid level measurement (ultrasonic, capacitive, pressure-based, etc.)"
+
+  - id: battery_voltage
+    canonical_unit: "V"
+    description: "Device battery or power supply voltage"
+
+  - id: digital_input
+    canonical_unit: "bool"
+    description: "Digital input state (dry contact, relay feedback, alarm input)"
+
+  - id: modem_rssi
+    canonical_unit: "dBm"
+    description: "Modem signal strength (RSSI); lower is weaker (-120 to -30)"
+
+  - id: power_status
+    canonical_unit: "enum"
+    description: "Device power status (on_battery, on_mains, low_power_mode, etc.)"
+
+  - id: total_volume
+    canonical_unit: "m³"
+    description: "Cumulative volume measurement (odometer-style, never resets)"
+
+error_codes:
+  # Sensor-level errors
+  - code: SENSOR_READ_FAILED
+    severity: warning
+    description: "Sensor read failed; value unavailable for this sampling interval"
+
+  - code: SENSOR_FAULT_HW
+    severity: critical
+    description: "Hardware fault detected on sensor (e.g. MAX31865 fault bits, open circuit)"
+
+  - code: SENSOR_OUT_OF_RANGE
+    severity: warning
+    description: "Sensor reading outside hardware limits (does not indicate installation-level out-of-range)"
+
+  # Device-level errors
+  - code: POWER_LOW
+    severity: warning
+    description: "Device battery voltage below safe threshold"
+
+  - code: MODEM_SIGNAL_WEAK
+    severity: info
+    description: "Modem signal quality poor (low RSSI); may indicate network issues"
+
+  - code: TIME_SYNC_FAILED
+    severity: warning
+    description: "NTP time synchronization failed; using boot-relative time"
+
+  - code: WATCHDOG_RESTART
+    severity: critical
+    description: "Watchdog triggered restart; possible infinite loop or freeze"
+
+  - code: WINDOW_DROPPED_BUFFER_FULL
+    severity: warning
+    description: "Oldest sampling window was dropped due to buffer full (long network outage)"
+
+  # Backend errors (ingest-time)
+  - code: POINT_TYPE_MISMATCH
+    severity: critical
+    description: "point_id known but point_type/unit differs from registered MeasurementPoint; rejected this point"

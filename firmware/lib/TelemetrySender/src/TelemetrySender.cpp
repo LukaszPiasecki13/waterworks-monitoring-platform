@@ -11,65 +11,70 @@
 #include <DeviceIdentity.h>
 
 TelemetrySender::TelemetrySender(ModemLink& modem, TelemetryHttpClient& httpClient, TelemetryPayload& payload,
-                                 StatusLed& led, DeviceIdentity& identity, unsigned long sendIntervalMs,
+                                 StatusLed& led, DeviceIdentity& identity, unsigned long sampleIntervalMs,
                                  unsigned long errorRetryMs)
     : modem_(modem),
       http_(httpClient),
       payload_(payload),
       led_(led),
       identity_(identity),
-      send_interval_ms_(sendIntervalMs),
+      sample_interval_ms_(sampleIntervalMs),
       error_retry_ms_(errorRetryMs) {}
 
 void TelemetrySender::update(unsigned long now) {
-  if (now < next_allowed_send_ms_) {
+  if (!TimeSync::isSynced()) {
     return;
   }
 
-  unsigned long send_start_ms = millis();
-  next_allowed_send_ms_ = send_start_ms + send_interval_ms_;
+  if (now >= last_sample_ms_ + sample_interval_ms_) {
+    last_sample_ms_ = now;
+    uint64_t utcMs = TimeSync::getUtcTimestamp();
+    payload_.sample(utcMs);
+  }
+
+  if (now < next_send_attempt_ms_) {
+    return;
+  }
+
+  if (!payload_.isReadyToSend()) {
+    return;
+  }
 
   if (!modem_.ensureConnected()) {
     LOG_WARN("[LOOP]", "Connection not ready");
     led_.blinkError();
-    next_allowed_send_ms_ = millis() + error_retry_ms_;
+    next_send_attempt_ms_ = now + error_retry_ms_;
     return;
   }
 
-  if (!TimeSync::isSynced()) {
-    LOG_WARN("[LOOP]", "Time not synced, skipping telemetry");
-    next_allowed_send_ms_ = millis() + error_retry_ms_;
-    return;
-  }
-
+  // Note: uint32_t truncates Unix timestamp to 32-bit seconds. Valid until year 2106.
   uint32_t nowUnix = (uint32_t)(TimeSync::getUtcTimestamp() / 1000);
 
   if (!identity_.hasValidSession(nowUnix)) {
     LOG_WARN("[LOOP]", "No valid session, skipping telemetry");
-    next_allowed_send_ms_ = millis() + error_retry_ms_;
+    next_send_attempt_ms_ = now + error_retry_ms_;
     return;
   }
 
-  uint32_t seq = nowUnix;
-  String payloadStr = payload_.build(seq, send_start_ms);
+  send_seq_ = nowUnix;
+  String payloadStr = payload_.build(send_seq_);
   LOG_INFO("[DATA]", "Payload: %s", payloadStr.c_str());
 
   String token = identity_.sessionToken();
   HttpResponse resp = http_.post(RESOURCE, payloadStr, token);
 
   if (resp.statusCode == 200 || resp.statusCode == 202) {
-    LOG_INFO("[LOOP]", "Send OK, seq=%lu", seq);
-
+    LOG_INFO("[LOOP]", "Send OK, seq=%lu", send_seq_);
+    payload_.acknowledge();
     led_.blinkSuccess();
     last_success_ms_ = now;
     last_error_was_permanent_ = false;
+    next_send_attempt_ms_ = now + sample_interval_ms_;
   } else {
-    LOG_ERROR("[LOOP]", "Send failed, seq=%lu", seq);
-
+    LOG_ERROR("[LOOP]", "Send failed, seq=%lu", send_seq_);
     led_.blinkError();
-    next_allowed_send_ms_ = millis() + error_retry_ms_;
+    next_send_attempt_ms_ = now + error_retry_ms_;
 
-    // Check if device was deleted from platform (401 Device not found)
     if (resp.statusCode == 401) {
       JsonDocument doc;
       DeserializationError err = deserializeJson(doc, resp.body);
@@ -82,7 +87,6 @@ void TelemetrySender::update(unsigned long now) {
       }
     }
 
-    // Track if error is permanent (device not assigned, etc.)
     last_error_was_permanent_ = (resp.statusCode == 409 || resp.statusCode == 410 || resp.statusCode == 403);
   }
 }
