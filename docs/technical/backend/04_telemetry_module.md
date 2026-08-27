@@ -43,3 +43,94 @@ Komentarz w kodzie tłumaczy dlaczego nie `MAX(device_id)`: zwróciłby leksykog
 
 **`limit=None` w `list_objects`** — repozytorium wspiera zwrócenie kompletnego zbioru bez limitu, bo serwis czasem filtruje po statusie (`no_data`/`no_comm`/`warning`/`ok`), którego nie da się wyrazić w SQL bez dodatkowego joina na "ostatni pakiet" — więc musi mieć cały zbiór przed paginacją.
 
+## 5. Pakiet v2 — batchowanie i wieloczujniki
+
+Firmware v2 i dalej wysyła pakiety w formacie `/telemetry/ingest` (`POST`):
+
+```json
+{
+  "v": 2,
+  "device_id": "WW-xxx",
+  "seq": 123,
+  "sent_at": "2026-08-26T10:30:00.000Z",
+  "windows": [
+    {
+      "window_start": "2026-08-26T10:30:00.000Z",
+      "window_seconds": 15,
+      "points": [
+        {
+          "point_id": "pt100_temperature",
+          "type": "temperature",
+          "unit": "°C",
+          "quality": "good",
+          "value": 23.5
+        },
+        {
+          "point_id": "pressure_transducer",
+          "type": "pressure",
+          "unit": "bar",
+          "quality": "good",
+          "value": 2.1
+        }
+      ]
+    },
+    {
+      "window_start": "2026-08-26T10:30:15.000Z",
+      "window_seconds": 15,
+      "points": [...]
+    }
+  ],
+  "errors": [
+    {
+      "code": "SENSOR_FAULT_HW",
+      "point_id": "pt100_temperature",
+      "severity": "critical",
+      "message": "MAX31865 fault bits detected"
+    }
+  ]
+}
+```
+
+**Batchowanie okien**: Firmware próbkuje co `SAMPLE_INTERVAL_MS` (15s), ale wysyła co `SAMPLE_INTERVAL_MS * WINDOWS_PER_BATCH` (np. 4 okna × 15s = 60s), zmniejszając narzut TLS/HTTP. Bufor retencji `RETAIN_WINDOWS_MAX = 12 × WINDOWS_PER_BATCH` (12 minut) chroni przed stratą danych przy długotrwałej utracie łączności — zwiększony z 3 minut aby wspierać sieciowe outage'e dłuższe niż 3 minuty.
+
+**Wieloczujniki**: `points[]` zawiera teraz jeden wpis na każdy aktywny czujnik urządzenia. Firmware implementuje `ISensor` interface; dodanie nowego czujnika = nowa klasa + wpis w `sensor_registry.yaml`, bez zmian w rdzeniu `TelemetryPayload`.
+
+**Błędy**: Pole `errors[]` (opcjonalne, domyślnie puste) przenosi kody błędów z firmware (sensor, device, modem), a backend może dodać własne (`POINT_TYPE_MISMATCH` itp.). Zapisywane w tabeli `telemetry_errors` z indeksem `(device_id, code, occurred_at)` dla filtrowania "pokaż urządzenia z błędem X".
+
+**Auto-provisioning**: `TelemetryIngestService.ingest()` przy widoku nieznanego `(device_id, point_id)` — jeśli `type` jest w katalogu (`point_types.yaml`) — tworzy `MeasurementPoint` bez interakcji użytkownika. Mismatch `(type, unit)` dla istniejącego punktu zwraca `POINT_TYPE_MISMATCH` w `errors[]`, punkt jest odrzucany z tego pakietu, reszta przetwarzana normalnie. Typ spoza katalogu → `400` na cały pakiet (to błąd firmware/rejestru).
+
+**`Device.last_diagnostics_at`**: Zaktualizowany po każdym ingest'cie zawierającym `errors[]`, niezależnie od statusu — sygnał, że urządzenie jest żywe i raportuje problemy.
+
+## 6. Sensor Registry: Single Source of Truth
+
+Firmware i backend muszą znać identyczne listy `point_types` i `error_codes`. Rozwiązanie: plik [`sensor_registry.yaml`](../../sensor_registry.yaml) w project root — single source of truth dla obu systemów.
+
+**Struktura** (`sensor_registry.yaml`):
+```yaml
+schema_version: 1
+
+point_types:
+  - id: temperature
+    canonical_unit: "°C"
+  - id: pressure
+    canonical_unit: "bar"
+
+error_codes:
+  - code: SENSOR_FAULT_HW
+    severity: critical
+  - code: SENSOR_READ_FAILED
+    severity: warning
+```
+
+**Backend** — runtime loading [`backend/app/modules/core_data/registry.py`](../../backend/app/modules/core_data/registry.py):
+- App startup wołuje `SensorRegistry.initialize()` — ładuje, parsuje, waliduje YAML
+- Builds immutable `frozenset` cache dla O(1) lookups (`is_valid_point_type()`, `is_valid_error_code()`)
+- Thread-safe: lock synchronizuje inicjalizację
+
+**Firmware** — compile-time validation:
+- Pre-build script [`firmware/scripts/prebuild.py`](../../firmware/scripts/prebuild.py) generuje `firmware/include/SensorRegistry.h`
+- Zawiera embedded JSON + `static constexpr` validatory
+- Schema version mismatch = build error (nie można zabootować buggy firmware)
+
+**Synchronizacja**: Pre-build script weryfikuje `point_types` i `error_codes` w firmware vs backend, fails if mismatch. Rezultat: oba są zawsze synced — brak duplikacji, brak ręcznej synchronizacji.
+
