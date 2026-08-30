@@ -479,7 +479,7 @@ Docelowo panel konfiguracyjny powinien obejmować:
 
 # Część 3: Analiza Techniczna — Architektura
 
-> **Status implementacji:** ta część opisuje **docelową architekturę** systemu, nie zawsze dokładny stan bieżącej implementacji pilotażowej. W szczególności: **transport MQTT (§3.1, §3.4) jest architekturą docelową — obecna implementacja firmware/backend używa HTTPS** (`TelemetryHttpClient` przez `ArduinoHttpClient` + `TinyGsmClientSecure`, endpoint FastAPI). Silnik reguł alarmowych (§2.5–§2.6, §3.4.4) jest specyfikacją produktową — obecnie nie ma jeszcze implementacji ani lokalnej (firmware), ani chmurowej (backend).
+> **Status implementacji:** ta część opisuje **docelową architekturę** systemu, nie zawsze dokładny stan bieżącej implementacji pilotażowej. W szczególności: **transport MQTT (§3.1, §3.4) jest architekturą docelową — obecna implementacja firmware/backend używa HTTPS** (`TelemetryHttpClient` przez `ArduinoHttpClient` + `TinyGsmClientSecure`, endpoint FastAPI). Silnik reguł alarmowych (§2.5–§2.6, §3.4.4) jest specyfikacją produktową — obecnie nie ma jeszcze implementacji ani lokalnej (firmware), ani chmurowej (backend). Dashboard, historia pomiarów i status obiektu (UC-01, UC-02 — §2.3, §2.8) **są już zaimplementowane** w backendzie. Tożsamość i uwierzytelnienie urządzenia (§3.2.1, §3.6 — „unikalne poświadczenia") są zrealizowane asymetrycznym kluczem urządzenia (challenge/response), nie współdzielonym sekretem. Szczegóły: [`03_plan_wdrozenia_backend_mvp.md`](./03_plan_wdrozenia_backend_mvp.md).
 ## 3.1. Architektura logiczna
 
 ```mermaid
@@ -763,7 +763,7 @@ Wysyłana co 1–5 minut. Zawiera agregaty (min, max, avg) z okien 1-minutowych 
 
 ### 3.4.3. Wiadomość diagnostyczna
 
-Wysyłana co 15 minut lub na żądanie. Oparta na wymaganiach [rozdziału 3.7](#37-diagnostyka-urządzenia-terenowego). **Specyfikacja — nieukończona implementacja:** w przeciwieństwie do wiadomości pomiarowej (§3.4.2, zaimplementowana i zweryfikowana wobec kodu), kanał diagnostyczny jest na razie projektem, nie zaimplementowanym endpointem. Format poniżej będzie wymagał dopasowania do faktycznego schematu w momencie implementacji.
+Oparta na wymaganiach [rozdziału 3.7](#37-diagnostyka-urządzenia-terenowego). **Format poniżej opisuje intencję produktową, nie dosłowny kształt zaimplementowany w kodzie:** diagnostyka jest już wdrożona, ale jako pole `errors[]` dołączane do zwykłego pakietu telemetrycznego (§3.4.2), nie jako osobna wiadomość wysyłana co 15 minut na oddzielny kanał. Backend zapisuje wpisy w tabeli `telemetry_errors` i aktualizuje `Device.last_diagnostics_at` przy każdym pakiecie zawierającym błędy — szczegóły w [`04_telemetry_module.md`, sekcja 5](../technical/backend/04_telemetry_module.md#5-pakiet-v2--batchowanie-i-wieloczujniki). Pełne dane diagnostyczne urządzenia (RSSI, uptime, stan bufora — [rozdział 3.7](#37-diagnostyka-urządzenia-terenowego)) jako osobny, okresowy kanał pozostają niezrealizowaną specyfikacją.
 
 ```json
 {
@@ -1746,11 +1746,11 @@ flowchart LR
 
 ## 8.2. Powiązane dokumenty
 
-- **Słownik pojęć**: [docs/CONTEXT.md](./CONTEXT.md)
-- **Decyzje architektoniczne**: [docs/adr/](./adr/)
+- **Słownik pojęć**: [docs/business/CONTEXT.md](./CONTEXT.md)
+- **Decyzje architektoniczne**: [docs/business/adr/](./adr/)
   - [ADR-0001: Zakres MVP — temperatura i ciśnienie](./adr/0001-mvp-scope-temperature-pressure.md)
   - [ADR-0002: Pragmatyczna strategia integracji](./adr/0002-pragmatic-integration-strategy.md)
   - [ADR-0003: Model finansowy — hardware + subskrypcja](./adr/0003-revenue-model-hardware-plus-subscription.md)
-- **Plan wdrożenia backendu MVP**: [docs/03_plan_wdrozenia_backend_mvp.md](./03_plan_wdrozenia_backend_mvp.md)
-- **Architektura backendu**: [docs/technical/01_backend-architecture.md](../technical/01_backend-architecture.md)
-- **Architektura frontendu**: [docs/technical/frontend-architecture.md](../technical/frontend-architecture.md)
+- **Plan wdrożenia backendu MVP**: [docs/business/03_plan_wdrozenia_backend_mvp.md](./03_plan_wdrozenia_backend_mvp.md)
+- **Architektura backendu**: [docs/technical/backend/01_backend-architecture.md](../technical/backend/01_backend-architecture.md)
+- **Architektura frontendu**: [docs/technical/frontend/frontend-architecture.md](../technical/frontend/frontend-architecture.md)
