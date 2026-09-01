@@ -96,7 +96,7 @@ Cel: ingest przestaje ufać wolnemu tekstowi i blobowi JSON; dane są uwierzytel
 - **Nieznany `point_id` u znanego urządzenia auto-provisionuje `MeasurementPoint`**, jeśli `type` jest w `sensor_registry.yaml`, zamiast pomijać pomiar z logiem ostrzeżenia (założenie A4, zrealizowane inaczej — patrz tabela wyżej).
 - **Brak osobnego modelu/endpointu `DeviceDiagnostic`.** Diagnostyka firmware trafia jako pole `errors[]` w tym samym pakiecie telemetrycznym (zapisywane w `telemetry_errors`, indeks `(device_id, code, occurred_at)`), aktualizujące `Device.last_diagnostics_at` — nie osobny `POST /telemetry/diagnostics` z odrębnym modelem co 15 minut, jak zakładał pierwotny format wiadomości diagnostycznej z `01_plan_biznesowy.md` §3.4.3.
 
-Pełny opis: [`04_telemetry_module.md`](../technical/backend/04_telemetry_module.md), w tym format pakietu v2 i mechanizm sensor registry (sekcje 5–6 tego dokumentu).
+Pełny opis: [`04_telemetry_module.md`](../technical/backend/04_telemetry_module.md), w tym format pakietu v2 (sekcja 5), endpointy odczytu, partycjonowanie i backfill (sekcje 6–8) oraz mechanizm sensor registry (sekcja 9).
 
 ---
 

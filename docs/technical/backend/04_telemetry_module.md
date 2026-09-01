@@ -12,12 +12,12 @@ Pakiet zapisuje się w **dwóch** miejscach, o rozłącznych rolach:
 
 `TelemetryPacket` (`telemetry_packets`) — jeden wiersz na paczkę danych wysłaną przez gateway: `device_id` (external_id urządzenia, nie FK), `seq` (numer sekwencyjny nadawany przez firmware), `sent_at`, `received_at`, `payload` (JSONB z `windows`: oknami pomiarowymi zawierającymi punkty). Powiązanie z `core_data.Device` / `WaterObject` / `Organization` odbywa się przez `device_id`/`external_id`, odczytywane w zapytaniach repozytorium query-side, nie przez ORM relationship. **To jest ścieżka audytu i replay** — blob zostaje nienaruszony, żaden odczyt aplikacyjny go nie parsuje.
 
-`Measurement` ([`models/measurement.py`](../../backend/app/modules/telemetry/models/measurement.py), tabela `measurements`) — jeden wiersz na *(punkt pomiarowy, okno)*: `measurement_point_id` (FK → `measurement_points.id`, `ON DELETE CASCADE`), `window_start`, `window_seconds`, `avg`/`min`/`max`, `value`, `value_bool`, `quality`, `received_at`, `source_packet_id`. **To jest ścieżka odczytu** — dashboard, historia, wykresy, a docelowo alarmy (Etap 5) i eksport CSV (Etap 7).
+`Measurement` ([`models/measurement.py`](../../../backend/app/modules/telemetry/models/measurement.py), tabela `measurements`) — jeden wiersz na *(punkt pomiarowy, okno)*: `measurement_point_id` (FK → `measurement_points.id`, `ON DELETE CASCADE`), `window_start`, `window_seconds`, `avg`/`min`/`max`, `value`, `value_bool`, `quality`, `received_at`, `source_packet_id`. **To jest ścieżka odczytu** — dashboard, historia, wykresy, a docelowo alarmy (Etap 5) i eksport CSV (Etap 7).
 
 | Decyzja | Uzasadnienie |
 |---|---|
 | **Klucz główny `(measurement_point_id, window_start)`**, bez kolumny `id` | To jest naturalny klucz (punkt nie ma dwóch wartości dla tego samego okna). Daje idempotencję zapisu, indeks pod zapytania zakresowe i klucz zawierający kolumnę partycjonującą — czego PostgreSQL wymaga od tabeli partycjonowanej. Trzy rzeczy za darmo zamiast trzech osobnych obiektów. |
-| **`value` (liczba) i `value_bool` (flaga) w osobnych kolumnach** | Schemat pakietu dopuszcza `float \| int \| bool \| None` ([`measurement_packet.py:21`](../../backend/app/modules/telemetry/schemas/measurement_packet.py#L21)). Gdyby `digital_input`/`power_status` lądowały jako `0.0`/`1.0` w `value`, reguła progowa z Etapu 5 porównywałaby próg z zakodowaną flagą, a API zwracałoby `1.0` zamiast `true`. `CHECK (value IS NULL OR value_bool IS NULL)` pilnuje, że wypełniona jest najwyżej jedna. |
+| **`value` (liczba) i `value_bool` (flaga) w osobnych kolumnach** | Schemat pakietu dopuszcza `float \| int \| bool \| None` ([`measurement_packet.py:21`](../../../backend/app/modules/telemetry/schemas/measurement_packet.py#L21)). Gdyby `digital_input`/`power_status` lądowały jako `0.0`/`1.0` w `value`, reguła progowa z Etapu 5 porównywałaby próg z zakodowaną flagą, a API zwracałoby `1.0` zamiast `true`. `CHECK (value IS NULL OR value_bool IS NULL)` pilnuje, że wypełniona jest najwyżej jedna. |
 | **`source_packet_id` bez klucza obcego** | Celowo. Retencja blobów (osobne zadanie) musi móc kasować pakiety bez kaskady na pomiary, a nieindeksowany FK kazałby PostgreSQL skanować `measurements` przy każdym kasowanym pakiecie. Wiszące id znaczy „blob już wyczyszczony". |
 | **`window_start` normalizowany do UTC przy zapisie** | `window_start` to połowa klucza głównego — ten sam moment przysłany z innym offsetem (albo bez offsetu) musi trafić w jeden wiersz i w partycję właściwego miesiąca. |
 
@@ -25,7 +25,7 @@ Pakiet zapisuje się w **dwóch** miejscach, o rozłącznych rolach:
 
 **Dedupe po `(device_id, seq)`** — unikalny constraint w bazie (`uq_telemetry_packets_device_seq`). `TelemetryPacketRepository.create` robi `flush()` (nie `commit()`) właśnie po to, żeby złapać naruszenie unikalności tu, przetłumaczyć je na `TelemetryPacketAlreadyExistsError`, i pozwolić serwisowi odpowiedzieć klientowi `200 duplicate` zamiast błędu — gateway, który retransmituje pakiet po utracie łączności przed potwierdzeniem, nie dostaje błędu za coś, co już się udało.
 
-**Druga, niezależna idempotencja: `(measurement_point_id, window_start)`** — zapis do `measurements` idzie przez `INSERT ... ON CONFLICT DO NOTHING` ([`repositories/measurements.py`](../../backend/app/modules/telemetry/repositories/measurements.py)). Dedupe pakietowy nie wystarcza: gateway, który po odzyskaniu łączności wysyła zbuforowane okna pod **nowym** `seq`, przechodzi przez kontrolę `(device_id, seq)` i dopiero constraint na pomiarze zatrzymuje duplikat. Ta sama właściwość pozwala backfillowi biec na żywym systemie — nie ma znaczenia, kto zapisał okno pierwszy.
+**Druga, niezależna idempotencja: `(measurement_point_id, window_start)`** — zapis do `measurements` idzie przez `INSERT ... ON CONFLICT DO NOTHING` ([`repositories/measurements.py`](../../../backend/app/modules/telemetry/repositories/measurements.py)). Dedupe pakietowy nie wystarcza: gateway, który po odzyskaniu łączności wysyła zbuforowane okna pod **nowym** `seq`, przechodzi przez kontrolę `(device_id, seq)` i dopiero constraint na pomiarze zatrzymuje duplikat. Ta sama właściwość pozwala backfillowi biec na żywym systemie — nie ma znaczenia, kto zapisał okno pierwszy.
 
 **Punkt z niezgodnym `(type, unit)` nie jest normalizowany** — `POINT_TYPE_MISMATCH` trafia do `errors[]`, punkt jest pomijany przy zapisie do `measurements`, reszta pakietu przetwarzana normalnie. Wartość w jednostce sprzecznej z zarejestrowanym punktem zatruwałaby każdy wykres i każdy próg, który ją potem przeczyta; blob i tak zachowuje ją do replay.
 
@@ -39,11 +39,11 @@ Pakiet zapisuje się w **dwóch** miejscach, o rozłącznych rolach:
 
 ## 4. Nieoczywiste decyzje projektowe
 
-**Per-device authentication przez bearer token** — zastąpiło wcześniejszy statyczny `X-Device-Key`/`Device.hashed_secret` (usunięty całkowicie). Ingest wymaga `Authorization: Bearer <device_token>`, zweryfikowanego przez zależność `get_current_device` z modułu [`device_identity`](./06_device_identity_module.md) — token wydawany po asymetrycznym challenge/response, nie po statycznym sekrecie. `get_current_device` zwraca `401` dla brakującego/nieprawidłowego tokenu i nieaktywnego urządzenia (`is_active=False`). Dodatkowo `TelemetryIngestService.ingest()` sprawdza `packet.device_id == device.external_id` ([`services/ingest.py:31-34`](../../backend/app/modules/telemetry/services/ingest.py#L31-L34)) → `403` przy niezgodności, żeby ważny token jednego urządzenia nie mógł podszyć się pod inny SN w treści pakietu. Pełny opis flow (provisioning → claim → challenge → verify) w [`06_device_identity_module.md`](./06_device_identity_module.md).
+**Per-device authentication przez bearer token** — zastąpiło wcześniejszy statyczny `X-Device-Key`/`Device.hashed_secret` (usunięty całkowicie). Ingest wymaga `Authorization: Bearer <device_token>`, zweryfikowanego przez zależność `get_current_device` z modułu [`device_identity`](./06_device_identity_module.md) — token wydawany po asymetrycznym challenge/response, nie po statycznym sekrecie. `get_current_device` zwraca `401` dla brakującego/nieprawidłowego tokenu i nieaktywnego urządzenia (`is_active=False`). Dodatkowo `TelemetryIngestService.ingest()` sprawdza `packet.device_id == device.external_id` ([`services/ingest.py:31-34`](../../../backend/app/modules/telemetry/services/ingest.py#L31-L34)) → `403` przy niezgodności, żeby ważny token jednego urządzenia nie mógł podszyć się pod inny SN w treści pakietu. Pełny opis flow (provisioning → claim → challenge → verify) w [`06_device_identity_module.md`](./06_device_identity_module.md).
 
 **`transaction(skip_audit=True)` na ingest** — pakiety telemetryczne to dane z urządzenia IoT, nie zmiana wywołana przez użytkownika, więc nie generują wpisu w audit logu (który śledzi "kto co zmienił", nie strumień pomiarowy).
 
-**Window function zamiast agregatu do wyznaczenia "najnowszego pakietu na obiekt"** ([`queries.py:20-48`](../../backend/app/modules/telemetry/repositories/queries.py#L20-L48)):
+**Window function zamiast agregatu do wyznaczenia "najnowszego pakietu na obiekt"** ([`queries.py:20-48`](../../../backend/app/modules/telemetry/repositories/queries.py#L20-L48)):
 
 ```python
 func.row_number().over(
@@ -54,7 +54,7 @@ func.row_number().over(
 
 Komentarz w kodzie tłumaczy dlaczego nie `MAX(device_id)`: zwróciłby leksykograficznie największy `external_id`, niekoniecznie urządzenie, które faktycznie zgłosiło się ostatnie — i mógłby sparować go z `received_at` z zupełnie innego pakietu.
 
-**Podział odczytów między dwie tabele** — `TelemetryQueryService` czyta fakty *pakietowe* (kiedy urządzenie ostatnio się odezwało, pod jakim `seq`) z `telemetry_packets` przez [`queries.py`](../../backend/app/modules/telemetry/repositories/queries.py), a wszystko o samych pomiarach z `measurements` przez [`measurements.py`](../../backend/app/modules/telemetry/repositories/measurements.py). „Ostatni kontakt" to własność transmisji, nie pomiaru — urządzenie może zgłosić się z pakietem, w którym każdy punkt zostanie odrzucony, i nadal jest to kontakt. Żaden odczyt nie parsuje `payload`.
+**Podział odczytów między dwie tabele** — `TelemetryQueryService` czyta fakty *pakietowe* (kiedy urządzenie ostatnio się odezwało, pod jakim `seq`) z `telemetry_packets` przez [`queries.py`](../../../backend/app/modules/telemetry/repositories/queries.py), a wszystko o samych pomiarach z `measurements` przez [`measurements.py`](../../../backend/app/modules/telemetry/repositories/measurements.py). „Ostatni kontakt" to własność transmisji, nie pomiaru — urządzenie może zgłosić się z pakietem, w którym każdy punkt zostanie odrzucony, i nadal jest to kontakt. Żaden odczyt nie parsuje `payload`.
 
 **Najświeższy pomiar per punkt bez rankowania historii** — `latest_for_objects` łączy się z `measurements` po `window_start = (SELECT max(window_start) ... WHERE measurement_point_id = ...)`. Obie połowy jadą po kluczu głównym `(measurement_point_id, window_start)`: podzapytanie czyta maksimum z indeksu, join trafia w dokładnie ten wiersz. Poprzednia wersja rankowała `row_number()` po wszystkich pakietach obiektu, więc jej koszt rósł z liczbą przechowywanych pakietów.
 
@@ -139,7 +139,7 @@ Każda pozycja szeregu **zawsze** ma `window_start` i `quality`: szereg bez znac
 
 Tabela jest tworzona jako `PARTITION BY RANGE (window_start)`, z partycjami miesięcznymi (`measurements_YYYY_MM`) i partycją `measurements_default` jako siatką bezpieczeństwa. Powód wprowadzenia od razu, na pustej tabeli: [`01_plan_biznesowy.md` §3.8.2–3.8.3](../../business/01_plan_biznesowy.md) szacuje ~1,6 mln rekordów pomiarowych rocznie na obiekt i ~23,4 mln dla gminy 15-obiektowej — przepartycjonowanie tabeli przy takim wolumenie kosztuje dużo więcej niż zrobienie tego teraz.
 
-**Partycje nie są tworzone przez migrację.** Alembic zna tylko schemat bieżącej rewizji, a zbiór partycji jest ruchomy, więc utrzymuje go [`repositories/partitions.py`](../../backend/app/modules/telemetry/repositories/partitions.py):
+**Partycje nie są tworzone przez migrację.** Alembic zna tylko schemat bieżącej rewizji, a zbiór partycji jest ruchomy, więc utrzymuje go [`repositories/partitions.py`](../../../backend/app/modules/telemetry/repositories/partitions.py):
 
 - **przy starcie aplikacji** (`lifespan` w `main.py`) — 1 miesiąc wstecz i 12 miesięcy w przód, idempotentnie (`CREATE TABLE IF NOT EXISTS`),
 - **w skrypcie backfillu** — dla miesięcy, w których faktycznie są dane historyczne,
@@ -147,11 +147,11 @@ Tabela jest tworzona jako `PARTITION BY RANGE (window_start)`, z partycjami mies
 
 Każde `CREATE TABLE ... PARTITION OF` idzie we własnym savepoincie: nieudane utworzenie jednej partycji (np. bo w partycji domyślnej leżą już wiersze z tego zakresu) trafia do logu ostrzeżeniem i nie psuje reszty transakcji. Na dialekcie innym niż PostgreSQL i na niepartycjonowanej tabeli funkcja jest no-opem — dlatego testy jednostkowe modułu chodzą na SQLite.
 
-Partycje są niewidoczne dla `alembic revision --autogenerate`, bo `include_name` w [`alembic/env.py`](../../backend/alembic/env.py) przepuszcza wyłącznie tabele z metadanych ORM — autogenerate nie zaproponuje ich skasowania.
+Partycje są niewidoczne dla `alembic revision --autogenerate`, bo `include_name` w [`alembic/env.py`](../../../backend/alembic/env.py) przepuszcza wyłącznie tabele z metadanych ORM — autogenerate nie zaproponuje ich skasowania.
 
 ## 8. Backfill danych historycznych
 
-[`scripts/backfill_measurements.py`](../../backend/scripts/backfill_measurements.py) przepisuje istniejące bloby z `telemetry_packets` do `measurements`. Zaprojektowany pod uruchomienie na żywym systemie, bez okna serwisowego:
+[`scripts/backfill_measurements.py`](../../../backend/scripts/backfill_measurements.py) przepisuje istniejące bloby z `telemetry_packets` do `measurements`. Zaprojektowany pod uruchomienie na żywym systemie, bez okna serwisowego:
 
 - **addytywny** — nie modyfikuje ani nie kasuje żadnego pakietu,
 - **batchowany** — jedna transakcja na paczkę pakietów (`--batch-size`, domyślnie 500); sam zapis dzieli się dodatkowo na porcje mieszczące się w limicie parametrów bindowania bazy, więc większy `--batch-size` nie wysadzi instrukcji,
@@ -163,9 +163,34 @@ Skrypt **nie zakłada** brakujących `MeasurementPoint` — punkt usunięty prze
 
 Kolejność wdrożenia (bez zatrzymywania przyjmowania telemetrii): migracja schematu → restart aplikacji (partycje + zapis do `measurements` przy ingescie) → backfill → odczyty już czytają z nowej tabeli.
 
+### 8.1. Stan weryfikacji normalizacji (2026-09-01)
+
+Normalizacja powstała w środowisku **bez PostgreSQL**, co dzieli weryfikację na dwie części. Ta sekcja mówi, co zostało faktycznie sprawdzone i czym — żeby nikt nie brał niesprawdzonego za sprawdzone.
+
+**Zweryfikowane bez PostgreSQL:**
+
+| Co | Jak |
+|---|---|
+| Ingest → `measurements` → odczyt, end to end | Testy jednostkowe na SQLite in-memory zbudowanym z metadanych ORM (`app/modules/telemetry/tests/unit/`) |
+| Idempotencja `(punkt, okno)` niezależna od `(device_id, seq)` | Ten sam zestaw okien wysłany pod dwoma `seq` → jeden wiersz |
+| `bool` obok liczby, okna tylko z agregatami, normalizacja do UTC | Osobne testy per przypadek |
+| Backfill: migracja, wznowienie z kursora, odrzucenia, dry-run | Testy end to end na tej samej bazie |
+| Podział zapisu na porcje pod limit parametrów | Test piszący więcej niż jedną porcję i powtarzający zapis |
+| Arytmetyka partycji (przełom roku, styk zakresów) | `partition_statements()` wydzielone jako czysta funkcja i obłożone testami |
+| DDL migracji dla PostgreSQL | `alembic upgrade --sql` offline — wychodzi dokładnie partycjonowany `CREATE TABLE` i nic poza tym |
+
+**Niezweryfikowane — wymaga PostgreSQL i danych:**
+
+- **plany zapytań** (`EXPLAIN ANALYZE`) dla trzech ścieżek odczytu i **przycinanie partycji** — kształt SQL wskazuje na skan po kluczu głównym, ale to wniosek z kodu, nie pomiar;
+- **porównanie czasów przed/po** dla wykresu 30-dniowego (stara ścieżka JSONB vs `measurements`) na danych syntetycznych — jedyna liczba uzasadniająca całą zmianę;
+- **faktyczne utworzenie partycji** i zachowanie przy `window_start` spoza zakresu (powinien trafić do `measurements_default`);
+- **backfill na realnym wolumenie**: czas, przepustowość, wznowienie po `Ctrl-C`, wyścig z żywym ingestem;
+- **`alembic revision --autogenerate` przeciw PostgreSQL** — musi dać pustą różnicę. Migracja została wygenerowana przeciw jednorazowej bazie SQLite i oczyszczona z fałszywych `alter_column` (SQLite raportuje `UUID` jako `NUMERIC`), więc to sprawdzenie jest obowiązkowe przed wdrożeniem;
+- **liczba pakietów i zakres dat** w istniejącej bazie — kontekst do decyzji o oknie backfillu.
+
 ## 9. Sensor Registry: Single Source of Truth
 
-Firmware i backend muszą znać identyczne listy `point_types` i `error_codes`. Rozwiązanie: plik [`sensor_registry.yaml`](../../sensor_registry.yaml) w project root — single source of truth dla obu systemów.
+Firmware i backend muszą znać identyczne listy `point_types` i `error_codes`. Rozwiązanie: plik [`sensor_registry.yaml`](../../../sensor_registry.yaml) w project root — single source of truth dla obu systemów.
 
 **Struktura** (`sensor_registry.yaml`):
 ```yaml
@@ -184,13 +209,13 @@ error_codes:
     severity: warning
 ```
 
-**Backend** — runtime loading [`backend/app/modules/core_data/registry.py`](../../backend/app/modules/core_data/registry.py):
+**Backend** — runtime loading [`backend/app/modules/core_data/registry.py`](../../../backend/app/modules/core_data/registry.py):
 - App startup wołuje `SensorRegistry.initialize()` — ładuje, parsuje, waliduje YAML
 - Builds immutable `frozenset` cache dla O(1) lookups (`is_valid_point_type()`, `is_valid_error_code()`)
 - Thread-safe: lock synchronizuje inicjalizację
 
 **Firmware** — compile-time validation:
-- Pre-build script [`firmware/scripts/prebuild.py`](../../firmware/scripts/prebuild.py) generuje `firmware/include/SensorRegistry.h`
+- Pre-build script [`firmware/scripts/prebuild.py`](../../../firmware/scripts/prebuild.py) generuje `firmware/include/SensorRegistry.h`
 - Zawiera embedded JSON + `static constexpr` validatory
 - Schema version mismatch = build error (nie można zabootować buggy firmware)
 
