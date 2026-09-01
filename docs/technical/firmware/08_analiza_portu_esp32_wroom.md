@@ -15,7 +15,11 @@
 
 **Tak, da się. Nie ma blokady technicznej.**
 
-Zależności od ESP32-S3 w całym firmware sprowadzają się do **ośmiu numerów GPIO i jednej diody**. Nie ma ani jednego wywołania API, peryferium ani biblioteki, które istnieją tylko na S3.
+Zależności od ESP32-S3 w całym firmware sprowadzają się do **pięciu pinów i typu diody**. Nie ma ani jednego wywołania API, peryferium ani biblioteki, które istnieją tylko na S3.
+
+Konkretnie: **GPIO 48 nie istnieje**, **GPIO 11 należy do flasha**, **GPIO 12 to pin strappingowy MTDI** (te trzy muszą się zmienić), a **GPIO 5 i 17** są używalne, ale odpowiednio strappingowy i oznaczony przez ESP-IDF jako `SPI0/1` (te dwa lepiej zmienić). Do tego dioda WS2812 zamiast zwykłej — co, jak się okazuje, **nic nie kosztuje** ([§5.5](#55-dioda-statusu)).
+
+> **Uwaga:** rekomendowana mapa przepina **dziewięć** połączeń, nie pięć. Cztery dodatkowe przenosiny nie wynikają z żadnego ograniczenia chipu — to porządkowanie układu w zwarte bloki, na które pozwala swobodne okablowanie prototypu ([§5.2](#52-proponowana-mapa)). Jeśli zależy Ci na minimum przelutowania zamiast na czystości, przenieś tylko te pięć i zostaw resztę — patrz uwaga na końcu [§5.2](#52-proponowana-mapa).
 
 Trzy rzeczy, które warto wiedzieć zanim zaczniesz przepinać kable:
 
@@ -122,9 +126,38 @@ Skoro okablowanie jest swobodne, mapa jest optymalizowana **pod czystość ukła
 | `LED_PIN` | 48 | **2** | GPIO 48 nie istnieje na klasycznym ESP32. GPIO 2 to `LED_BUILTIN` wariantu `doitESP32devkitV1` — **wybór płytki ma tu znaczenie**, patrz [§5.5](#55-dioda-statusu) |
 | PT-506 ADC (*draft*) | 1 | **34** (ADC1_CH6) | Wejście analogowe nie potrzebuje trybu wyjściowego, więc pin *input-only* jest tu idealny — nie marnujemy pinu dwukierunkowego. **Celowo nie 36/39 (VP/VN):** ESP-IDF ostrzega, że na tych dwóch nie należy używać przerwań przy aktywnym ADC (errata ESP32 §3.11). Odczyt PT-506 byłby odpytywany, nie przerwaniowy, więc 36 też by działało — ale 34 zdejmuje ten przypis całkowicie. Wolne rezerwy ADC1: 35, 36, 39 |
 
-**Układ, który z tego wychodzi:** cztery sygnały modemu w bloku **33/25/26/27**, cztery sygnały SPI w bloku **18/19/22/23**, dioda na **2**, analog na **36** — trzy zwarte grupy zamiast sygnałów rozrzuconych po całej listwie. *(Na typowym 30-pinowym DevKit V1 obie grupy wypadają po przeciwnych stronach płytki, co dodatkowo porządkuje wiązkę — **zweryfikuj na silkscreenie**, [§2.2](#22-czego-nie-dało-się-zrobić).)*
+**Układ, który z tego wychodzi:** cztery sygnały modemu w bloku **33/25/26/27**, cztery sygnały SPI w bloku **18/19/22/23**, dioda na **2**, analog na **34** — zwarte grupy zamiast sygnałów rozrzuconych po całej listwie. *(Na typowym 30-pinowym DevKit V1 blok modemu i blok SPI wypadają po przeciwnych stronach płytki, co dodatkowo porządkuje wiązkę — **zweryfikuj na silkscreenie**, [§2.2](#22-czego-nie-dało-się-zrobić).)*
 
-**Wolne po tej mapie:** 4, 12*, 13, 14, 15*, 21, 32, 34, 35, 39 (+16, 17 z zastrzeżeniem PSRAM; `*` = strappingowe, używać ostrożnie). **Dziewięć pinów zajętych, dziesięć wolnych** — zapas na kolejne czujniki jest spory i liczba pinów nie będzie ograniczeniem.
+**Bilans pinów po tej mapie:**
+
+| Kategoria | Piny | Uwaga |
+|---|---|---|
+| Zajęte na stałe (9) | 2, 18, 19, 22, 23, 25, 26, 27, 33 | — |
+| Zarezerwowane pod PT-506 (*draft*, 1) | 34 | ADC1_CH6 |
+| **Wolne, dwukierunkowe (5)** | **4, 13, 14, 21, 32** | bez żadnych zastrzeżeń |
+| Wolne, tylko wejściowe (1) | 35 | ADC1_CH7; bez wyjścia i bez podciągnięć |
+| Wolne, tylko wejściowe z przypisem (2) | 36, 39 | ADC1_CH0/CH3; nie używać **przerwań** przy aktywnym ADC (errata ESP32 §3.11) — odczyt odpytywany jest w porządku |
+| Wolne, ale strappingowe (3) | 5, 12, 15 | używać świadomie, patrz [§5.3](#53-trzy-pułapki-elektryczne--przeczytaj-przed-przepięciem-kabli) |
+| Wolne tylko na module bez PSRAM (2) | 16, 17 | ESP-IDF oznacza jako `SPI0/1` |
+| Niedostępne | 0, 1, 3 · 6–11 · 20, 24, 28–31 · 37, 38 | boot/konsola · flash · nie istnieją · niewyprowadzone na WROOM-32 |
+
+Dziesięć pinów w użyciu, **pięć wolnych dwukierunkowych plus trzy analogowe** — zapas na kolejne czujniki jest spory i liczba pinów nie będzie ograniczeniem klasycznego ESP32 w tym zastosowaniu.
+
+#### Wariant minimalny — jeśli wolisz mniej przelutowywać
+
+Powyższa mapa przenosi dziewięć połączeń, z czego **tylko pięć wymusza chip**. Jeśli priorytetem jest czas przy lutownicy, a nie porządek wiązki, wystarczy przenieść te pięć:
+
+| Funkcja | S3 | Wariant minimalny | Dlaczego trzeba |
+|---|---|---|---|
+| `PT100_SPI_MOSI` | 11 | **23** | GPIO 11 = flash SPI |
+| `PT100_SPI_SCK` | 12 | **18** | GPIO 12 = MTDI, napięcie flash |
+| `MODEM_RX_PIN` | 18 | **21** | trzeba zwolnić 18 pod SCK; GPIO 21 jest wolny i nie strappingowy |
+| `MODEM_RESET_PIN` | 5 | **32** | GPIO 5 strappingowy z pull-upem, RESET active-HIGH |
+| `LED_PIN` | 48 | **2** | GPIO 48 nie istnieje |
+
+Zostają wtedy bez zmian: `MODEM_TX_PIN` = 17, `MODEM_PWRKEY_PIN` = 4, `PT100_SPI_MISO` = 13, `PT100_SPI_CS` = 14.
+
+**Koszt tego skrótu:** MISO i CS idą przez macierz GPIO zamiast IO_MUX (bez znaczenia przy 1 MHz magistrali MAX31865), a `MODEM_TX_PIN` zostaje na GPIO 17 — czyli na pinie, który ESP-IDF oznacza jako `SPI0/1`. Na module ESP32-WROOM-32 **bez PSRAM** jest wolny i zadziała, ale mapa przestaje być przenośna na moduły WROVER. Przy prototypie to akceptowalne; przy przejściu na sprzęt docelowy wróć do mapy pełnej.
 
 ### 5.3 Trzy pułapki elektryczne — przeczytaj przed przepięciem kabli
 
