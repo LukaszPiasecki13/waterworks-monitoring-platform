@@ -384,7 +384,7 @@ Czyli `mbedtls_ecp_gen_key(MBEDTLS_ECP_DP_SECP256R1, ...)` ([`DeviceIdentity.cpp
 
 I to się mieści, ale nie dzięki marginesowi — **dzięki architekturze**: generowanie klucza jest celowo odłożone z `setup()` do pierwszej iteracji `loop()` przez flagę `keyGenerated` ([`main.cpp:199-202`](../../../firmware/src/main.cpp#L199-L202)), czyli **poza okno RTC WDT bootloadera**. Dodatkowo `loadOrGenerateKey()` woła `esp_task_wdt_reset()` i `yield()` przed i po `mbedtls_ecp_gen_key` ([`DeviceIdentity.cpp:191-200`](../../../firmware/lib/DeviceIdentity/src/DeviceIdentity.cpp#L191-L200)). Zabezpieczenie przenosi się na WROOM-32 bez zmian i nawet dwukrotnie gorszy wynik niczego nie łamie.
 
-> **Uwaga poboczna, nie dotyczy portu:** [`03_esp32_reset_and_recovery.md §4`](./03_esp32_reset_and_recovery.md) opisuje włączanie Task WDT przez `esp_task_wdt_init()` + `esp_task_wdt_add(NULL)`, a kod tego nie robi — więc **Task WDT prawdopodobnie nie chroni dziś `loop()` na żadnym chipie**. Warte osobnego zgłoszenia; na wynik portu nie wpływa.
+> **Uwaga poboczna, nie dotyczy portu:** [`03_esp32_reset_and_recovery.md §4`](./03_esp32_reset_and_recovery.md) opisuje włączanie Task WDT przez `esp_task_wdt_init()` + `esp_task_wdt_add(NULL)`, a kod tego nie robi — więc **Task WDT prawdopodobnie nie chroni dziś `loop()` na żadnym chipie**. Na wynik portu nie wpływa; zebrane do zgłoszenia w [§13](#13-ustalenia-poboczne--do-osobnego-zgłoszenia).
 
 ### 8.2 RAM — limit identyczny
 
@@ -416,7 +416,7 @@ Użycie to trzy zmienne — `rtcRestartCounter`, `rtcSyncedTimeUtcSec`, `rtcSync
 
 `Serial` w bieżącym buildzie to `Serial0`, czyli **UART0**, bo `ARDUINO_USB_CDC_ON_BOOT` domyślnie wynosi `0` i `platformio.ini` go nie nadpisuje ([§3](#3-korekty-do-założeń-briefu)). Logi z [`Logger.h`](../../../firmware/lib/Logger/include/Logger.h) i flashowanie idą przez mostek USB-UART na płytce — **dokładnie tak samo jak przez CP2102/CH340 na płytce z klasycznym ESP32**. Firmware nigdy nie korzystał z natywnego USB CDC układu S3. **Zero pracy.**
 
-> **Uwaga poboczna:** `EnrollmentClient::readSerial()` jest **pustą metodą** z komentarzem *„Serial input disabled - migrated away from direct Serial usage"* ([`EnrollmentClient.cpp:95-97`](../../../firmware/lib/EnrollmentClient/src/EnrollmentClient.cpp)). Ścieżka `ACTIVATE <kod>` z [`04_device_provisioning_flow.md §3.2`](./04_device_provisioning_flow.md) **nie ma dziś czym odbierać kodu** — `processLine()` istnieje, ale nikt go nie woła. To jest złamane tak samo na obu chipach, ale **uderzy Cię w kroku 6 z [§10](#10-kolejność-uruchomienia)**, więc lepiej wiedzieć zawczasu.
+> **Uwaga poboczna:** `EnrollmentClient::readSerial()` jest **pustą metodą** z komentarzem *„Serial input disabled - migrated away from direct Serial usage"* ([`EnrollmentClient.cpp:95-97`](../../../firmware/lib/EnrollmentClient/src/EnrollmentClient.cpp)). Ścieżka `ACTIVATE <kod>` z [`04_device_provisioning_flow.md §3.2`](./04_device_provisioning_flow.md) **nie ma dziś czym odbierać kodu** — `processLine()` istnieje, ale nikt go nie woła. To jest złamane tak samo na obu chipach, ale **uderzy Cię w kroku 6 z [§10](#10-kolejność-uruchomienia)** — to jedyne ustalenie poboczne, które realnie blokuje pracę, więc napraw je **przed** startem portu. Zebrane w [§13](#13-ustalenia-poboczne--do-osobnego-zgłoszenia).
 
 ### 8.5 API i biblioteki bez zmian
 
@@ -517,7 +517,24 @@ Praktyczny wniosek: **wybór chipu nie jest wymuszony przez ścieżkę przemysł
 
 ---
 
-## 13. Źródła
+## 13. Ustalenia poboczne — do osobnego zgłoszenia
+
+Rzeczy znalezione przy okazji tej analizy. **Żadna nie dotyczy portu** — wszystkie występują tak samo na dzisiejszym ESP32-S3 — ale skoro wyszły przy czytaniu całego firmware'u, zapisuję je tutaj zamiast zgubić. Uporządkowane wg tego, jak mocno mogą zaboleć.
+
+| # | Ustalenie | Dowód | Dlaczego to istotne |
+|---|---|---|---|
+| 1 | **Ścieżka `ACTIVATE <kod>` nie ma czym odbierać kodu.** `EnrollmentClient::readSerial()` jest pustą metodą (*„Serial input disabled - migrated away from direct Serial usage"*); `processLine()` istnieje, ale nikt go nie woła | [`EnrollmentClient.cpp:95-97`](../../../firmware/lib/EnrollmentClient/src/EnrollmentClient.cpp) vs [`04_device_provisioning_flow.md §3.2`](./04_device_provisioning_flow.md) | **Blokuje pierwszy provisioning nowego urządzenia.** Uderzy w kroku 6 z [§10](#10-kolejność-uruchomienia) — i uderzyłoby tak samo na S3 przy każdej nowej płytce |
+| 2 | **Task WDT prawdopodobnie nie chroni dziś `loop()` na żadnym chipie.** W całym `firmware/` nie ma `esp_task_wdt_init()` ani `esp_task_wdt_add(NULL)` — jest tylko `esp_task_wdt_reset()`, który bez subskrypcji zadania zwraca `ESP_ERR_NOT_FOUND` i nic nie robi | grep po `firmware/`: 0 trafień, vs [`03_esp32_reset_and_recovery.md §4`](./03_esp32_reset_and_recovery.md) opisujący włączanie WDT | Dokument jest oznaczony jako *„zweryfikowane na 2026-08-22"*, więc opisuje zamiar, a nie stan. Recovery trzypoziomowy w [`Watchdog`](../../../firmware/lib/Watchdog/src/Watchdog.cpp) działa niezależnie i **nie jest tym dotknięty** — chodzi wyłącznie o zabezpieczenie przed zawieszeniem `loop()` |
+| 3 | **`-D CONFIG_ESP_TASK_WDT_TIMEOUT_S=15` i `-D CONFIG_BOOTLOADER_WDT_DISABLE=1` nie działają.** `build_flags` nie sięgają prekompilowanych bibliotek ESP-IDF frameworku Arduino — `sdkconfig` jest zapieczony | [`platformio.ini:19-20`](../../../firmware/platformio.ini#L19-L20) | Flagi sugerują konfigurację, której nie ma. Albo je usunąć, albo przejść na własny `sdkconfig`/framework `espidf` — **decyzja niezależna od portu** |
+| 4 | **`firmware/HARDWARE.md` nie istnieje**, a [`02_modem…md`](./02_modem_a7670e_communication.md) odwołuje się do niego trzykrotnie, w tym raz jako do **„autorytetu"** dla mapy pinów (linia 35). Wskazuje na niego też komentarz w [`Config.h:12`](../../../firmware/include/Config.h#L12) | `ls firmware/HARDWARE.md` → brak | **Dwa dokumenty roszczą sobie prawo do bycia źródłem prawdy o pinach**, a jeden z nich nie istnieje. Kto robi port, pójdzie tym tropem w pustkę. Najprościej: przekierować te odwołania na [`01_hardware.md`](./01_hardware.md) |
+| 5 | **Trzy dalsze martwe linki względne** w dokumentacji firmware: `05_pt100…md` → `firmware/SETUP_GUIDE.md` (nie istnieje); `06_adding_sensors.md` → `../../firmware/src/main.cpp` i `../../sensor_registry.yaml` (zła głębokość — powinno być `../../../`) | sprawdzone `test -e` na wszystkich linkach względnych w `docs/technical/firmware/` | Drobne, ale `06_adding_sensors.md` to instrukcja operacyjna — psujące się linki w instrukcji, którą ktoś wykonuje krok po kroku |
+| 6 | **Brief B-10 i B-11 opisują sprzęt, którego nie ma w kodzie** — I2C na GPIO 8/9, ADS1015 z kanałami AIN1–3. Zero trafień na `Wire`, `I2C`, `ADS1015`, `analogRead` | [§3](#3-korekty-do-założeń-briefu) | Briefy są nieaktualne względem [`01_hardware.md`](./01_hardware.md), który został poprawiony. Warto poprawić briefy, zanim ktoś zaplanuje pracę na ich podstawie — **B-11 (budżet energetyczny) opiera projekt detekcji zaniku zasilania na wolnych kanałach ADS1015, którego nie ma** |
+
+**Nic z powyższego nie zostało zmienione w ramach B-10** — zlecenie kończy się na dokumencie, a cztery z sześciu pozycji dotyczą plików spoza jego zakresu. Pozycja 1 jest jedyną, która realnie blokuje pracę, i warto ją naprawić **przed** rozpoczęciem portu, bo bez niej krok 6 z [§10](#10-kolejność-uruchomienia) nie przejdzie.
+
+---
+
+## 14. Źródła
 
 ### Kod i dokumentacja repozytorium
 
