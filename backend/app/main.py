@@ -4,6 +4,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse
+from sqlalchemy.exc import SQLAlchemyError
 
 from app.core.config import get_settings
 from app.core.dependencies import create_session, dispose_sql_engines
@@ -42,7 +43,13 @@ from app.modules.security.api import (
 from app.modules.security.dependencies import get_group_repo, get_permission_repo
 from app.modules.security.services.seed import SecuritySeedService
 from app.modules.telemetry.api.ingest import router as telemetry_ingest_router
+from app.modules.telemetry.api.query import (
+    points_router as telemetry_points_router,
+)
 from app.modules.telemetry.api.query import router as telemetry_query_router
+from app.modules.telemetry.repositories.partitions import (
+    ensure_measurement_partitions,
+)
 
 API_V1_PREFIX = "/api/v1"
 
@@ -68,6 +75,21 @@ async def lifespan(application: FastAPI):
             group_repo = get_group_repo(session)
             seed = SecuritySeedService(perm_repo, group_repo)
             seed.seed()
+
+            # `measurements` is range-partitioned on window_start, and a row
+            # with no matching partition is a failed ingest. Alembic only
+            # creates the schema, so the rolling set of monthly partitions is
+            # topped up here — idempotent, and a no-op outside PostgreSQL.
+            try:
+                ensure_measurement_partitions(session)
+                session.commit(skip_audit=True)
+            except SQLAlchemyError as exc:
+                # Never fatal — the default partition keeps ingest working —
+                # but logged at error level: a deployment whose partitions
+                # stopped being created needs someone to look, not a warning
+                # buried among startup chatter.
+                session.rollback()
+                logger.error("Measurement partition maintenance failed: %s", exc)
         finally:
             session.close()
         yield
@@ -140,4 +162,7 @@ app.include_router(permissions_router, prefix=API_V1_PREFIX)
 app.include_router(org_router, prefix=API_V1_PREFIX)
 app.include_router(
     telemetry_query_router, prefix=f"{API_V1_PREFIX}/orgs/{{org_id}}/telemetry"
+)
+app.include_router(
+    telemetry_points_router, prefix=f"{API_V1_PREFIX}/orgs/{{org_id}}/telemetry"
 )

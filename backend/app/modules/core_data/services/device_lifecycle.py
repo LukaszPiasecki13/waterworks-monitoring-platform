@@ -35,7 +35,8 @@ class DeviceLifecycleService:
 
         Deletes:
         - All telemetry packets for this device
-        - The device record (cascades measurement_points via FK)
+        - The device record (cascades measurement_points, and through them
+          the normalized measurements, via FK)
         - The device credential
 
         All operations happen in a single transaction. If any step fails,

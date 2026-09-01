@@ -38,10 +38,10 @@ Poniższe założenia były jawnie nazwane w pierwszej wersji tego planu (2026-0
 
 - `core/`, `infrastructure/sql`, `security` (JWT + elastyczny RBAC grupowy, dwie płaszczyzny dostępu org/platform), `audit` (partycjonowany log), `core_data` (users, organizations, water_objects, devices, measurement_points, users_organizations) — gotowe.
 - `device_identity`: autentykacja urządzeń IoT asymetrycznym kluczem EC P-256 (challenge/response), provisioning przez jednorazowy kod aktywacyjny lub ścieżkę administracyjną, bearer token do ingestu — gotowe.
-- `telemetry`: `POST /telemetry/ingest` (auth: bearer token urządzenia) zapisuje pakiet jako JSONB (`windows`/`points`) do `telemetry_packets`, idempotentnie po `(device_id, seq)`; auto-provisionuje nieznane punkty pomiarowe znanego typu; `GET /api/v1/orgs/{org_id}/telemetry/objects[/{object_id}[/measurements]]` obsługuje status obiektu (`no_data`/`no_comm`/`warning`/`ok`), szczegóły i historię pomiarów — gotowe (pokrywa UC-01 i UC-02).
+- `telemetry`: `POST /telemetry/ingest` (auth: bearer token urządzenia) zapisuje pakiet **równolegle** jako JSONB (`windows`/`points`) do `telemetry_packets` (audyt/replay, idempotentnie po `(device_id, seq)`) i jako wiersze w znormalizowanej, partycjonowanej tabeli `measurements` (idempotentnie po `(measurement_point_id, window_start)`); auto-provisionuje nieznane punkty pomiarowe znanego typu; `GET /api/v1/orgs/{org_id}/telemetry/objects[/{object_id}[/measurements]]` oraz `GET .../telemetry/points/{point_id}/measurements` obsługują status obiektu (`no_data`/`no_comm`/`warning`/`ok`), szczegóły i historię pomiarów, czytając z `measurements` — gotowe (pokrywa UC-01 i UC-02).
 - `sensor_registry.yaml` (project root) — single source of truth dla `point_types`/`error_codes`, współdzielony między backend (`core_data/registry.py`) a firmware (pre-build codegen) — gotowe.
 - Firmware (ESP32-S3 + A7670E, PT100 temperatura + PT506/ADS1015 ciśnienie) wysyła pakiety v2 wieloczujnikowe zgodne z `sensor_registry.yaml` — gotowe.
-- **Brak jeszcze:** silnika reguł alarmowych, powiadomień, eksportu danych (Etapy 5–7 poniżej), normalizowanej tabeli `Measurement` (patrz uwaga architektoniczna na początku [Etapu 5](#etap-5--reguły-anomalii-i-alarmy-uc-03-sekcje-8-9)).
+- **Brak jeszcze:** silnika reguł alarmowych, powiadomień, eksportu danych (Etapy 5–7 poniżej). Znormalizowana tabela `measurements` — brakujące ogniwo tych trzech etapów — **powstała** (patrz Etap 2 poniżej i [`04_telemetry_module.md`](../technical/backend/04_telemetry_module.md)).
 
 ---
 
@@ -92,11 +92,11 @@ Cel: ingest przestaje ufać wolnemu tekstowi i blobowi JSON; dane są uwierzytel
 **Zaimplementowane, w architekturze innej niż pierwotny plan:**
 
 - **Autoryzacja per-device jest asymetryczna, nie shared-secret.** Zamiast `X-Device-Key`/`hashed_secret` porównywanego przez `verify_password`, urządzenie generuje na sobie parę kluczy EC P-256, rejestruje klucz publiczny (kod aktywacyjny lub ścieżka administracyjna), i dowodzi posiadania klucza prywatnego przez podpis w challenge/response (`POST /devices/auth/challenge` → `POST /devices/auth/verify`), dostając bearer token. Ingest wymaga `Authorization: Bearer <device_token>`, zweryfikowanego przez `get_current_device` z `device_identity`. Pełny opis: [`06_device_identity_module.md`](../technical/backend/06_device_identity_module.md).
-- **Brak znormalizowanej tabeli `Measurement`.** Pakiety trafiają do `telemetry_packets` jako JSONB (`payload.windows[].points[]`), dedup po `(device_id, seq)` (`uq_telemetry_packets_device_seq`). Zapytania szeregów czasowych (dashboard, historia) czytają bezpośrednio z JSONB przez `TelemetryQueryService`/`queries.py`, nie z osobnej znormalizowanej tabeli per-pomiar. **To ma konsekwencje dla Etapu 5** — patrz uwaga architektoniczna przed Etapem 5 poniżej.
+- **Normalizacja dodana po fakcie (2026-09).** Pierwsza wersja Etapu 2 zapisywała pomiary wyłącznie jako JSONB w `telemetry_packets`, a zapytania szeregów czasowych parsowały blob. Blob **zostaje** (audyt i replay, dedup po `(device_id, seq)`), ale obok niego ingest zapisuje teraz wiersz na *(punkt, okno)* w partycjonowanej tabeli `measurements`, z drugą, niezależną idempotencją po `(measurement_point_id, window_start)`. Wszystkie odczyty aplikacyjne (dashboard, szczegóły obiektu, historia) czytają z `measurements`; z `telemetry_packets` pochodzą już tylko fakty pakietowe (ostatni kontakt, `seq`). Skrypt `scripts/backfill_measurements.py` przenosi dane historyczne. To **odblokowuje Etap 5** — patrz uwaga architektoniczna przed Etapem 5 poniżej.
 - **Nieznany `point_id` u znanego urządzenia auto-provisionuje `MeasurementPoint`**, jeśli `type` jest w `sensor_registry.yaml`, zamiast pomijać pomiar z logiem ostrzeżenia (założenie A4, zrealizowane inaczej — patrz tabela wyżej).
 - **Brak osobnego modelu/endpointu `DeviceDiagnostic`.** Diagnostyka firmware trafia jako pole `errors[]` w tym samym pakiecie telemetrycznym (zapisywane w `telemetry_errors`, indeks `(device_id, code, occurred_at)`), aktualizujące `Device.last_diagnostics_at` — nie osobny `POST /telemetry/diagnostics` z odrębnym modelem co 15 minut, jak zakładał pierwotny format wiadomości diagnostycznej z `01_plan_biznesowy.md` §3.4.3.
 
-Pełny opis: [`04_telemetry_module.md`](../technical/backend/04_telemetry_module.md), w tym format pakietu v2 i mechanizm sensor registry (sekcje 5–6 tego dokumentu).
+Pełny opis: [`04_telemetry_module.md`](../technical/backend/04_telemetry_module.md), w tym format pakietu v2 (sekcja 5), endpointy odczytu, partycjonowanie i backfill (sekcje 6–8) oraz mechanizm sensor registry (sekcja 9).
 
 ---
 
@@ -115,7 +115,7 @@ Pełny opis: [`04_telemetry_module.md`](../technical/backend/04_telemetry_module
 
 ## Etap 4 — Historia i wykresy (UC-02) ✅ zrealizowane
 
-**Endpoint:** `GET /api/v1/orgs/{org_id}/telemetry/objects/{object_id}/measurements` (moduł `telemetry`, zgodnie z rekomendacją pierwotnego planu — nie `dashboard`, który się nie zmaterializował). Zapytanie czyta bezpośrednio z `telemetry_packets` (JSONB), nie z tabeli `Measurement`, którą Etap 2 miał wprowadzić — górna granica `MAX_PACKETS_PER_SERIES = 5000` chroni przed nieograniczonym wynikiem przy szerokim zakresie czasowym, zamiast indeksu `(measurement_point_id, window_start)` na znormalizowanej tabeli.
+**Endpointy:** `GET /api/v1/orgs/{org_id}/telemetry/objects/{object_id}/measurements` (historia obiektu) oraz `GET /api/v1/orgs/{org_id}/telemetry/points/{point_id}/measurements` (historia pojedynczego punktu) — moduł `telemetry`, zgodnie z rekomendacją pierwotnego planu, nie `dashboard`, który się nie zmaterializował. Po normalizacji (2026-09) oba czytają z tabeli `measurements` po indeksie `(measurement_point_id, window_start)`; wcześniejsza wersja parsowała JSONB, a przed nieograniczonym wynikiem broniła się limitem skanowanych pakietów (`MAX_PACKETS_PER_SERIES = 5000`). Limit `limit` (domyślnie 1000, maks. 5000) dotyczy teraz pomiarów, a `truncated` w odpowiedzi mówi klientowi, że szereg został ucięty.
 
 Pełny opis: [`04_telemetry_module.md`](../technical/backend/04_telemetry_module.md).
 
@@ -123,7 +123,7 @@ Pełny opis: [`04_telemetry_module.md`](../technical/backend/04_telemetry_module
 
 ## Etap 5 — Reguły anomalii i alarmy (UC-03, sekcje 8-9)
 
-> **⚠️ Uwaga architektoniczna przed startem tego etapu:** ten opis (poniżej, niezmieniony od 2026-08-09) zakłada normalizowaną tabelę `Measurement`, którą Etap 2 miał wprowadzić. Ta tabela **nie powstała** — telemetria żyje w `telemetry_packets` jako JSONB (patrz Etap 2 wyżej). `RuleEvaluationService.evaluate(measurement: Measurement)` w §5.3 poniżej trzeba więc przeprojektować pod rzeczywisty kształt danych: albo ewaluacja czyta punkty bezpośrednio z JSONB przy każdym ingestcie (`TelemetryIngestService.ingest()` już ma tam dostęp do sparsowanego payloadu), albo Etap 5 wprowadza własną, węższą strukturę do śledzenia stanu reguły (np. tylko „od kiedy warunek trwa" per `measurement_point_id`), bez pełnej normalizacji historii pomiarów. To decyzja do podjęcia na starcie tego etapu, nie założenie do przyjęcia biernie z treści poniżej. Założenie A5 (ewaluacja synchroniczna w tej samej transakcji co ingest) pozostaje prawdopodobnie aktualne niezależnie od tej decyzji.
+> **⚠️ Uwaga architektoniczna przed startem tego etapu (zdezaktualizowana 2026-09):** ten opis (poniżej, niezmieniony od 2026-08-09) zakłada normalizowaną tabelę `Measurement`. Tabela **istnieje** od normalizacji telemetrii (`measurements`, patrz Etap 2), więc `RuleEvaluationService` może dostać strumień pomiarów zamiast blobu — poniższy akapit opisuje stan sprzed tej zmiany i został zachowany jako kontekst decyzji. Historycznie: „Ta tabela **nie powstała** — telemetria żyje w `telemetry_packets` jako JSONB (patrz Etap 2 wyżej). `RuleEvaluationService.evaluate(measurement: Measurement)` w §5.3 poniżej trzeba więc przeprojektować pod rzeczywisty kształt danych: albo ewaluacja czyta punkty bezpośrednio z JSONB przy każdym ingestcie (`TelemetryIngestService.ingest()` już ma tam dostęp do sparsowanego payloadu), albo Etap 5 wprowadza własną, węższą strukturę do śledzenia stanu reguły (np. tylko „od kiedy warunek trwa" per `measurement_point_id`), bez pełnej normalizacji historii pomiarów. To decyzja do podjęcia na starcie tego etapu, nie założenie do przyjęcia biernie z treści poniżej. Założenie A5 (ewaluacja synchroniczna w tej samej transakcji co ingest) pozostaje prawdopodobnie aktualne niezależnie od tej decyzji."
 
 Nowy moduł `app/modules/alarms/` — pełny wzorzec (`api/services/repositories/schemas/models/dependencies.py/exceptions.py/tests`).
 
@@ -202,7 +202,7 @@ Wyprowadzone z wymagań MVP w dok. 01 (m.in. rozdziały 2.2, 3.2.1, 3.6) — che
 
 - [x] Backend działa wyłącznie read-only względem infrastruktury (brak endpointów sterujących) — **spełnione, pilnować przy każdym nowym module**.
 - [x] Stabilnie pobiera i uwierzytelnia dane per urządzenie (Etap 2 — asymetryczny challenge/response, nie shared-secret jak pierwotnie planowano).
-- [x] Zachowuje czas i jakość każdego pomiaru (Etap 2 — `quality` + `window_start` w JSONB `telemetry_packets.payload`, nie w osobnej tabeli `Measurement`).
+- [x] Zachowuje czas i jakość każdego pomiaru (Etap 2 — `quality` + `window_start` w kolumnach tabeli `measurements`, a dodatkowo w blobie `telemetry_packets.payload` jako ścieżce audytu).
 - [x] Odzyskuje spójność po przerwie łączności — idempotencja `(device_id, seq)` gotowa; `no_comm` w statusie (Etap 3) domyka wykrywanie.
 - [x] Poprawnie prezentuje aktualne i historyczne dane (Etapy 3-4).
 - [ ] Generuje alarmy zgodnie ze skonfigurowanymi regułami (Etap 5 — nie rozpoczęte).

@@ -32,6 +32,16 @@ class GetMeasurementsRequest(BaseSchema):
     model_config = ConfigDict(populate_by_name=True)
 
 
+class GetPointMeasurementsRequest(BaseSchema):
+    """Get point history query parameters."""
+
+    from_: datetime | None = Field(None, alias="from")
+    to: datetime | None = None
+    limit: int = Field(1000, ge=1, le=5000)
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
 class LatestPointValue(BaseSchema):
     """Latest value for a single measurement point."""
 
@@ -102,6 +112,41 @@ class MeasurementsResponse(BaseSchema):
     # client can tell a complete series from one cut short.
     truncated: bool = False
     items: list[MeasurementSeriesItem]
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+class PointMeasurementItem(BaseSchema):
+    """A single measurement window of one measurement point.
+
+    `window_start` and `quality` are always present: a series is only
+    interpretable if each value says when it was measured and whether the
+    sensor trusted it.
+    """
+
+    window_start: datetime
+    window_seconds: int
+    value: float | int | bool | None = None
+    avg: float | None = None
+    min: float | None = None
+    max: float | None = None
+    quality: str
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class PointMeasurementsResponse(BaseSchema):
+    """History of a single measurement point."""
+
+    point_id: str
+    external_id: str
+    type: str
+    unit: str
+    from_: datetime = Field(alias="from")
+    to: datetime
+    count: int
+    truncated: bool = False
+    items: list[PointMeasurementItem]
 
     model_config = ConfigDict(populate_by_name=True)
 

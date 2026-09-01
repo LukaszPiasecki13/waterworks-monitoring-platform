@@ -1,17 +1,19 @@
 """Service layer for telemetry queries."""
 
-from collections.abc import Iterator
+from collections import defaultdict
 from datetime import UTC, datetime, timedelta
-from itertools import islice
 from uuid import UUID
+
+from sqlalchemy import Row
 
 from app.core.config import Settings
 from app.core.errors import NotFoundError
 from app.modules.core_data.models import WaterObject
-from app.modules.telemetry.models.measurement_packet import TelemetryPacket
+from app.modules.telemetry.repositories.measurements import MeasurementRepository
 from app.modules.telemetry.repositories.queries import TelemetryQueryRepository
 from app.modules.telemetry.schemas.query import (
     GetMeasurementsRequest,
+    GetPointMeasurementsRequest,
     LatestPointValue,
     ListObjectsRequest,
     MeasurementSeriesItem,
@@ -20,62 +22,70 @@ from app.modules.telemetry.schemas.query import (
     ObjectStatus,
     ObjectSummaryResponse,
     PaginatedResponse,
+    PointMeasurementItem,
+    PointMeasurementsResponse,
 )
 
-# Upper bound on packets scanned for one series request, so a wide time range
-# cannot pull an unbounded result set into memory.
-MAX_PACKETS_PER_SERIES = 5000
+DEFAULT_SERIES_HOURS = 24
 
-# Packets scanned when collecting the point ids an object currently reports.
-AVAILABLE_POINTS_LOOKBACK_PACKETS = 100
+
+def _point_value(row: Row) -> float | int | bool | None:
+    """The single value a client charts for one measurement.
+
+    A window that only carries aggregates (avg/min/max) still has to render a
+    point, so `avg` is the fallback — the same rule the JSONB reader applied
+    before normalization.
+    """
+    if row.value is not None:
+        return row.value
+    if row.value_bool is not None:
+        return row.value_bool
+    return row.avg
 
 
 class TelemetryQueryService:
-    """Service for reading and aggregating telemetry data."""
+    """Service for reading and aggregating telemetry data.
 
-    def __init__(self, repository: TelemetryQueryRepository, settings: Settings):
+    Reads split by what they ask about: packet-level facts (last contact,
+    last sequence number) come from `telemetry_packets`, everything about
+    measurements themselves comes from the normalized `measurements` table —
+    no JSONB blob is parsed on any read path.
+    """
+
+    def __init__(
+        self,
+        repository: TelemetryQueryRepository,
+        measurements: MeasurementRepository,
+        settings: Settings,
+    ):
         self.repo = repository
+        self.measurements = measurements
         self.settings = settings
 
     @staticmethod
-    def _window_timestamp(window: dict, packet: TelemetryPacket) -> datetime:
-        """Timestamp of a measurement window, falling back to packet arrival."""
-        window_start = window.get("window_start")
-        if isinstance(window_start, str):
-            try:
-                return datetime.fromisoformat(window_start.replace("Z", "+00:00"))
-            except ValueError:
-                return packet.received_at
-        return packet.received_at
+    def _latest_point_value(row: Row) -> LatestPointValue:
+        return LatestPointValue(
+            point_id=row.point_id,
+            point_name=row.point_type,
+            type=row.point_type,
+            unit=row.unit,
+            value=_point_value(row),
+            quality=row.quality,
+            measured_at=row.window_start,
+            device_id=row.device_id,
+            # A device has no separate name; its external_id is what
+            # operators identify it by.
+            device_name=row.device_id,
+        )
 
-    def _unpack_latest_points(self, packet: TelemetryPacket) -> list[LatestPointValue]:
-        """Extract the measurement points of a packet's most recent window."""
-        if not packet.payload:
-            return []
-
-        windows = packet.payload.get("windows", [])
-        if not windows:
-            return []
-
-        latest_window = max(windows, key=lambda w: w.get("window_start", ""))
-        measured_at = self._window_timestamp(latest_window, packet)
-
-        return [
-            LatestPointValue(
-                point_id=point.get("point_id", "unknown"),
-                point_name=point.get("type", "unknown"),
-                type=point.get("type", "unknown"),
-                unit=point.get("unit", "unknown"),
-                value=point.get("value", point.get("avg")),
-                quality=point.get("quality", "unknown"),
-                measured_at=measured_at,
-                device_id=packet.device_id,
-                # A device has no separate name; its external_id is what
-                # operators identify it by.
-                device_name=packet.device_id,
-            )
-            for point in latest_window.get("points", [])
-        ]
+    def _latest_points_by_object(
+        self, object_ids: list[UUID]
+    ) -> dict[UUID, list[LatestPointValue]]:
+        """Latest reading of every point of the given objects, grouped by object."""
+        grouped: dict[UUID, list[LatestPointValue]] = defaultdict(list)
+        for row in self.measurements.latest_for_objects(object_ids):
+            grouped[row.object_id].append(self._latest_point_value(row))
+        return grouped
 
     def _compute_status(
         self,
@@ -103,22 +113,25 @@ class TelemetryQueryService:
 
         return "ok"
 
+    @staticmethod
+    def _last_measurement_at(
+        points: list[LatestPointValue], last_contact_at: datetime | None
+    ) -> datetime | None:
+        if not points:
+            return last_contact_at
+        return max(point.measured_at for point in points)
+
     def _summarize(self, rows: list[dict]) -> list[ObjectSummaryResponse]:
         """Build summaries for the given object rows.
 
-        Packets are fetched for the whole page by primary key in one query
-        (list_objects already identified each object's last_packet_id),
-        rather than one query per object.
+        The latest reading of every point on the page is fetched in one query
+        (one indexed lookup per point), rather than one query per object.
         """
-        packet_ids = [
-            row["last_packet_id"] for row in rows if row["last_packet_id"] is not None
-        ]
-        packets = self.repo.get_packets_by_ids(packet_ids)
+        by_object = self._latest_points_by_object([row["object_id"] for row in rows])
 
         summaries = []
         for row in rows:
-            packet = packets.get(row["last_packet_id"])
-            points = self._unpack_latest_points(packet) if packet else []
+            points = by_object.get(row["object_id"], [])
             last_contact_at = row["last_contact_at"]
             summaries.append(
                 ObjectSummaryResponse(
@@ -130,8 +143,8 @@ class TelemetryQueryService:
                     device_name=row["last_device_id"],
                     status=self._compute_status(last_contact_at, points),
                     last_contact_at=last_contact_at,
-                    last_measurement_at=(
-                        points[0].measured_at if points else last_contact_at
+                    last_measurement_at=self._last_measurement_at(
+                        points, last_contact_at
                     ),
                     points=points,
                 )
@@ -155,10 +168,10 @@ class TelemetryQueryService:
                 limit=query.limit,
             )
 
-        # Status derives from packet payload quality, which SQL cannot filter
-        # on. Paginating before the filter would report a total for the
-        # unfiltered set and let pages overlap, so the filter is applied to
-        # every object first and skip/limit only afterwards.
+        # Status derives from measurement quality and contact age, which SQL
+        # cannot filter on here. Paginating before the filter would report a
+        # total for the unfiltered set and let pages overlap, so the filter is
+        # applied to every object first and skip/limit only afterwards.
         rows = self.repo.list_objects(org_id=organization_id, skip=0, limit=None)
         matching = [
             summary
@@ -194,21 +207,8 @@ class TelemetryQueryService:
         water_object = self._resolve_object(organization_id, object_id)
         packet = self.repo.get_latest_packet(object_id)
 
-        points = self._unpack_latest_points(packet) if packet else []
+        points = self._latest_points_by_object([object_id]).get(object_id, [])
         last_contact_at = packet.received_at if packet else None
-
-        available_points: set[str] = set()
-        if packet:
-            recent_packets = self.repo.get_packets_in_range(
-                object_id,
-                packet.received_at - timedelta(hours=24),
-                packet.received_at,
-                limit=AVAILABLE_POINTS_LOOKBACK_PACKETS,
-            )
-            for recent in recent_packets:
-                for window in recent.payload.get("windows", []):
-                    for point in window.get("points", []):
-                        available_points.add(point.get("point_id", "unknown"))
 
         # organization_id is a non-null foreign key, so the fallback is
         # unreachable outside of corrupted data.
@@ -223,49 +223,44 @@ class TelemetryQueryService:
             device_name=packet.device_id if packet else None,
             status=self._compute_status(last_contact_at, points),
             last_contact_at=last_contact_at,
-            last_measurement_at=(points[0].measured_at if points else last_contact_at),
+            last_measurement_at=self._last_measurement_at(points, last_contact_at),
             points=points,
             last_seq=packet.seq if packet else None,
-            available_points=sorted(available_points),
+            available_points=self.measurements.available_point_ids(object_id),
         )
 
-    def _iter_series_items(
-        self,
-        packets: list[TelemetryPacket],
-        point_id: str | None,
-        type_: str | None,
-    ) -> Iterator[MeasurementSeriesItem]:
-        """Flatten packets into measurement items, lazily.
+    @staticmethod
+    def _series_item(row: Row) -> MeasurementSeriesItem:
+        return MeasurementSeriesItem(
+            point_id=row.point_id,
+            point_name=row.point_type,
+            type=row.point_type,
+            unit=row.unit,
+            measured_at=row.window_start,
+            value=_point_value(row),
+            avg=row.avg,
+            min=row.min,
+            max=row.max,
+            quality=row.quality,
+            device_id=row.device_id,
+            device_name=row.device_id,
+        )
 
-        Being a generator lets the caller stop at its limit instead of
-        materialising every point of every window first.
+    @staticmethod
+    def _range(
+        start: datetime | None, end: datetime | None, latest: datetime | None
+    ) -> tuple[datetime, datetime]:
+        """Resolve the requested time range, defaulting to the last 24 hours.
+
+        With no end given the range is anchored on the newest measurement, so
+        an object that stopped reporting still returns its final day of data
+        instead of an empty series. Something that never reported has no
+        anchor, and falls back to the last 24 hours of wall-clock time — an
+        empty series either way.
         """
-        for packet in packets:
-            for window in packet.payload.get("windows", []):
-                measured_at = self._window_timestamp(window, packet)
-                for point in window.get("points", []):
-                    point_point_id = point.get("point_id", "unknown")
-                    point_type = point.get("type", "unknown")
-
-                    if point_id is not None and point_point_id != point_id:
-                        continue
-                    if type_ is not None and point_type != type_:
-                        continue
-
-                    yield MeasurementSeriesItem(
-                        point_id=point_point_id,
-                        point_name=point_type,
-                        type=point_type,
-                        unit=point.get("unit", "unknown"),
-                        measured_at=measured_at,
-                        value=point.get("value"),
-                        avg=point.get("avg"),
-                        min=point.get("min"),
-                        max=point.get("max"),
-                        quality=point.get("quality", "unknown"),
-                        device_id=packet.device_id,
-                        device_name=packet.device_id,
-                    )
+        resolved_end = end or latest or datetime.now(UTC)
+        resolved_start = start or resolved_end - timedelta(hours=DEFAULT_SERIES_HOURS)
+        return resolved_start, resolved_end
 
     def get_measurements(
         self,
@@ -280,24 +275,76 @@ class TelemetryQueryService:
         """
         self._resolve_object(organization_id, object_id)
 
-        end = query.end
-        if end is None:
-            latest_packet = self.repo.get_latest_packet(object_id)
-            end = latest_packet.received_at if latest_packet else datetime.now(UTC)
-        start = query.start
-        if start is None:
-            start = end - timedelta(hours=24)
-
-        packets = self.repo.get_packets_in_range(
-            object_id, start, end, limit=MAX_PACKETS_PER_SERIES
+        start, end = self._range(
+            query.start,
+            query.end,
+            self.measurements.latest_window_start_for_object(object_id),
         )
 
-        series = self._iter_series_items(packets, query.point_id, query.type_)
-        items = list(islice(series, query.limit))
-        truncated = next(series, None) is not None
+        rows = self.measurements.series_for_object(
+            object_id,
+            start,
+            end,
+            point_id=query.point_id,
+            point_type=query.type_,
+            limit=query.limit,
+        )
+        truncated = len(rows) > query.limit
+        items = [self._series_item(row) for row in rows[: query.limit]]
 
         return MeasurementsResponse(
             object_id=str(object_id),
+            from_=start,
+            to=end,
+            count=len(items),
+            truncated=truncated,
+            items=items,
+        )
+
+    def get_point_measurements(
+        self,
+        organization_id: UUID,
+        point_id: UUID,
+        query: GetPointMeasurementsRequest,
+    ) -> PointMeasurementsResponse:
+        """Get the history of a single measurement point.
+
+        Every item carries `window_start` and `quality`: a client charting or
+        exporting a series must be able to tell when a value was measured and
+        whether the sensor trusted it.
+        """
+        point = self.measurements.get_point_in_organization(point_id, organization_id)
+        if not point:
+            raise NotFoundError(f"Measurement point {point_id} not found")
+
+        start, end = self._range(
+            query.from_,
+            query.to,
+            self.measurements.latest_window_start_for_point(point_id),
+        )
+
+        rows = self.measurements.series_for_point(
+            point_id, start, end, limit=query.limit
+        )
+        truncated = len(rows) > query.limit
+        items = [
+            PointMeasurementItem(
+                window_start=row.window_start,
+                window_seconds=row.window_seconds,
+                value=_point_value(row),
+                avg=row.avg,
+                min=row.min,
+                max=row.max,
+                quality=row.quality,
+            )
+            for row in rows[: query.limit]
+        ]
+
+        return PointMeasurementsResponse(
+            point_id=str(point.id),
+            external_id=point.external_id,
+            type=point.point_type,
+            unit=point.unit,
             from_=start,
             to=end,
             count=len(items),
