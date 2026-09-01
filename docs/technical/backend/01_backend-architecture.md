@@ -426,7 +426,7 @@ Autentykacja (login, JWT access/refresh) i autoryzacja (uprawnienia) dla całej 
 
 ## 6.3. `telemetry/`
 
-Przyjmuje pakiety pomiarowe z gatewayów terenowych (`POST /telemetry/ingest`) i wystawia zapytania szeregów czasowych dla dashboardu. Ingest commituje zawsze przez `transaction(skip_audit=True)` — dane z urządzenia IoT, nie zmiana wywołana przez użytkownika, więc nie generuje wpisu w audit logu.
+Przyjmuje pakiety pomiarowe z gatewayów terenowych (`POST /telemetry/ingest`) i wystawia zapytania szeregów czasowych dla dashboardu. Ingest commituje zawsze przez `transaction(skip_audit=True)` — dane z urządzenia IoT, nie zmiana wywołana przez użytkownika, więc nie generuje wpisu w audit logu. Pakiet ląduje w dwóch miejscach naraz: surowy blob JSONB w `telemetry_packets` (audyt i replay) oraz wiersz na pomiar w partycjonowanej tabeli `measurements` (odczyty dashboardu, historia, przyszłe alarmy i eksport).
 
 → Pełny opis: [`04_telemetry_module.md`](./04_telemetry_module.md)
 

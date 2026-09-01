@@ -13,3 +13,6 @@ CLAUDE.md
 
 # Generated files (auto-generated from source of truth, do not commit)
 firmware/include/SensorRegistry.h
+
+# Backfill cursor (scripts/backfill_measurements.py)
+.backfill_measurements_state.json

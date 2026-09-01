@@ -21,6 +21,7 @@ from app.modules.core_data.repositories.measurement_points import (
 from app.modules.core_data.services.measurement_points import (
     MeasurementPointService,
 )
+from app.modules.telemetry.repositories.measurements import MeasurementRepository
 from app.modules.telemetry.repositories.packets import TelemetryPacketRepository
 from app.modules.telemetry.repositories.queries import TelemetryQueryRepository
 from app.modules.telemetry.services.ingest import TelemetryIngestService
@@ -51,15 +52,23 @@ def _get_measurement_point_service(
     return MeasurementPointService(repo, device_repo, audit)
 
 
+def get_measurement_repository(
+    session: Session = Depends(get_db),
+) -> MeasurementRepository:
+    return MeasurementRepository(session=session)
+
+
 def get_telemetry_ingest_service(
     packet_repository: TelemetryPacketRepository = Depends(
         get_telemetry_packet_repository
     ),
     point_service: MeasurementPointService = Depends(_get_measurement_point_service),
+    measurement_repository: MeasurementRepository = Depends(get_measurement_repository),
 ) -> TelemetryIngestService:
     return TelemetryIngestService(
         packet_repository=packet_repository,
         point_service=point_service,
+        measurement_repository=measurement_repository,
     )
 
 
@@ -71,5 +80,10 @@ def get_telemetry_query_repository(
 
 def get_telemetry_query_service(
     repository: TelemetryQueryRepository = Depends(get_telemetry_query_repository),
+    measurements: MeasurementRepository = Depends(get_measurement_repository),
 ) -> TelemetryQueryService:
-    return TelemetryQueryService(repository=repository, settings=get_settings())
+    return TelemetryQueryService(
+        repository=repository,
+        measurements=measurements,
+        settings=get_settings(),
+    )

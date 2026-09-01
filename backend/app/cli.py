@@ -10,6 +10,11 @@ from app.modules.core_data.repositories.users import UserRepository
 from app.modules.security.permission_catalog import ADMIN_GROUP_KEY
 from app.modules.security.repositories.permissions import PermissionRepository
 from app.modules.security.services.password import hash_password
+from app.modules.telemetry.repositories.partitions import (
+    MONTHS_AHEAD,
+    MONTHS_BACK,
+    ensure_measurement_partitions,
+)
 
 
 @click.group()
@@ -88,6 +93,44 @@ def create_superadmin(username: str, email: str):
         sys.exit(1)
     finally:
         session.close()
+
+
+@cli.command("ensure-measurement-partitions")
+@click.option(
+    "--months-back",
+    default=MONTHS_BACK,
+    show_default=True,
+    help="How many past months to cover.",
+)
+@click.option(
+    "--months-ahead",
+    default=MONTHS_AHEAD,
+    show_default=True,
+    help="How many future months to create in advance.",
+)
+def ensure_measurement_partitions_command(months_back: int, months_ahead: int):
+    """Create the monthly partitions of the `measurements` table.
+
+    Runs on every application startup as well; this command exists for
+    maintenance windows where the application is not being restarted.
+    """
+    session = create_session()
+
+    try:
+        created = ensure_measurement_partitions(
+            session, months_back=months_back, months_ahead=months_ahead
+        )
+        session.commit(skip_audit=True)
+    except Exception as e:
+        session.rollback()
+        click.echo(f"Error: {e}", err=True)
+        sys.exit(1)
+    finally:
+        session.close()
+
+    click.echo(f"Partitions present: {len(created)}")
+    for partition in created:
+        click.echo(f"  {partition}")
 
 
 if __name__ == "__main__":

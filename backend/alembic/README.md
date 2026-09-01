@@ -115,6 +115,27 @@ ALTER TABLE audit_events SET UNLOGGED;  -- optional, for testing speed
 
 **Note:** SQLite tests skip this requirement (SQLite has no partitioning support).
 
+## 7. PostgreSQL Partitioning (measurements)
+
+The `measurements` table is partitioned by `RANGE (window_start)`. Unlike
+`audit_events`, its partitions are **not** a manual step: the rolling set of
+monthly partitions (plus a `measurements_default` safety net) is created by
+`app/modules/telemetry/repositories/partitions.py`, which runs
+
+- on every application startup (`lifespan` in `app/main.py`),
+- from `scripts/backfill_measurements.py` for the months holding history,
+- on demand: `python -m app.cli ensure-measurement-partitions`.
+
+Every statement is `CREATE TABLE IF NOT EXISTS ... PARTITION OF`, so running
+it repeatedly is free. Partitions never show up in `alembic revision
+--autogenerate`: `include_name` in `env.py` only admits tables present in the
+ORM metadata, so autogenerate will not propose dropping them.
+
+The `PARTITION BY` clause itself *is* owned by Alembic — it comes from
+`postgresql_partition_by` on the model and is rendered into the generated
+`op.create_table(...)` call, so the migration must not be hand-edited to add
+it.
+
 ---
 
 The current baseline is intended for fresh environments. A non-production

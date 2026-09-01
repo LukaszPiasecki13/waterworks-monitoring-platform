@@ -13,9 +13,11 @@ from app.modules.core_data.registry import SensorRegistry
 from app.modules.core_data.services.measurement_points import MeasurementPointService
 from app.modules.telemetry.exceptions import TelemetryPacketAlreadyExistsError
 from app.modules.telemetry.models.telemetry_error import TelemetryError
+from app.modules.telemetry.repositories.measurements import MeasurementRepository
 from app.modules.telemetry.repositories.packets import TelemetryPacketRepository
 from app.modules.telemetry.schemas.measurement_packet import (
     MeasurementPacketRequest,
+    MeasurementWindow,
     TelemetryIngestResponse,
 )
 from app.modules.telemetry.schemas.measurement_packet import (
@@ -85,6 +87,44 @@ def _build_error(
     )
 
 
+def _as_utc(moment: datetime) -> datetime:
+    """Normalize a window timestamp to UTC.
+
+    `window_start` is half of the measurement's primary key, so the same
+    instant sent with two different offsets (or with none at all) has to land
+    on one row, not two — and on the partition of the month it really belongs
+    to.
+    """
+    if moment.tzinfo is None:
+        return moment.replace(tzinfo=UTC)
+    return moment.astimezone(UTC)
+
+
+def _measurement_row(
+    ctx: _IngestContext,
+    point_uuid: UUID,
+    window: MeasurementWindow,
+    point: PacketPoint,
+) -> dict:
+    """Flatten one reported point of one window into a `measurements` row."""
+    # bool is a subclass of int, so the type test has to come before any
+    # numeric handling; digital_input/power_status keep their own column.
+    is_flag = isinstance(point.value, bool)
+    return {
+        "measurement_point_id": point_uuid,
+        "window_start": _as_utc(window.window_start),
+        "window_seconds": window.window_seconds,
+        "avg": point.avg,
+        "min": point.min,
+        "max": point.max,
+        "value": None if is_flag else point.value,
+        "value_bool": point.value if is_flag else None,
+        "quality": point.quality,
+        "received_at": ctx.received_at,
+        "source_packet_id": ctx.saved_packet_id,
+    }
+
+
 def _packet_reported_errors(ctx: _IngestContext) -> list[TelemetryError]:
     """Convert device-reported error entries into TelemetryError rows."""
     return [
@@ -104,9 +144,11 @@ class TelemetryIngestService:
         self,
         packet_repository: TelemetryPacketRepository,
         point_service: MeasurementPointService,
+        measurement_repository: MeasurementRepository,
     ):
         self._packet_repository = packet_repository
         self._point_service = point_service
+        self._measurement_repository = measurement_repository
 
     def ingest(
         self, packet: MeasurementPacketRequest, device: Device
@@ -179,31 +221,46 @@ class TelemetryIngestService:
 
     def _process_measurement_windows(self, ctx: _IngestContext) -> list[TelemetryError]:
         """Resolve each reported point to its MeasurementPoint (auto-provisioning
-        new ones) and flag any whose type/unit no longer matches what's on record.
+        new ones), flag any whose type/unit no longer matches what's on record,
+        and write the accepted ones to the normalized `measurements` table.
+
+        The packet blob is still stored (audit/replay); this is the row-per-
+        measurement copy that alarms, charts and export read.
         """
         errors: list[TelemetryError] = []
         resolved: dict[str, MeasurementPoint] = {}
+        rows: list[dict] = []
 
-        for point in _iter_points(ctx.packet):
-            mp = resolved.get(point.point_id)
-            if mp is None:
-                mp = self._point_service.get_or_create_internal(
-                    ctx.device_id, point.point_id, point.type, point.unit
-                )
-                resolved[point.point_id] = mp
-
-            if mp.point_type != point.type or mp.unit != point.unit:
-                errors.append(
-                    _build_error(
-                        ctx,
-                        code="POINT_TYPE_MISMATCH",
-                        point_id=point.point_id,
-                        severity="critical",
-                        message=(
-                            f"Expected type={mp.point_type} unit={mp.unit}, "
-                            f"got type={point.type} unit={point.unit}"
-                        ),
+        for window in ctx.packet.windows:
+            for point in window.points:
+                mp = resolved.get(point.point_id)
+                if mp is None:
+                    mp = self._point_service.get_or_create_internal(
+                        ctx.device_id, point.point_id, point.type, point.unit
                     )
-                )
+                    resolved[point.point_id] = mp
+
+                if mp.point_type != point.type or mp.unit != point.unit:
+                    # Normalizing a value whose unit contradicts the point on
+                    # record would poison every chart and threshold reading it
+                    # afterwards, so the point is dropped from this packet —
+                    # the blob still holds it for replay.
+                    errors.append(
+                        _build_error(
+                            ctx,
+                            code="POINT_TYPE_MISMATCH",
+                            point_id=point.point_id,
+                            severity="critical",
+                            message=(
+                                f"Expected type={mp.point_type} unit={mp.unit}, "
+                                f"got type={point.type} unit={point.unit}"
+                            ),
+                        )
+                    )
+                    continue
+
+                rows.append(_measurement_row(ctx, mp.id, window, point))
+
+        self._measurement_repository.insert_ignoring_duplicates(rows)
 
         return errors

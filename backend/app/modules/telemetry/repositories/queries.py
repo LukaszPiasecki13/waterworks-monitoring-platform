@@ -1,6 +1,11 @@
-"""Repository for telemetry data queries."""
+"""Repository for packet-level telemetry queries.
 
-from datetime import datetime
+Measurements themselves live in `measurements` and are read through
+`MeasurementRepository`; what is left here are the packet-level facts a
+dashboard still needs — when a device last made contact, and under which
+sequence number.
+"""
+
 from uuid import UUID
 
 from sqlalchemy import func, select
@@ -102,19 +107,6 @@ class TelemetryQueryRepository(SQLRepository):
 
         return self.session.execute(stmt).scalar() or 0
 
-    def get_packets_by_ids(self, packet_ids: list[UUID]) -> dict[UUID, TelemetryPacket]:
-        """Fetch packets by primary key, keyed by packet id.
-
-        For batches where the caller already knows *which* packets it wants
-        (e.g. the `last_packet_id` column from `list_objects`) — a plain
-        indexed lookup, no ranking involved.
-        """
-        if not packet_ids:
-            return {}
-
-        stmt = select(TelemetryPacket).where(TelemetryPacket.id.in_(packet_ids))
-        return {packet.id: packet for packet in self.session.execute(stmt).scalars()}
-
     def get_latest_packet(self, object_id: UUID) -> TelemetryPacket | None:
         """Get the most recent packet for a water object.
 
@@ -134,30 +126,6 @@ class TelemetryQueryRepository(SQLRepository):
             .limit(1)
         )
         return self.session.execute(stmt).scalar_one_or_none()
-
-    def get_packets_in_range(
-        self,
-        object_id: UUID,
-        start: datetime,
-        end: datetime,
-        limit: int = 1000,
-    ) -> list[TelemetryPacket]:
-        """Get packets for a water object in a time range, oldest first."""
-        stmt = (
-            select(TelemetryPacket)
-            .select_from(TelemetryPacket)
-            .join(Device, TelemetryPacket.device_id == Device.external_id)
-            .join(WaterObject, Device.water_object_id == WaterObject.id)
-            .where(
-                WaterObject.id == object_id,
-                TelemetryPacket.received_at >= start,
-                TelemetryPacket.received_at <= end,
-            )
-            .order_by(TelemetryPacket.received_at.asc())
-            .limit(limit)
-        )
-
-        return list(self.session.execute(stmt).scalars().all())
 
     def get_water_object(self, object_id: UUID) -> WaterObject | None:
         """Get a water object by id."""
