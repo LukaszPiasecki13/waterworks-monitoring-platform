@@ -21,7 +21,7 @@ Trzy rzeczy, które warto wiedzieć zanim zaczniesz przepinać kable:
 
 1. **Punkt, który brief wskazał jako krytyczny, nie jest zależnością od S3.** Kryptografia P-256 w `DeviceIdentity` liczy się **programowo na obu chipach** — ani ESP32, ani ESP32-S3 nie mają sprzętowego akceleratora ECC ([§8.1](#81-kryptografia--brak-akceleratora-ecc-na-obu-chipach)). Nie ma tu nic do przenoszenia ani do naprawiania.
 2. **Jedyna otwarta kwestia to rozmiar obrazu binarnego.** Nie zmienia się rozmiar pamięci RAM ani flasha jako takich, tylko **domyślna partycja aplikacji: 3,19 MiB → 1,25 MiB**. Sprawdzenie zajmuje 30 sekund, a gdyby nie wystarczyło, `min_spiffs.csv` daje 1,875 MiB **z zachowaniem OTA** ([§7](#7-flash-i-partycje--jedyna-otwarta-kwestia-wykonalności)).
-3. **Dwie pułapki strappingowe zjedzą Ci wieczór, jeśli o nich nie wiesz** — GPIO 5 i GPIO 12. Objaw pierwszej jest identyczny z regresją, która w tym projekcie już raz kosztowała cykl diagnostyczny. Mapa w [§5](#5-mapa-pinów) omija obie; uzasadnienie w [§5.3](#53-dwie-pułapki-strappingowe--przeczytaj-przed-przepięciem-kabli).
+3. **Trzy pułapki elektryczne zjedzą Ci wieczór, jeśli o nich nie wiesz** — GPIO 5 i GPIO 12 (strapping) oraz pływające linie RESET/PWRKEY modemu, które dotyczą też dzisiejszego S3. Objaw pierwszej jest identyczny z regresją, która w tym projekcie już raz kosztowała cykl diagnostyczny. Mapa w [§5](#5-mapa-pinów) omija je; uzasadnienie w [§5.3](#53-trzy-pułapki-elektryczne--przeczytaj-przed-przepięciem-kabli).
 
 **Nakład: ~90 linii kodu w trzech plikach + przepięcie 9 połączeń.** Praca leży w uruchomieniu na sprzęcie, nie w pisaniu kodu.
 
@@ -75,14 +75,15 @@ Wszystko, co trzeba ruszyć. Szczegóły w kolejnych sekcjach.
 | 1 | Nowa mapa pinów za `#if defined(BOARD_ESP32_WROOM)` | [`Config.h`](../../../firmware/include/Config.h) | kod, ~30 linii | 1 h |
 | 2 | Jawny typ diody zamiast porównania `pin_ == 48` w dwóch miejscach | [`StatusLed.cpp`](../../../firmware/lib/StatusLed/src/StatusLed.cpp) + `.h` | kod, ~40 linii | 1–2 h |
 | 3 | Sekcja `[env]` + nowe `[env:esp32-wroom]` z wyborem partycji | [`platformio.ini`](../../../firmware/platformio.ini) | konfiguracja, ~20 linii | 1 h |
-| 4 | Przepięcie 9 połączeń wg nowej mapy | sprzęt | okablowanie | 1–2 h |
-| 5 | Sprawdzenie rozmiaru obrazu i ewentualnie `min_spiffs.csv` | build | weryfikacja | 5 min |
-| 6 | Uruchomienie i weryfikacja pełnego łańcucha | sprzęt | bring-up | 6–12 h |
-| 7 | Druga mapa pinów w dokumentacji sprzętowej | [`01_hardware.md`](./01_hardware.md), [`02_modem…md §2.2`](./02_modem_a7670e_communication.md) | dokumentacja | 2 h |
+| 4 | Przepięcie 9 połączeń wg [tabeli przepięć](#54-tabela-przepięć--co-gdzie-przełożyć) | sprzęt | okablowanie | 1–2 h |
+| 5 | **Rezystory 10 kΩ do GND na liniach RESET i PWRKEY modemu** ([§5.3 C](#53-trzy-pułapki-elektryczne--przeczytaj-przed-przepięciem-kabli)) | sprzęt | 2 rezystory | 15 min |
+| 6 | Sprawdzenie rozmiaru obrazu i ewentualnie `min_spiffs.csv` | build | weryfikacja | 5 min |
+| 7 | Uruchomienie i weryfikacja pełnego łańcucha | sprzęt | bring-up | 6–12 h |
+| 8 | Druga mapa pinów w dokumentacji sprzętowej | [`01_hardware.md`](./01_hardware.md), [`02_modem…md §2.2`](./02_modem_a7670e_communication.md) | dokumentacja | 2 h |
 
 **Bez zmian zostaje cała logika:** protokół telemetrii, provisioning, autoryzacja, watchdog, sterowniki czujników, testy jednostkowe. **Żadnej zmiany w bibliotekach zewnętrznych.**
 
-Największa pozycja to #6, i tak ma być — [§10](#10-kolejność-uruchomienia) rozpisuje ją na kroki, żeby błędy wychodziły pojedynczo, a nie wszystkie naraz.
+Największa pozycja to #7, i tak ma być — [§10](#10-kolejność-uruchomienia) rozpisuje ją na kroki, żeby błędy wychodziły pojedynczo, a nie wszystkie naraz.
 
 ---
 
@@ -104,30 +105,30 @@ Dla kontrastu: na ESP32-S3 pinami strappingowymi są **0, 3, 45, 46** — czyli 
 
 ### 5.2 Proponowana mapa
 
-Kryteria, w kolejności: (1) zero pinów strappingowych i zero `SPI0/1`; (2) SPI na natywnych pinach IO_MUX magistrali VSPI; (3) każda magistrala w jednym zwartym bloku, żeby okablowanie było czytelne; (4) ADC1 zarezerwowane pod PT-506.
+Kryteria, w kolejności: (1) zero pinów strappingowych i zero `SPI0/1`; (2) SPI na natywnych pinach IO_MUX magistrali VSPI; (3) każda magistrala w jednym zwartym bloku, żeby okablowanie było czytelne; (4) zostawić wolne kanały ADC1 pod PT-506 i przyszłe czujniki analogowe.
 
 Skoro okablowanie jest swobodne, mapa jest optymalizowana **pod czystość układu, nie pod minimum przelutowania**.
 
 | Funkcja | S3 dziś | **WROOM-32** | Uzasadnienie |
 |---|---|---|---|
-| `MODEM_RESET_PIN` | 5 | **33** | GPIO 5 jest strappingowy i **domyślnie podciągnięty w górę**, a RESET modemu jest **active-HIGH** — patrz pułapka A w [§5.3](#53-dwie-pułapki-strappingowe--przeczytaj-przed-przepięciem-kabli). GPIO 33 jest wyjściowy, nie strappingowy |
+| `MODEM_RESET_PIN` | 5 | **33** | GPIO 5 jest strappingowy i **domyślnie podciągnięty w górę**, a RESET modemu jest **active-HIGH** — patrz pułapka A w [§5.3](#53-trzy-pułapki-elektryczne--przeczytaj-przed-przepięciem-kabli). GPIO 33 jest wyjściowy i nie strappingowy. *Kosztuje jeden kanał ADC1 (CH5)* — jeśli kiedyś zabraknie wejść analogowych, przenieś RESET na **GPIO 4**, które jest wolne i leży poza ADC1 (ADC2 nas nie interesuje, bo Wi-Fi nie jest używane) |
 | `MODEM_TX_PIN` (→ RX modemu) | 17 | **25** | GPIO 17 jest oznaczony `SPI0/1`. Świadomie **nie** biorę pary 16/17 (naturalne UART2), żeby mapa działała także na modułach z PSRAM |
 | `MODEM_RX_PIN` (← TX modemu) | 18 | **26** | Para z 25; GPIO 18 przejmuje SPI SCK. UART1 idzie przez macierz GPIO — `ModemLink` już dziś podaje piny jawnie ([`ModemLink.cpp:18`](../../../firmware/lib/ModemLink/src/ModemLink.cpp#L18)), a rdzeń Arduino honoruje piny jawne nad domyślnymi |
 | `MODEM_PWRKEY_PIN` | 4 | **27** | GPIO 4 jest wolny i mógłby zostać, ale przy swobodnym okablowaniu lepiej trzymać **wszystkie cztery sygnały modemu w jednym bloku 33/25/26/27** niż oszczędzić jedno przepięcie |
-| `PT100_SPI_SCK` | 12 | **18** | GPIO 12 = MTDI, wybór napięcia flash — pułapka B w [§5.3](#53-dwie-pułapki-strappingowe--przeczytaj-przed-przepięciem-kabli). GPIO 18 to natywny **IO_MUX VSPI CLK** |
+| `PT100_SPI_SCK` | 12 | **18** | GPIO 12 = MTDI, wybór napięcia flash — pułapka B w [§5.3](#53-trzy-pułapki-elektryczne--przeczytaj-przed-przepięciem-kabli). GPIO 18 to natywny **IO_MUX VSPI CLK** |
 | `PT100_SPI_MISO` | 13 | **19** | Natywny **IO_MUX VSPI MISO** |
 | `PT100_SPI_CS` | 14 | **22** | CS jest sterowany **programowo** przez `Adafruit_MAX31865`, więc nie musi być na IO_MUX. Natywny VSPI CS0 to GPIO 5 — strappingowy, dlatego świadomie odpada. GPIO 22 leży obok 23 |
 | `PT100_SPI_MOSI` | 11 | **23** | GPIO 11 to flash. GPIO 23 to natywny **IO_MUX VSPI MOSI** |
-| `LED_PIN` | 48 | **2** | GPIO 48 nie istnieje na klasycznym ESP32. GPIO 2 to `LED_BUILTIN` wariantu `doitESP32devkitV1` — **wybór płytki ma tu znaczenie**, patrz [§5.4](#54-dioda-statusu) |
-| PT-506 ADC (*draft*) | 1 | **36** (VP, ADC1_CH0) | Wejście analogowe nie potrzebuje trybu wyjściowego, więc pin *input-only* jest tu idealny — nie marnujemy pinu dwukierunkowego. Rezerwa: 39 (VN), 34, 35 |
+| `LED_PIN` | 48 | **2** | GPIO 48 nie istnieje na klasycznym ESP32. GPIO 2 to `LED_BUILTIN` wariantu `doitESP32devkitV1` — **wybór płytki ma tu znaczenie**, patrz [§5.5](#55-dioda-statusu) |
+| PT-506 ADC (*draft*) | 1 | **34** (ADC1_CH6) | Wejście analogowe nie potrzebuje trybu wyjściowego, więc pin *input-only* jest tu idealny — nie marnujemy pinu dwukierunkowego. **Celowo nie 36/39 (VP/VN):** ESP-IDF ostrzega, że na tych dwóch nie należy używać przerwań przy aktywnym ADC (errata ESP32 §3.11). Odczyt PT-506 byłby odpytywany, nie przerwaniowy, więc 36 też by działało — ale 34 zdejmuje ten przypis całkowicie. Wolne rezerwy ADC1: 35, 36, 39 |
 
 **Układ, który z tego wychodzi:** cztery sygnały modemu w bloku **33/25/26/27**, cztery sygnały SPI w bloku **18/19/22/23**, dioda na **2**, analog na **36** — trzy zwarte grupy zamiast sygnałów rozrzuconych po całej listwie. *(Na typowym 30-pinowym DevKit V1 obie grupy wypadają po przeciwnych stronach płytki, co dodatkowo porządkuje wiązkę — **zweryfikuj na silkscreenie**, [§2.2](#22-czego-nie-dało-się-zrobić).)*
 
 **Wolne po tej mapie:** 4, 12*, 13, 14, 15*, 21, 32, 34, 35, 39 (+16, 17 z zastrzeżeniem PSRAM; `*` = strappingowe, używać ostrożnie). **Dziewięć pinów zajętych, dziesięć wolnych** — zapas na kolejne czujniki jest spory i liczba pinów nie będzie ograniczeniem.
 
-### 5.3 Dwie pułapki strappingowe — przeczytaj przed przepięciem kabli
+### 5.3 Trzy pułapki elektryczne — przeczytaj przed przepięciem kabli
 
-To jest najważniejsza część mapy. Obie pułapki dają objawy trudne do powiązania z przyczyną.
+To jest najważniejsza część mapy. Wszystkie trzy dają objawy trudne do powiązania z przyczyną.
 
 **Pułapka A — GPIO 5 jako RESET modemu.**
 
@@ -139,9 +140,47 @@ To dokładnie ta klasa błędu, która **w tym projekcie już raz kosztowała cy
 
 MTDI przy starcie wybiera napięcie flash: niski → 3,3 V, wysoki → 1,8 V. Wysoki stan przy starcie na module z flashem 3,3 V oznacza brown-out i **płytkę, która się nie bootuje**. `Adafruit_MAX31865` pracuje w SPI Mode 1 (CPOL=0), więc SCK spoczywa nisko i w typowym przypadku byłoby bezpiecznie — ale wystarczy podciągnięcie na module breakout albo drugie urządzenie na magistrali. Przy dziesięciu wolnych pinach nie ma powodu podejmować tego ryzyka.
 
-**Trzecia rzecz, mniejsza — GPIO 2 pod diodę.** GPIO 2 też jest strappingowy (domyślnie ↓) i przy starcie nie może być trzymany wysoko. Dioda z rezystorem szeregowym do masy — czyli standardowy układ na DevKit V1 — jest bezpieczna. Zewnętrzna dioda podpięta „do plusa" **nie byłaby**.
+**Pułapka C — obie linie sterujące modemu wiszą w powietrzu przez cały boot. Dotyczy tak samo dzisiejszego S3.**
 
-### 5.4 Dioda statusu
+To znalazłem dopiero przy przeglądzie własnej mapy i jest to jedyna pułapka, która **nie jest specyficzna dla portu** — ale port jest dobrym momentem, żeby ją zamknąć.
+
+RESET i PWRKEY są **oba active-HIGH** ([`02_modem §2.2`](./02_modem_a7670e_communication.md)). Na ESP32 wszystkie GPIO poza strappingowymi startują jako **wejścia bez podciągnięcia** — czyli od podania zasilania aż do `pinMode(..., OUTPUT)` w [`ModemPower::powerOn()`](../../../firmware/lib/ModemPower/src/ModemPower.cpp) obie linie są **pływające**, a nie zdefiniowane jako niskie. Stan wejść modemu w tym oknie zależy wtedy wyłącznie od tego, czy płytka KAmod ma własne rezystory ściągające — czego nie udało mi się potwierdzić w dokumentacji producenta.
+
+Konsekwencje, gdyby ich nie miała: przypadkowy reset lub przypadkowy impuls power-on modemu przy każdym starcie i przy każdym `esp_restart()` z recovery ([`Watchdog`](../../../firmware/lib/Watchdog/src/Watchdog.cpp)) — czyli objaw okresowy i trudny do odtworzenia na żądanie.
+
+**Zalecenie: rezystory ściągające 10 kΩ do masy na obu liniach, po stronie modemu.** Kosztują grosze, są neutralne dla działania (ESP32 i tak wysteruje je twardo po `pinMode`) i zdejmują całą klasę problemu. Przy prototypie, gdzie i tak przepinasz kable, to najtańszy moment, żeby to zrobić.
+
+**Uwaga do pułapki A:** przeniesienie RESET z GPIO 5 na 33 usuwa problem *podciągnięcia w górę*, ale **nie zastępuje rezystora ściągającego** — 33 pływa zamiast być podciągnięte wysoko, co jest lepsze, ale wciąż nie jest stanem zdefiniowanym.
+
+**Rzecz czwarta, drobna — GPIO 2 pod diodę.** GPIO 2 też jest strappingowy (domyślnie ↓) i przy starcie nie może być trzymany wysoko. Dioda z rezystorem szeregowym do masy — czyli standardowy układ na DevKit V1 — jest bezpieczna. Zewnętrzna dioda podpięta „do plusa" **nie byłaby**.
+
+### 5.4 Tabela przepięć — co gdzie przełożyć
+
+Mapa z [§5.2](#52-proponowana-mapa) podaje piny po stronie ESP32. Przy lutownicy potrzebna jest druga strona, więc tu jest komplet „z czego → na co". Piny po stronie KAmod pochodzą z [`01_hardware.md §7`](./01_hardware.md) (status **draft** — przełożenie na złącze 40-pin nie jest zweryfikowane w kodzie, tylko docelowe GPIO).
+
+| Przewód | Druga strona | ESP32-S3 (odepnij z) | **WROOM-32 (wepnij w)** |
+|---|---|---|---|
+| TXD modemu → RX ESP32 | KAmod, **pin 10** złącza 40-pin | 18 | **26** |
+| RXD modemu ← TX ESP32 | KAmod, **pin 8** | 17 | **25** |
+| RST modemu (active-HIGH) | KAmod, **pin 12** | 5 | **33** + rezystor 10 kΩ do GND ([§5.3 C](#53-trzy-pułapki-elektryczne--przeczytaj-przed-przepięciem-kabli)) |
+| PWRKEY modemu (active-HIGH) | KAmod, **pin 7** | 4 | **27** + rezystor 10 kΩ do GND |
+| CLK | MAX31865, pad `CLK` | 12 | **18** |
+| SDO (wyjście z MAX31865) | MAX31865, pad `SDO` | 13 | **19** |
+| SDI (wejście do MAX31865) | MAX31865, pad `SDI` | 11 | **23** |
+| CS | MAX31865, pad `CS` | 14 | **22** |
+| Dioda statusu | on-board | 48 (WS2812) | **2** (zwykła LED, [§5.5](#55-dioda-statusu)) |
+| PT-506, 4-20 mA przez 250 Ω (*draft*) | — | 1 | **34** |
+
+**Bez zmian, ale sprawdź przy okazji:**
+
+- **Zasilanie modemu** — osobne 5 V / min. 2 A na piny **2 i 4** złącza KAmod, **nie z ESP32** ([`01_hardware.md §7`](./01_hardware.md)).
+- **Wspólna masa** ESP32 ↔ KAmod (piny GND: 6, 9, 14, 20, 25, 30, 34, 39) — obowiązkowa, bez niej UART nie zadziała albo zadziała niestabilnie.
+- **Zworki J2** na KAmodzie muszą być założone dla TXD, RXD, PWK i RST — bez zworki sygnał nie pojawi się na złączu mimo poprawnego okablowania po stronie ESP32. To najczęstsza przyczyna „przepiąłem wszystko, a nie działa".
+- **Zworka J_APWK** (spód płytki) — steruje automatycznym impulsem power-on. `ModemPower::powerOn()` generuje własny impuls, więc niezprzecięta zworka może dawać konflikt.
+
+**Uwaga o krzyżowaniu UART:** TX jednej strony idzie do RX drugiej. Nazwy `MODEM_TX_PIN` / `MODEM_RX_PIN` w `Config.h` są **z perspektywy ESP32** — `MODEM_TX_PIN` to pin, którym ESP32 *nadaje* do modemu. Przy przepinaniu łatwo o tym zapomnieć i to jest klasyczna przyczyna ciszy na magistrali; objaw z [`02_modem §6.2`](./02_modem_a7670e_communication.md) („UART garbage" albo brak odpowiedzi na AT) wygląda wtedy identycznie jak awaria sprzętowa.
+
+### 5.5 Dioda statusu
 
 **Ustalenie, które rozstrzyga sprawę: sygnalizacja kolorami nie istnieje w kodzie.**
 
@@ -196,7 +235,7 @@ const int PT100_SPI_MOSI = 23;   // IO_MUX VSPI MOSI
 const int PT100_SPI_MISO = 19;   // IO_MUX VSPI MISO
 const int PT100_SPI_SCK  = 18;   // IO_MUX VSPI CLK; NIE GPIO 12 = MTDI, wybór napięcia flash (§5.3 B)
 
-#else
+#elif defined(BOARD_ESP32_S3)
 // ESP32-S3-DevKitC-1 — mapa dotychczasowa, bez zmian
 const int LED_PIN = 48;
 
@@ -209,12 +248,17 @@ const int PT100_SPI_CS   = 14;
 const int PT100_SPI_MOSI = 11;
 const int PT100_SPI_MISO = 13;
 const int PT100_SPI_SCK  = 12;
+
+#else
+#error "Nie wybrano plytki: zdefiniuj BOARD_ESP32_S3 albo BOARD_ESP32_WROOM w build_flags"
 #endif
 
 const int MODEM_POWER_ENABLE_PIN = -1;  // wspólne: moduł A7670E nie ma osobnej linii enable
 ```
 
 Reszta `Config.h` (APN, adresy backendu, timingi) jest niezależna od płytki i zostaje bez zmian.
+
+**Dlaczego `#error`, a nie `#else` z mapą S3 jako domyślną:** przy `#else` build bez żadnej flagi (np. z IDE, ze skryptu, z pomyłkowo skopiowanego środowiska) **po cichu wgrałby piny S3 na płytkę WROOM-32**. Objawem byłaby martwa magistrala SPI i modem nieodpowiadający na AT — czyli dokładnie ten obraz, który w [§10](#10-kolejność-uruchomienia) każe szukać błędu w okablowaniu. `#error` zamienia godzinę diagnozowania sprzętu w komunikat kompilatora. W dokumencie o tym, jak kosztowne są pomyłki w mapie pinów, domyślna cicha gałąź byłaby niekonsekwencją.
 
 ### 6.2 `StatusLed` — jawny typ diody zamiast magicznej „48"
 
@@ -230,10 +274,10 @@ class StatusLed {
  public:
   enum class Type { Simple, NeoPixel };
 
-  StatusLed(int pin, Type type);
+  StatusLed(int pin, Type type);   // tylko zapamiętuje pola — zero I/O
   ~StatusLed();
 
-  void initializePixels();   // wołane z setup(); no-op dla Type::Simple
+  void begin();                    // całe I/O tutaj; wołane z setup() dla obu typów
   void blinkSuccess();
   void blinkError();
   void blink(int count, int delayMs);
@@ -242,7 +286,7 @@ class StatusLed {
   int pin_;
   Type type_;
   Adafruit_NeoPixel* pixels_ = nullptr;
-  bool pixels_initialized_ = false;
+  bool begun_ = false;
 };
 ```
 
@@ -256,7 +300,11 @@ StatusLed led(LED_PIN, StatusLed::Type::NeoPixel);
 #endif
 ```
 
-**To jest zmiana warta zrobienia niezależnie od portu:** usuwa numer pinu w roli przełącznika typu sprzętu i czyni klasę testowalną w środowisku `native`.
+`led.initializePixels()` w [`main.cpp:164`](../../../firmware/src/main.cpp#L164) zmienia się na `led.begin()`. To jedyne wywołanie w repozytorium, więc zmiana nazwy jest bezpieczna.
+
+**Dlaczego `begin()` zamiast zostawienia `initializePixels()`:** dziś konstruktor dla diody innej niż WS2812 woła `pinMode()` i `digitalWrite()` **w konstruktorze**, czyli przy inicjalizacji statycznej — zanim wystartuje `setup()` ([`StatusLed.cpp:12-13`](../../../firmware/lib/StatusLed/src/StatusLed.cpp#L12-L13)). Na S3 ta gałąź jest martwa (`pin_ == 48` zawsze prawdziwe), więc problem nie występuje — **ale na WROOM-32 to jest właśnie gałąź, która się wykona**. Autor kodu był tego świadomy przy NeoPixelu: komentarz *„Defer `pixels_->begin()` to `setup()` to avoid blocking at global scope before watchdog resets"* mówi dokładnie o tym ryzyku. Byłoby niekonsekwencją odziedziczyć je w wariancie prostym. `begin()` przenosi całe I/O do `setup()`, symetrycznie dla obu typów.
+
+**To jest zmiana warta zrobienia niezależnie od portu:** usuwa numer pinu w roli przełącznika typu sprzętu, zdejmuje I/O z inicjalizacji statycznej i czyni klasę testowalną w środowisku `native`.
 
 **Opcjonalnie, jeśli flash okaże się ciasny** ([§7](#7-flash-i-partycje--jedyna-otwarta-kwestia-wykonalności)): `Adafruit_NeoPixel` jest bezwarunkowo dołączany przez [`StatusLed.cpp`](../../../firmware/lib/StatusLed/src/StatusLed.cpp#L2) i w wariancie ze zwykłą diodą byłby martwym kodem. Schowanie go za `#if !defined(BOARD_ESP32_WROOM)` odzyskuje kilka kilobajtów.
 
@@ -283,16 +331,16 @@ build_flags =
     -Iinclude
 
 [env:esp32-s3]
-extends = env
 board = esp32-s3-devkitc-1
 build_flags = ${env.build_flags} -D BOARD_ESP32_S3
 
 [env:esp32-wroom]
-extends = env
-board = esp32doit-devkit-v1              ; wariant z LED_BUILTIN = GPIO 2 (§5.4)
+board = esp32doit-devkit-v1              ; wariant z LED_BUILTIN = GPIO 2 (§5.5)
 board_build.partitions = min_spiffs.csv  ; dopiero jeśli obraz nie mieści się w 1,25 MiB (§7)
 build_flags = ${env.build_flags} -D BOARD_ESP32_WROOM
 ```
+
+**Ten fragment jest zweryfikowany narzędziowo,** nie tylko napisany: przepuściłem go przez `pio project config` i potwierdziłem, że interpolacja `${env.build_flags}` rozwija się poprawnie, obie flagi `BOARD_*` trafiają do właściwych środowisk, a `board_build.partitions` jest przenoszone. Przy okazji wyszło, że `extends = env` jest **zbędne** — sekcja `[env]` jest dziedziczona globalnie i wynik `pio project config` jest identyczny z nią i bez niej. Dlatego jej tu nie ma.
 
 **Dwie uwagi, żeby nie zdziwiło:**
 
@@ -384,7 +432,7 @@ Czyli `mbedtls_ecp_gen_key(MBEDTLS_ECP_DP_SECP256R1, ...)` ([`DeviceIdentity.cpp
 
 I to się mieści, ale nie dzięki marginesowi — **dzięki architekturze**: generowanie klucza jest celowo odłożone z `setup()` do pierwszej iteracji `loop()` przez flagę `keyGenerated` ([`main.cpp:199-202`](../../../firmware/src/main.cpp#L199-L202)), czyli **poza okno RTC WDT bootloadera**. Dodatkowo `loadOrGenerateKey()` woła `esp_task_wdt_reset()` i `yield()` przed i po `mbedtls_ecp_gen_key` ([`DeviceIdentity.cpp:191-200`](../../../firmware/lib/DeviceIdentity/src/DeviceIdentity.cpp#L191-L200)). Zabezpieczenie przenosi się na WROOM-32 bez zmian i nawet dwukrotnie gorszy wynik niczego nie łamie.
 
-> **Uwaga poboczna, nie dotyczy portu:** [`03_esp32_reset_and_recovery.md §4`](./03_esp32_reset_and_recovery.md) opisuje włączanie Task WDT przez `esp_task_wdt_init()` + `esp_task_wdt_add(NULL)`, a kod tego nie robi — więc **Task WDT prawdopodobnie nie chroni dziś `loop()` na żadnym chipie**. Na wynik portu nie wpływa; zebrane do zgłoszenia w [§13](#13-ustalenia-poboczne--do-osobnego-zgłoszenia).
+> **Uwaga poboczna, nie dotyczy portu:** [`03_esp32_reset_and_recovery.md §4`](./03_esp32_reset_and_recovery.md) opisuje włączanie Task WDT przez `esp_task_wdt_init()` + `esp_task_wdt_add(NULL)`, a kod tego nie robi — więc **Task WDT prawdopodobnie nie chroni dziś `loop()` na żadnym chipie**. Na wynik portu nie wpływa; zebrane do zgłoszenia w [§14](#14-ustalenia-poboczne--do-osobnego-zgłoszenia).
 
 ### 8.2 RAM — limit identyczny
 
@@ -416,7 +464,7 @@ Użycie to trzy zmienne — `rtcRestartCounter`, `rtcSyncedTimeUtcSec`, `rtcSync
 
 `Serial` w bieżącym buildzie to `Serial0`, czyli **UART0**, bo `ARDUINO_USB_CDC_ON_BOOT` domyślnie wynosi `0` i `platformio.ini` go nie nadpisuje ([§3](#3-korekty-do-założeń-briefu)). Logi z [`Logger.h`](../../../firmware/lib/Logger/include/Logger.h) i flashowanie idą przez mostek USB-UART na płytce — **dokładnie tak samo jak przez CP2102/CH340 na płytce z klasycznym ESP32**. Firmware nigdy nie korzystał z natywnego USB CDC układu S3. **Zero pracy.**
 
-> **Uwaga poboczna:** `EnrollmentClient::readSerial()` jest **pustą metodą** z komentarzem *„Serial input disabled - migrated away from direct Serial usage"* ([`EnrollmentClient.cpp:95-97`](../../../firmware/lib/EnrollmentClient/src/EnrollmentClient.cpp)). Ścieżka `ACTIVATE <kod>` z [`04_device_provisioning_flow.md §3.2`](./04_device_provisioning_flow.md) **nie ma dziś czym odbierać kodu** — `processLine()` istnieje, ale nikt go nie woła. To jest złamane tak samo na obu chipach, ale **uderzy Cię w kroku 6 z [§10](#10-kolejność-uruchomienia)** — to jedyne ustalenie poboczne, które realnie blokuje pracę, więc napraw je **przed** startem portu. Zebrane w [§13](#13-ustalenia-poboczne--do-osobnego-zgłoszenia).
+> **Uwaga poboczna:** `EnrollmentClient::readSerial()` jest **pustą metodą** z komentarzem *„Serial input disabled - migrated away from direct Serial usage"* ([`EnrollmentClient.cpp:95-97`](../../../firmware/lib/EnrollmentClient/src/EnrollmentClient.cpp)). Ścieżka `ACTIVATE <kod>` z [`04_device_provisioning_flow.md §3.2`](./04_device_provisioning_flow.md) **nie ma dziś czym odbierać kodu** — `processLine()` istnieje, ale nikt go nie woła. To jest złamane tak samo na obu chipach, ale **uderzy Cię w kroku 6 z [§10](#10-kolejność-uruchomienia)** — to jedyne ustalenie poboczne, które realnie blokuje pracę, więc napraw je **przed** startem portu. Zebrane w [§14](#14-ustalenia-poboczne--do-osobnego-zgłoszenia).
 
 ### 8.5 API i biblioteki bez zmian
 
@@ -447,7 +495,7 @@ Waga zależy od [B-01](../../plan/01_briefy_dla_agentow.md): jeśli gmina jako p
 
 **3. Swoboda doboru pinów.** Znika 6 pinów (flash), 6 staje się tylko-wejściowych, dochodzą 4 strappingowe. Po nowej mapie zostaje jednak **dziesięć wolnych pinów** ([§5.2](#52-proponowana-mapa)) — realnie nie odczujesz tego przy tej liczbie czujników.
 
-**Czego NIE tracisz** (bo to najczęstsze nieporozumienie): sygnalizacji LED ([§5.4](#54-dioda-statusu)), wydajności krypto ([§8.1](#81-kryptografia--brak-akceleratora-ecc-na-obu-chipach)), RAM ([§8.2](#82-ram--limit-identyczny)), `RTC_DATA_ATTR` ([§8.3](#83-rtc_data_attr--kompatybilne)), logów i flashowania ([§8.4](#84-usbserial--już-dziś-uart0)), testów jednostkowych.
+**Czego NIE tracisz** (bo to najczęstsze nieporozumienie): sygnalizacji LED ([§5.5](#55-dioda-statusu)), wydajności krypto ([§8.1](#81-kryptografia--brak-akceleratora-ecc-na-obu-chipach)), RAM ([§8.2](#82-ram--limit-identyczny)), `RTC_DATA_ATTR` ([§8.3](#83-rtc_data_attr--kompatybilne)), logów i flashowania ([§8.4](#84-usbserial--już-dziś-uart0)), testów jednostkowych.
 
 ---
 
@@ -475,6 +523,8 @@ Sens kolejności: **każdy krok dokłada jedną nową rzecz, która może się z
 ## 11. Co zweryfikować
 
 Trzy pozycje. Pierwsza jest jedyną, która realnie zmienia plan.
+
+*Ta sekcja mówi **co** sprawdzić i jak odczytać wynik. Jeśli zlecasz to komuś innemu — człowiekowi albo agentowi — [§13](#13-instrukcja-dla-kolejnego-agenta--czego-nie-dało-się-tu-zrobić) zawiera to samo w formie zadań, razem z powodem, dla którego nie dało się tego zrobić przy pisaniu tego dokumentu, i z instrukcją, gdzie wpisać wyniki.*
 
 ### 11.1 Rozmiar obrazu binarnego — **przed rozpoczęciem**
 
@@ -517,7 +567,79 @@ Praktyczny wniosek: **wybór chipu nie jest wymuszony przez ścieżkę przemysł
 
 ---
 
-## 13. Ustalenia poboczne — do osobnego zgłoszenia
+## 13. Instrukcja dla kolejnego agenta — czego nie dało się tu zrobić
+
+Ta sekcja istnieje, bo trzy rzeczy w tej analizie są **oszacowaniami zamiast pomiarów**, a wszystkie trzy da się domknąć w środowisku bez blokad sieciowych. Poniżej dokładnie co uruchomić, gdzie i co wpisać z powrotem do tego dokumentu. Kolejność jest wg wartości: **zadanie 1 jest jedynym, które może zmienić plan pracy** — reszta poprawia precyzję.
+
+### Zadanie 1 — zmierzyć rozmiar obrazu i rozstrzygnąć partycję ⚠️ **priorytet**
+
+**Dlaczego ja tego nie zrobiłem:** rejestr PlatformIO jest zablokowany przez proxy sieciowe środowiska, w którym pracowałem. `api.registry.platformio.org` i `dl.registry.platformio.org` nie odpowiadają w ogóle (`curl` → kod 000), przy dostępnym GitHubie. Samą platformę zainstalowałem obejściem z gita (`pio pkg install -p "https://github.com/platformio/platform-espressif32.git"` → `espressif32@7.1.0+sha.b753f4d`), ale toolchain `espressif/toolchain-xtensa-esp32s3` nadal rozwiązuje się przez rejestr i kończy `HTTPClientError`. **Nie próbuj powtarzać tego obejścia — ono nie wystarcza.** Potrzebne jest środowisko z dostępem do rejestru PlatformIO.
+
+**Co uruchomić:**
+
+```bash
+cd firmware
+pio run -e esp32-s3
+```
+
+**Czego szukać w wyjściu:** wiersza `RAM:   [= ] x.x% (used NNNNN bytes from 327680 bytes)` oraz `Flash: [== ] x.x% (used NNNNNN bytes from ...)`. **Istotna jest liczba bajtów `Flash`, nie procent** — procent odnosi się do partycji 3,19 MiB środowiska S3, a pytanie dotyczy tego, czy zmieści się w 1,25 MiB środowiska WROOM.
+
+**Co z tym zrobić — progi są w [§7](#7-flash-i-partycje--jedyna-otwarta-kwestia-wykonalności), skrótowo:**
+
+| Wynik | Wniosek | Akcja w dokumencie |
+|---|---|---|
+| < 1 310 720 B | mieści się w domyślnej `default.csv` | usuń `board_build.partitions` ze snippetu w [§6.3](#63-platformioini--drugie-środowisko-obok-istniejącego); w [§7](#7-flash-i-partycje--jedyna-otwarta-kwestia-wykonalności) zamień „do sprawdzenia" na zmierzoną wartość |
+| 1 310 720 – 1 966 080 B | wymaga `min_spiffs.csv`, OTA zachowane | zostaw snippet jak jest, wpisz zmierzoną wartość |
+| > 1 966 080 B | **podnosi koszt portu ponad wycenę z [§4](#4-lista-zmian--skrót)** | to jedyny wynik zmieniający plan — rozpisz warianty z [§7](#7-flash-i-partycje--jedyna-otwarta-kwestia-wykonalności) i oznacz w [§1](#1-odpowiedź), że wykonalność wymaga decyzji o OTA lub module 8 MB |
+
+**Bonus, jeśli toolchain WROOM też się zainstaluje:** po wprowadzeniu zmian z [§6](#6-zmiany-w-kodzie) uruchom `pio run -e esp32-wroom` i porównaj oba rozmiary. Różnica powinna być niewielka (inny wariant `StatusLed`, inny rdzeń), ale to potwierdzi, że drugie środowisko w ogóle się kompiluje — czego również nie mogłem sprawdzić.
+
+### Zadanie 2 — potwierdzić fizyczny układ listwy DevKitu
+
+**Dlaczego ja tego nie zrobiłem:** domeny dystrybutorów i baz pinoutów (`botland.store`, `tme.eu`, `espboards.dev`, `oryx-embedded.com`) są zablokowane przez proxy. Mapa w [§5.2](#52-proponowana-mapa) jest **poprawna elektrycznie** — to wynika ze źródeł Espressif, które udało się przeczytać — ale twierdzenia o **sąsiedztwie pinów na listwie** opierają się na typowym układzie 30-pinowego DevKit V1 i nie zostały zweryfikowane.
+
+**Co zrobić — najprościej bez internetu:** spójrz na silkscreen fizycznej płytki i spisz kolejność obu kolumn. Alternatywnie pobierz schemat DOIT ESP32 DevKit V1 albo wysokorozdzielczy pinout (np. `mischianti.org`, `circuitstate.com`, repozytorium `playelek/pinout-doit-32devkitv1`).
+
+**Co sprawdzić konkretnie:** czy GPIO **33, 25, 26, 27** leżą w jednym ciągu (blok modemu) i czy **18, 19, 22, 23** leżą blisko siebie (blok SPI). Jeśli tak — zamień w [§5.2](#52-proponowana-mapa) ostrożne *„na typowym 30-pinowym DevKit V1… zweryfikuj na silkscreenie"* na twierdzenie wprost. Jeśli nie — **przestaw piny w obrębie tej samej klasy** (dowolny wolny, nie-strappingowy, wyjściowy pin z listy w [§5.2](#52-proponowana-mapa)) tak, żeby bloki wyszły zwarte, i zaktualizuj [tabelę przepięć](#54-tabela-przepięć--co-gdzie-przełożyć).
+
+**Uwaga:** wariant 36-pinowy ma inny układ niż 30-pinowy. Zanotuj, którą płytkę weryfikowałeś.
+
+### Zadanie 3 — potwierdzić rezystory ściągające na KAmodzie
+
+**Dlaczego ja tego nie zrobiłem:** wymaga karty katalogowej albo schematu KAmod, których nie mogłem pobrać (blokada proxy), albo pomiaru na fizycznej płytce.
+
+**Pytanie:** czy moduł KAmod LTE CAT1-GNSS ma własne rezystory ściągające na liniach **RST** (pin 12 złącza 40-pin) i **PWK** (pin 7)? Od tego zależy, czy zalecenie z [§5.3 C](#53-trzy-pułapki-elektryczne--przeczytaj-przed-przepięciem-kabli) jest konieczne, czy tylko zapasowe.
+
+**Jak sprawdzić:**
+1. Schemat lub instrukcja producenta — [karta produktu](https://kamami.pl/moduly-komunikacyjne/1200196-kamod-lte-cat1-gnss-hat-gsmgprsgnss-z-modulem-a7670e-fase-do-raspberry-pi-5902186333727.html), [instrukcja PDF](https://download.kamami.pl/p1200196-KAmod%20LTE%20CAT1-GNSS%20z%20modu%C5%82em%20A7670E-FASE%20%28PL%29-2364.pdf), [wiki KamamiLabs](https://wiki.kamamilabs.com/index.php?title=KAmod_LTE_CAT1-GNSS_z_modu%C5%82em_A7670E-FASE_(PL)).
+2. Albo pomiar: **przy odłączonym ESP32** zmierz rezystancję między pinem 12 a GND i między pinem 7 a GND. Wartość rzędu kilku–kilkudziesięciu kΩ = rezystor jest. Rozwarcie = linie pływają i rezystory trzeba dodać.
+
+**Co z tym zrobić:** wpisz wynik do [§5.3 C](#53-trzy-pułapki-elektryczne--przeczytaj-przed-przepięciem-kabli) i odpowiednio osłab albo wzmocnij zalecenie. Jeśli okaże się, że rezystorów nie ma — **zgłoś to jako defekt istniejącego układu na S3**, nie jako element portu, bo dotyczy obu płytek tak samo.
+
+### Zadanie 4 — zmierzyć czasy krypto (opcjonalne)
+
+**Dlaczego ja tego nie zrobiłem:** brak sprzętu i brak buildu.
+
+Procedura, snippet i punkt odniesienia: [§11.3](#113-czasy-operacji-kryptograficznych--opcjonalnie). **To pomiar dla kompletności, nie dla decyzji** — operacja wykonuje się poza oknem RTC WDT, więc nawet dwukrotnie gorszy wynik niczego nie łamie. Rób to dopiero po zamknięciu zadań 1–3.
+
+**Pamiętaj:** `ensureKey()` wykonuje się raz w życiu urządzenia, więc powtórzenie pomiaru wymaga `pio run -t erase`, co kasuje tożsamość urządzenia i **zużywa kolejny kod aktywacyjny** ([§10](#10-kolejność-uruchomienia)).
+
+### Czego NIE trzeba już weryfikować
+
+Żeby kolejny agent nie palił czasu na to, co jest zamknięte — poniższe zostało ustalone z kodu źródłowego Espressif i arduino-esp32, nie z materiałów wtórnych, i nie wymaga powtórki:
+
+- brak `SOC_ECC_SUPPORTED` na obu chipach i wynikający z tego brak akceleracji ECC ([§8.1](#81-kryptografia--brak-akceleratora-ecc-na-obu-chipach));
+- identyczny limit RAM 327 680 B w obu manifestach płytek ([§8.2](#82-ram--limit-identyczny));
+- `ARDUINO_USB_CDC_ON_BOOT == 0` → `Serial` = UART0 ([§8.4](#84-usbserial--już-dziś-uart0));
+- dokładne rozmiary partycji z `tools/partitions/*.csv` ([§7](#7-flash-i-partycje--jedyna-otwarta-kwestia-wykonalności));
+- ograniczenia GPIO klasycznego ESP32, piny strappingowe, nieistniejące GPIO 24/28–31 ([§5.1](#51-ograniczenia-klasycznego-esp32--twarde-fakty));
+- `LED_BUILTIN` per wariant płytki ([§5.5](#55-dioda-statusu));
+- `Adafruit_MAX31865` używa `SPI_MODE1` przy 1 MHz (sprawdzone w źródle biblioteki, uzasadnia analizę GPIO 12);
+- snippet `platformio.ini` przepuszczony przez `pio project config` ([§6.3](#63-platformioini--drugie-środowisko-obok-istniejącego)).
+
+---
+
+## 14. Ustalenia poboczne — do osobnego zgłoszenia
 
 Rzeczy znalezione przy okazji tej analizy. **Żadna nie dotyczy portu** — wszystkie występują tak samo na dzisiejszym ESP32-S3 — ale skoro wyszły przy czytaniu całego firmware'u, zapisuję je tutaj zamiast zgubić. Uporządkowane wg tego, jak mocno mogą zaboleć.
 
@@ -534,7 +656,7 @@ Rzeczy znalezione przy okazji tej analizy. **Żadna nie dotyczy portu** — wszy
 
 ---
 
-## 14. Źródła
+## 15. Źródła
 
 ### Kod i dokumentacja repozytorium
 
