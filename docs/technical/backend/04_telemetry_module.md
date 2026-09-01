@@ -58,7 +58,9 @@ Komentarz w kodzie tłumaczy dlaczego nie `MAX(device_id)`: zwróciłby leksykog
 
 **Najświeższy pomiar per punkt bez rankowania historii** — `latest_for_objects` łączy się z `measurements` po `window_start = (SELECT max(window_start) ... WHERE measurement_point_id = ...)`. Obie połowy jadą po kluczu głównym `(measurement_point_id, window_start)`: podzapytanie czyta maksimum z indeksu, join trafia w dokładnie ten wiersz. Poprzednia wersja rankowała `row_number()` po wszystkich pakietach obiektu, więc jej koszt rósł z liczbą przechowywanych pakietów.
 
-**`available_points` z rejestru punktów, nie ze skanu telemetrii** — punkt istnieje dokładnie dlatego, że urządzenie go zgłosiło (auto-provisioning) albo operator go założył; przekopywanie ostatnich 100 pakietów, żeby odtworzyć tę samą listę, było pracą do wyrzucenia.
+**`available_points` z rejestru punktów, nie ze skanu telemetrii** — punkt istnieje dokładnie dlatego, że urządzenie go zgłosiło (auto-provisioning) albo operator go założył; przekopywanie ostatnich 100 pakietów, żeby odtworzyć tę samą listę, było pracą do wyrzucenia. Zapytanie odsiewa jednak punkty **bez ani jednego pomiaru** (`EXISTS`, jedna sonda po indeksie na punkt): lista odpowiada na pytanie „co da się wykreślić", a punkt założony ręcznie i nigdy niepodłączony dałby klientowi pustą serię.
+
+**Zapis dzielony na porcje mieszczące się w limicie parametrów** — jeden wielowierszowy `INSERT` niesie jeden parametr bindowania na kolumnę na wiersz, a backendy to limitują (PostgreSQL 65535 parametrów protokołu, SQLite `SQLITE_MAX_VARIABLE_NUMBER`). Jedna paczka backfillu (500 pakietów × 4 okna × 3 czujniki = 6000 wierszy) przekracza ten limit, więc repozytorium tnie zapis na porcje wyliczone z `dialect.insertmanyvalues_max_parameters` i liczby kolumn modelu — dodanie kolumny albo zmiana backendu nie wypchnie paczki poza limit po cichu.
 
 **`limit=None` w `list_objects`** — repozytorium wspiera zwrócenie kompletnego zbioru bez limitu, bo serwis czasem filtruje po statusie (`no_data`/`no_comm`/`warning`/`ok`), którego nie da się wyrazić w SQL bez dodatkowego joina na "ostatni pakiet" — więc musi mieć cały zbiór przed paginacją.
 
@@ -125,7 +127,7 @@ Firmware v2 i dalej wysyła pakiety w formacie `/telemetry/ingest` (`POST`):
 | Endpoint | Zwraca |
 |---|---|
 | `GET /api/v1/orgs/{org_id}/telemetry/objects` | Lista obiektów: status, ostatni kontakt (z `telemetry_packets`), najświeższy odczyt każdego punktu (z `measurements`) |
-| `GET /api/v1/orgs/{org_id}/telemetry/objects/{object_id}` | Szczegóły obiektu + `available_points` (z rejestru punktów) |
+| `GET /api/v1/orgs/{org_id}/telemetry/objects/{object_id}` | Szczegóły obiektu + `available_points` (aktywne punkty obiektu, które mają jakikolwiek pomiar) |
 | `GET /api/v1/orgs/{org_id}/telemetry/objects/{object_id}/measurements?point_id=&type=&start=&end=&limit=` | Szereg czasowy całego obiektu |
 | `GET /api/v1/orgs/{org_id}/telemetry/points/{point_id}/measurements?from=&to=&limit=` | Historia **jednego** punktu pomiarowego |
 
@@ -152,7 +154,7 @@ Partycje są niewidoczne dla `alembic revision --autogenerate`, bo `include_name
 [`scripts/backfill_measurements.py`](../../backend/scripts/backfill_measurements.py) przepisuje istniejące bloby z `telemetry_packets` do `measurements`. Zaprojektowany pod uruchomienie na żywym systemie, bez okna serwisowego:
 
 - **addytywny** — nie modyfikuje ani nie kasuje żadnego pakietu,
-- **batchowany** — jedna transakcja na paczkę pakietów (`--batch-size`, domyślnie 500),
+- **batchowany** — jedna transakcja na paczkę pakietów (`--batch-size`, domyślnie 500); sam zapis dzieli się dodatkowo na porcje mieszczące się w limicie parametrów bindowania bazy, więc większy `--batch-size` nie wysadzi instrukcji,
 - **wznawialny** — kursor `(received_at, packet_id)` zapisywany do pliku stanu po każdym zacommitowanym batchu; `--restart` zaczyna od początku,
 - **idempotentny** — wstawia przez ten sam `ON CONFLICT DO NOTHING`, więc ponowne uruchomienie (albo wyścig z żywym ingestem) nie tworzy duplikatów,
 - **raportujący** — na końcu: ile pakietów, ile wierszy wstawionych, ile już było, ile punktów odrzuconych i z jakiego powodu (`unknown_device`, `unknown_point`, `point_type_mismatch`, `malformed_window`, `malformed_point`).

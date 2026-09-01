@@ -2,6 +2,7 @@
 
 from datetime import UTC, datetime, timedelta, timezone
 from unittest.mock import MagicMock
+from uuid import uuid4
 
 import pytest
 from sqlalchemy import select
@@ -14,7 +15,10 @@ from app.modules.core_data.repositories.measurement_points import (
 )
 from app.modules.core_data.services.measurement_points import MeasurementPointService
 from app.modules.telemetry.models import Measurement
-from app.modules.telemetry.repositories.measurements import MeasurementRepository
+from app.modules.telemetry.repositories.measurements import (
+    MeasurementRepository,
+    insert_chunk_rows,
+)
 from app.modules.telemetry.repositories.packets import TelemetryPacketRepository
 from app.modules.telemetry.schemas.measurement_packet import (
     MeasurementPacketRequest,
@@ -288,6 +292,53 @@ def test_window_start_is_normalized_to_utc(session: Session, device: Device) -> 
     )
 
     assert len(_measurements(session)) == 1
+
+
+def test_a_batch_larger_than_one_statement_is_written_whole(
+    session: Session, device: Device
+) -> None:
+    """One INSERT carries one bind parameter per column per row, and PostgreSQL
+    caps a statement at 65535 of them — a backfill batch goes over that, so the
+    repository chunks. Every row must still land.
+    """
+    repository = MeasurementRepository(session)
+    point_id = uuid4()
+    session.add(
+        MeasurementPoint(
+            id=point_id,
+            device_id=device.id,
+            external_id="bulk-sensor",
+            point_type="pressure",
+            unit="bar",
+            created_at=datetime.now(UTC),
+            updated_at=datetime.now(UTC),
+        )
+    )
+    session.flush()
+
+    rows = [
+        {
+            "measurement_point_id": point_id,
+            "window_start": WINDOW_START + timedelta(seconds=15 * offset),
+            "window_seconds": 15,
+            "avg": None,
+            "min": None,
+            "max": None,
+            "value": float(offset),
+            "value_bool": None,
+            "quality": "good",
+            "received_at": WINDOW_START,
+            "source_packet_id": None,
+        }
+        for offset in range(insert_chunk_rows(session.get_bind().dialect) + 25)
+    ]
+
+    inserted = repository.insert_ignoring_duplicates(rows)
+
+    assert inserted == len(rows)
+    assert len(_measurements(session)) == len(rows)
+    # And a second pass is still a no-op across the chunk boundary.
+    assert repository.insert_ignoring_duplicates(rows) == 0
 
 
 def test_source_packet_id_points_at_the_stored_blob(

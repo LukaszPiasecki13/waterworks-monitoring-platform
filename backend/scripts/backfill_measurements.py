@@ -88,6 +88,7 @@ class Report:
     inserted: int = 0
     rejected: Counter = field(default_factory=Counter)
     started_at: float = field(default_factory=time.monotonic)
+    dry_run: bool = False
 
     @property
     def duplicates(self) -> int:
@@ -97,8 +98,14 @@ class Report:
     def print_summary(self) -> None:
         elapsed = time.monotonic() - self.started_at
         print(f"\nPackets processed : {self.packets}")
-        print(f"Rows inserted     : {self.inserted}")
-        print(f"Rows already there: {self.duplicates}")
+        if self.dry_run:
+            # Nothing was written, so "already there" would be every candidate
+            # row and would read as a result rather than as an artifact of the
+            # dry run.
+            print(f"Rows to write     : {self.candidates} (dry run, nothing written)")
+        else:
+            print(f"Rows inserted     : {self.inserted}")
+            print(f"Rows already there: {self.duplicates}")
         print(f"Points rejected   : {sum(self.rejected.values())}")
         for reason, count in sorted(self.rejected.items()):
             print(f"  {reason}: {count}")
@@ -300,7 +307,7 @@ def run(args: argparse.Namespace) -> Report:
     session = create_session()
     repository = MeasurementRepository(session)
     resolver = PointResolver(session)
-    report = Report()
+    report = Report(dry_run=args.dry_run)
     state_file = Path(args.state_file)
     ensured_months: set[tuple[int, int]] = set()
 

@@ -67,6 +67,44 @@ def _create(session: Session, statement: str, partition: str) -> bool:
     return True
 
 
+def partition_statements(first: datetime, last: datetime) -> list[tuple[str, str]]:
+    """The (partition name, DDL) pairs covering the months of [first, last].
+
+    Split out from the execution below so the month arithmetic and the range
+    bounds — the part that is easy to get wrong at a year boundary and
+    impossible to test without PostgreSQL otherwise — can be asserted on
+    directly.
+
+    Bounds are formatted from datetimes computed here, never from request
+    data: PostgreSQL accepts no bind parameters in DDL, so the values are
+    interpolated, and nothing user-supplied may reach this string.
+    """
+    statements = [
+        (
+            DEFAULT_PARTITION,
+            f"CREATE TABLE IF NOT EXISTS {DEFAULT_PARTITION} "
+            f"PARTITION OF {MEASUREMENTS_TABLE} DEFAULT",
+        )
+    ]
+
+    month = _month_floor(first)
+    end = _month_floor(last)
+    while month <= end:
+        upper = _next_month(month)
+        statements.append(
+            (
+                f"{MEASUREMENTS_TABLE}_{month:%Y_%m}",
+                f"CREATE TABLE IF NOT EXISTS {MEASUREMENTS_TABLE}_{month:%Y_%m} "
+                f"PARTITION OF {MEASUREMENTS_TABLE} FOR VALUES "
+                f"FROM ('{month:%Y-%m-%d %H:%M:%S%z}') "
+                f"TO ('{upper:%Y-%m-%d %H:%M:%S%z}')",
+            )
+        )
+        month = upper
+
+    return statements
+
+
 def ensure_measurement_partitions(
     session: Session,
     *,
@@ -94,37 +132,16 @@ def ensure_measurement_partitions(
         return []
 
     now = datetime.now(UTC)
-    first = _month_floor(start or _shift_months(now, -months_back))
-    last = _month_floor(end or _shift_months(now, months_ahead))
+    # The default partition comes first and keeps ingest working even if this
+    # maintenance never runs again; without it an out-of-range window_start
+    # would be a failed insert.
+    statements = partition_statements(
+        start or _shift_months(now, -months_back),
+        end or _shift_months(now, months_ahead),
+    )
 
-    ensured: list[str] = []
-
-    # The default partition keeps ingest working even if this maintenance
-    # never runs again; without it an out-of-range window_start is a 500.
-    if _create(
-        session,
-        f"CREATE TABLE IF NOT EXISTS {DEFAULT_PARTITION} "
-        f"PARTITION OF {MEASUREMENTS_TABLE} DEFAULT",
-        DEFAULT_PARTITION,
-    ):
-        ensured.append(DEFAULT_PARTITION)
-
-    month = first
-    while month <= last:
-        upper = _next_month(month)
-        partition = f"{MEASUREMENTS_TABLE}_{month:%Y_%m}"
-        # Bounds are formatted from datetimes computed here, never from
-        # request data — PostgreSQL does not accept bind parameters in DDL.
-        created = _create(
-            session,
-            f"CREATE TABLE IF NOT EXISTS {partition} "
-            f"PARTITION OF {MEASUREMENTS_TABLE} FOR VALUES "
-            f"FROM ('{month:%Y-%m-%d %H:%M:%S%z}') "
-            f"TO ('{upper:%Y-%m-%d %H:%M:%S%z}')",
-            partition,
-        )
-        if created:
-            ensured.append(partition)
-        month = upper
-
-    return ensured
+    return [
+        partition
+        for partition, statement in statements
+        if _create(session, statement, partition)
+    ]

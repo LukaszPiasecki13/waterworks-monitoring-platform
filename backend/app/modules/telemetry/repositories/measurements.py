@@ -7,6 +7,7 @@ from uuid import UUID
 from sqlalchemy import Row, Select, func, insert, select
 from sqlalchemy.dialects.postgresql import insert as postgresql_insert
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
+from sqlalchemy.engine import Dialect
 from sqlalchemy.orm import Session
 
 from app.infrastructure.sql.repository import SQLRepository
@@ -16,6 +17,29 @@ from app.modules.telemetry.models.measurement import Measurement
 # The natural key of a measurement; also the conflict target that makes a
 # re-sent packet a no-op instead of a duplicate row.
 CONFLICT_COLUMNS = ("measurement_point_id", "window_start")
+
+COLUMN_COUNT = len(Measurement.__table__.columns)
+
+# Used when a dialect does not advertise its own limit.
+FALLBACK_MAX_BIND_PARAMS = 32700
+
+
+def insert_chunk_rows(dialect: Dialect) -> int:
+    """How many rows fit in one multi-row INSERT on this database.
+
+    A statement sends one bind parameter per column per row, and every backend
+    caps them (PostgreSQL at 65535 wire-protocol parameters, SQLite at its
+    SQLITE_MAX_VARIABLE_NUMBER). One backfill batch — 500 packets x 4 windows x
+    3 sensors is 6000 rows — goes over that, so rows are chunked in the
+    repository rather than at every call site. Both the limit and the column
+    count are read at runtime, so neither a different backend nor a new column
+    can silently push a batch over the edge.
+    """
+    limit = getattr(
+        dialect, "insertmanyvalues_max_parameters", FALLBACK_MAX_BIND_PARAMS
+    )
+    return max(1, limit // COLUMN_COUNT)
+
 
 _MEASUREMENT_FIELDS = (
     "window_start",
@@ -70,18 +94,30 @@ class MeasurementRepository(SQLRepository):
         }
         values = list(deduplicated.values())
 
+        chunk_rows = insert_chunk_rows(self.session.get_bind().dialect)
+
+        inserted = 0
+        for start in range(0, len(values), chunk_rows):
+            chunk = values[start : start + chunk_rows]
+            result = self.session.execute(self._insert_statement(chunk))
+            inserted += result.rowcount
+        return inserted
+
+    def _insert_statement(self, values: list[dict]):
+        """Build the conflict-skipping INSERT for the session's dialect.
+
+        Both PostgreSQL and SQLite spell it `ON CONFLICT DO NOTHING`; any other
+        backend gets a plain INSERT and will raise on a duplicate rather than
+        silently losing the idempotency guarantee.
+        """
         dialect = self.session.get_bind().dialect.name
         if dialect == "postgresql":
             stmt = postgresql_insert(Measurement).values(values)
-            stmt = stmt.on_conflict_do_nothing(index_elements=CONFLICT_COLUMNS)
-        elif dialect == "sqlite":
+            return stmt.on_conflict_do_nothing(index_elements=CONFLICT_COLUMNS)
+        if dialect == "sqlite":
             stmt = sqlite_insert(Measurement).values(values)
-            stmt = stmt.on_conflict_do_nothing(index_elements=CONFLICT_COLUMNS)
-        else:
-            stmt = insert(Measurement).values(values)
-
-        result = self.session.execute(stmt)
-        return result.rowcount
+            return stmt.on_conflict_do_nothing(index_elements=CONFLICT_COLUMNS)
+        return insert(Measurement).values(values)
 
     def _object_scoped(self, stmt: Select, object_id: UUID) -> Select:
         return (
@@ -202,12 +238,21 @@ class MeasurementRepository(SQLRepository):
         return self.session.execute(stmt).scalar()
 
     def available_point_ids(self, object_id: UUID) -> list[str]:
-        """External ids of the active measurement points of an object.
+        """External ids of the active points of an object that hold data.
 
-        Read from the point registry rather than from recent packets: a point
-        exists precisely because a device reported it (or an operator created
-        it), so scanning telemetry to rediscover the same list is wasted work.
+        Driven by the point registry rather than by a scan of recent packets —
+        but a point with no measurement at all is left out, because the list
+        answers "what can this object be charted on". A point an operator
+        created by hand and no device ever reported would otherwise offer an
+        empty series. The EXISTS is one index probe per point, against the
+        primary key.
         """
+        has_data = (
+            select(Measurement.window_start)
+            .where(Measurement.measurement_point_id == MeasurementPoint.id)
+            .correlate(MeasurementPoint)
+            .exists()
+        )
         stmt = (
             select(MeasurementPoint.external_id)
             .select_from(MeasurementPoint)
@@ -216,6 +261,7 @@ class MeasurementRepository(SQLRepository):
             .where(
                 WaterObject.id == object_id,
                 MeasurementPoint.is_active.is_(True),
+                has_data,
             )
             .distinct()
             .order_by(MeasurementPoint.external_id)

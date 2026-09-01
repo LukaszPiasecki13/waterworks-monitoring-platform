@@ -200,9 +200,11 @@ def test_get_point_measurements_hides_points_of_other_organizations(
 def test_available_points_come_from_the_point_registry(
     session: Session, device: Device
 ) -> None:
-    _point(session, device, "pressure-inlet")
-    _point(session, device, "pt100", point_type="temperature", unit="°C")
-    _point(session, device, "old-sensor", is_active=False)
+    pressure = _point(session, device, "pressure-inlet")
+    temperature = _point(session, device, "pt100", point_type="temperature", unit="°C")
+    retired = _point(session, device, "old-sensor", is_active=False)
+    for point in (pressure, temperature, retired):
+        _measurement(session, point, offset_seconds=0, value=1.0)
     session.commit()
 
     available = MeasurementRepository(session).available_point_ids(
@@ -210,3 +212,21 @@ def test_available_points_come_from_the_point_registry(
     )
 
     assert available == ["pressure-inlet", "pt100"]
+
+
+def test_available_points_skip_a_point_that_never_reported(
+    session: Session, device: Device
+) -> None:
+    """A hand-created point with no data would offer the dashboard an empty
+    series, so it is not advertised as chartable.
+    """
+    pressure = _point(session, device, "pressure-inlet")
+    _point(session, device, "planned-but-never-wired")
+    _measurement(session, pressure, offset_seconds=0, value=3.40)
+    session.commit()
+
+    available = MeasurementRepository(session).available_point_ids(
+        device.water_object_id
+    )
+
+    assert available == ["pressure-inlet"]
