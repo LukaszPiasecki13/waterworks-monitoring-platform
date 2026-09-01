@@ -2,6 +2,8 @@
 
 Źródło prawdy dla fizycznych połączeń ESP32-S3. Przed dotknięciem GPIO — sprawdź tutaj, nie zgaduj.
 
+> **Rozważasz klasyczny ESP32 (ESP-WROOM-32)?** Mapa poniżej dotyczy wyłącznie ESP32-S3 i **nie przenosi się** — GPIO 48 nie istnieje, GPIO 11 należy do flasha, GPIO 12 i 5 są pinami strappingowymi. Proponowana mapa pinów dla WROOM-32 wraz z uzasadnieniem każdego wyboru i pułapkami strappingowymi: [`08_analiza_portu_esp32_wroom.md`](./08_analiza_portu_esp32_wroom.md). Ten dokument pozostaje źródłem prawdy dla sprzętu **faktycznie zbudowanego** — port nie został wykonany, więc tabele poniżej opisują jedyny istniejący układ.
+
 Status każdej pozycji jest oznaczony w tabeli:
 - **zweryfikowane** — pin jest używany w kodzie firmware ([`Config.h`](../../../firmware/include/Config.h) + biblioteka go faktycznie steruje).
 - **draft** — planowane podłączenie, nieobecne w obecnym kodzie firmware (brak biblioteki/odczytu).
