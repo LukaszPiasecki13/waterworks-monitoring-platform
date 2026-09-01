@@ -6,11 +6,43 @@
 
 ---
 
+## Streszczenie — jeśli czytasz tylko jedną stronę
+
+**Pozycja względem rynku:** z przodu na **2** wymiarach z 11, na poziomie na **2**, z tyłu na **7**.
+
+**Z przodu jesteśmy tam, gdzie rynek nie patrzy:**
+- **Format telemetrii** — okna agregowane z `quality` per punkt, katalog kodów błędów, idempotencja po `(device_id, seq)`, a przepełnienie bufora **zgłasza samo siebie** kodem `WINDOW_DROPPED_BUFFER_FULL` zamiast po cichu gubić dane. Typowy logger na rynku wysyła surowe próbki bez metadanych jakości.
+- **Model kryptograficzny tożsamości** — klucz generowany na urządzeniu, brak współdzielonego sekretu, challenge/response. Mocniejsze niż provisioning fabryczny (HWM), porównywalne z MQTT X.509 (UniStream).
+
+**Trzy luki blokują obietnicę produktu, a nie tylko ją osłabiają:**
+
+| Luka | Stan | Dlaczego blokuje |
+|---|---|---|
+| **Brak Modbus RTU** | nie ma ani linii kodu | „Neutralność sprzętowa" z `CONTEXT.md` i ADR-0002 jest dziś **niewykonalna technicznie** — nie podepniemy przepływomierza, który gmina już ma |
+| **Brak OTA** | nie ma ani linii kodu | Każda poprawka = wyjazd do obiektu. Przy NIS2 gmina ma prawo pytać „jak łatacie podatność w terenie" — nie mamy czym odpowiedzieć |
+| **Brak modułu alarmów** | nie ma modułu | UC-03 i UC-04 z planu nie są zrealizowane. To główna funkcja produktu |
+
+**Cztery rozbieżności dokumentacja–kod** (szczegóły w §9, dowody z `grep`):
+1. `CONTEXT.md` obiecuje **72 h** bufora lokalnego — faktycznie **12 minut w RAM**, kasowane przy restarcie (360× różnicy).
+2. `01_hardware.md` opisuje syntetyczny tor ciśnienia — **w firmware nie ma żadnego kodu ciśnienia**, więc połowa zakresu MVP („temperatura + ciśnienie") nie jest napisana.
+3. Brief B-04 zakłada wyłączony prebuild hook — **jest aktywny**.
+4. Brief B-05 zakłada konflikt 136 Ω / 250 Ω i istniejący `PressureSensor.cpp` — **kod nie potwierdza żadnego z dwóch**.
+
+**Kupić czy zbudować:** provisioning, OTA i zarządzanie flotą — **budować samemu**. Gotowe platformy (Golioth, AWS IoT) wymagałyby zmiany transportu albo wciągnięcia całego ekosystemu chmurowego; `esp_https_ota` daje rollback za darmo na uwierzytelnieniu, które już mamy. Jedyny kandydat wart rozmowy to **Blues Notecard** — ale to decyzja o wariancie sprzętowym, więc należy do B-01, nie tutaj (§7.2).
+
+**Sugerowana kolejność prac:** `F5 → F1 → F2+B2 → F4+B4 → B1 → B7+B6 → B3+F3+H2 → B5 → F6 → H1/H3` (§8.4).
+
+**Zastrzeżenie do wiarygodności:** badanie prowadzone bez bezpośredniego dostępu do stron — patrz §0.1 i runbook uzupełniający w §12. Wnioski kierunkowe się bronią, **pojedyncze liczby wymagają potwierdzenia u źródła**.
+
+---
+
 ## 0. Metoda i jej ograniczenia
 
 ### 0.1. Ograniczenie techniczne badania — przeczytaj przed użyciem wniosków
 
-**W sesji, w której powstał ten dokument, bezpośrednie pobieranie stron (WebFetch/curl) było zablokowane przez politykę egress organizacji** — sprawdzone na `inventia.pl`, `aquard.pl`, `kallipr.com`, `docs.golioth.io` i `en.wikipedia.org` (wszystkie: `403` na tunelu CONNECT / `EGRESS_BLOCKED`). Działało wyłącznie wyszukiwanie (WebSearch), które zwraca odpowiedź syntetyzowaną z treści stron wraz z adresami źródeł.
+**W sesji, w której powstał ten dokument, bezpośrednie pobieranie stron było zablokowane przez politykę egress organizacji** — sprawdzone na `inventia.pl`, `aquard.pl`, `kallipr.com`, `docs.golioth.io` i `en.wikipedia.org` (wszystkie: `403` na tunelu CONNECT / `EGRESS_BLOCKED`). Działało wyłącznie wyszukiwanie (WebSearch), które zwraca odpowiedź syntetyzowaną z treści stron wraz z adresami źródeł.
+
+**To nie jest ograniczenie narzędzia, tylko sieci — sprawdzone doświadczalnie.** Zainstalowany w środowisku Chromium (`/opt/pw-browsers/chromium-1194/`) uruchomiony bezpośrednio na `https://www.inventia.pl/wod-kan/` zwraca **`ERR_TUNNEL_CONNECTION_FAILED`** — czyli ten sam odrzucony tunel CONNECT co `curl` i WebFetch. Dla kontrastu host dozwolony (`pypi.org`) jest osiągalny. **Wniosek praktyczny: przeglądarka, Playwright ani żadne inne narzędzie uruchomione w tym środowisku nie obejdzie tej blokady.** Uzupełnienie badania wymaga środowiska z inną polityką egress albo człowieka z przeglądarką — instrukcja krok po kroku w [§12](#12-runbook-dla-kolejnego-agenta--jak-domknąć-to-badanie).
 
 Konsekwencja, którą trzeba znać czytając tabele niżej:
 
@@ -94,7 +126,7 @@ Zgodnie z briefem: dokumentacja techniczna i developerska producenta → karty k
 | Tożsamość urządzenia | para EC P-256 generowana **na urządzeniu**, challenge/response, token Bearer 36 h. Klucz prywatny (32 B) w NVS przez `Preferences`. | [`DeviceIdentity.cpp:205`](../../firmware/lib/DeviceIdentity/src/DeviceIdentity.cpp#L205), [`06_device_identity_module.md`](../technical/backend/06_device_identity_module.md) |
 | Provisioning w terenie | kod aktywacyjny wpisywany **przez port szeregowy**: `ACTIVATE YU4N-6HGS-Y3` → `ACTIVATION_CODE_ACCEPTED` | [`04_device_provisioning_flow.md §3.2`](../technical/firmware/04_device_provisioning_flow.md) |
 | Format telemetrii | okna agregowane (15 s), batch 4 okien ≈ 60 s, `quality` per punkt, `errors[]` z kodami, dedupe po `(device_id, seq)` → `200 duplicate` | [`04_telemetry_module.md §3, §5`](../technical/backend/04_telemetry_module.md) |
-| Bufor lokalny | **wyłącznie RAM**, `RETAIN_WINDOWS_MAX = 12 × WINDOWS_PER_BATCH` ≈ **12 minut** | [`04_telemetry_module.md §5`](../technical/backend/04_telemetry_module.md) |
+| Bufor lokalny | **`std::vector` w RAM**, `RETAIN_WINDOWS_MAX = WINDOWS_PER_BATCH × 12` = 48 okien × `WINDOW_SECONDS` 15 s = **720 s = 12 minut**. Po przepełnieniu: `dropOldestWindow()` **+ zarejestrowany błąd `WINDOW_DROPPED_BUFFER_FULL`** — utrata danych jest raportowana, nie cicha | [`TelemetryPayload.h:34-37`](../../firmware/lib/TelemetryPayload/src/TelemetryPayload.h#L34-L37), [`TelemetryPayload.cpp:34-38`](../../firmware/lib/TelemetryPayload/src/TelemetryPayload.cpp#L34-L38), kod obecny w [`sensor_registry.yaml:76`](../../sensor_registry.yaml#L76) |
 | Konfiguracja bez rekompilacji | [`sensor_registry.yaml`](../../sensor_registry.yaml) — tylko `point_types` i `error_codes`. **Brak profili urządzeń, brak mapowania rejestrów, brak konfiguracji z przeglądarki.** Nowy czujnik = nowa klasa C++ + rekompilacja. | [`sensor_registry.yaml`](../../sensor_registry.yaml), [`04_telemetry_module.md §5`](../technical/backend/04_telemetry_module.md) |
 | OTA | **nie istnieje.** Brak `esp_ota`, `Update.h`, `httpUpdate`, `ArduinoOTA` w całym `firmware/`. | `grep -rn "esp_ota\|Update.h\|httpUpdate\|ArduinoOTA" firmware/` → 0 trafień |
 | Zarządzanie flotą / SIM | brak. Brak kanałów wydawniczych, rollbacku, inwentarza kart SIM. | jw. |
@@ -115,7 +147,7 @@ Tabela rozbita na trzy części dla czytelności. **W3** = wariant docelowy nasz
 |---|---|---|---|---|
 | **NASZ SYSTEM** | zestaw deweloperski, montaż własny, brak obudowy/IP/ochrony przepięciowej, zasilanie sieciowe 5 V | PT100 przez SPI. 4-20 mA **niezaimplementowane**. Modbus **brak** | HTTPS POST JSON, specyfikacja udokumentowana wewnętrznie, **niepublikowana** | EC P-256 generowana na urządzeniu + challenge/response + kod jednorazowy. Klucz w **jawnym NVS**. Aktywacja **przez port szeregowy → wymaga laptopa** |
 | **Inventia** (MT-151/251/331) | przemysłowa obudowa na szynę DIN; tryb energooszczędny → praca z baterii lub panelu solarnego `[P/Ś]` | MT-151: 16 wejść binarnych, 12 wyjść binarnych, 4× 4-20 mA, 2× 0-10 V; konfigurowalna liczba wejść licznikowych `[T/Ś]` | MQTT 3.1 (MT-331); dodatkowo Modbus RTU/TCP, M-BUS, IEC 60870-5-104, SNMP, GENIbus jako protokoły polowe `[P/Ś]`. Specyfikacja własnego formatu: **nieujawniona** | rejestracja w DataPortal przez **numer seryjny + IMEI**, bez dodatkowego oprogramowania `[P/Ś]`. Zabezpieczenia zdalnego dostępu: lista autoryzowanych IP i numerów telefonów, opcjonalne hasło, blokada odczytu `[P/Ś]` |
-| **AquaRD** (CellBOX H4) | rejestrator terenowy, warianty **IP68 i IP54**; do **5 lat** pracy na wbudowanych bateriach dzięki uśpieniu modułu GSM `[P/Ś]` | **6 wejść analogowych + 6 cyfrowych**; dwie niezależne magistrale **Modbus RTU/ASCII po RS485**, do 10 urządzeń; wejścia impulsowe z wodomierzy `[P/Ś]` | GPRS / LTE Cat M1 / NB-IoT, opcjonalnie **WIZE 169 MHz** `[P/Ś]`. Format do systemu nadrzędnego: **nieujawniony** publicznie | konfigurator producenta (`Konfigurator CellBOX-UxR RTU` — instrukcja publiczna) `[D/Ś]`. Model tożsamości kryptograficznej: **nieujawniony** |
+| **AquaRD** (CellBOX H4) | rejestrator terenowy, warianty **IP68 i IP54**; do **5 lat** pracy na wbudowanych bateriach dzięki uśpieniu modułu GSM `[P/Ś]` | **6 wejść analogowych + 6 cyfrowych**; dwie niezależne magistrale **Modbus RTU/ASCII po RS485**, do 10 urządzeń; wejścia impulsowe z wodomierzy `[P/Ś]` | GPRS / LTE Cat M1 / NB-IoT, opcjonalnie **WIZE 169 MHz** `[P/Ś]`. Format do systemu nadrzędnego: **nieujawniony** publicznie | konfigurowany narzędziem producenta. **Zastrzeżenie:** jedyna publicznie dostępna instrukcja konfiguratora dotyczy **archiwalnej rodziny CellBOX-UxR**, nie H4 `[D/N]` — przenoszenie z niej wniosków na H4 jest przypuszczeniem, nie ustaleniem. Model tożsamości kryptograficznej: **nieujawniony** |
 | **UniCloud / Unitronics** | sterownik PLC UniStream **albo router UCR** w obiekcie — sprzęt przemysłowy, ale ekosystemowy `[P/Ś]` | przez PLC/router: Modbus i dowolne urządzenia mówiące Modbus podpinane do UniCloud przez routery UCR `[P/Ś]`; EtherNet/IP, SNMP | **MQTT** natywnie, REST API po TLS, OPC UA, SQL client `[P/Ś]` | **MQTT z uwierzytelnianiem X.509** `[P/Ś]` — najbliższy naszemu modelowi asymetrycznemu w polskiej stawce. Uruchomienie deklarowane jako „30 minut" `[M/N]` |
 | **Hawle.live BOX** | gotowa stacja terenowa sprzedawana z armaturą; wariant CAP montowany w hydrancie podziemnym `[P/N]` | sonda optyczna (barwa, mętność) + „szereg innych czujników" — **realny katalog nieujawniony** `[M/N]` | LTE-M i NB-IoT `[P/Ś]`. Protokół aplikacyjny: **nieujawniony** | **nieujawnione** |
 | **AIUT WaterPrime** | nie dostarcza własnego gatewaya — platforma nad cudzymi danymi `[P/Ś]` | integruje dane z opomiarowania, modeli hydraulicznych i zdalnych odczytów; warstwa danych, nie wejść fizycznych `[P/Ś]` | nie dotyczy — integracja na poziomie baz i systemów `[P/Ś]` | nie dotyczy |
@@ -172,7 +204,7 @@ Skala: **z tyłu** / **na poziomie** / **z przodu** względem stawki z §3. Kolu
 | 2 | Interfejsy pomiarowe | **z tyłu, najgłębiej z całej listy** | AquaRD: 6 AI + 6 DI + 2× RS485/Modbus. HWM: 8 kanałów + Modbus master + SDI-12. Metasphere: Modbus master do 10 czujników + SDI-12. My: **jeden kanał, temperatura**. Ciśnienia nie ma w kodzie wcale, Modbus zero | Bez Modbus RTU obietnica „neutralności sprzętowej" z [`CONTEXT.md`](../business/CONTEXT.md) i [ADR-0002](../business/adr/0002-pragmatic-integration-strategy.md) jest **niewykonalna technicznie**. Nie da się podpiąć istniejącego przepływomierza gminy. Co więcej: MVP zdefiniowane w §2.2.1 planu jako „temperatura **+ ciśnienie**" jest dziś zrealizowane w połowie |
 | 3 | Protokół transmisji | **na poziomie** | HTTPS+JSON jest w porządku dla naszego profilu (zasilanie sieciowe, batch 60 s). Rynek idzie w MQTT (Inventia MT-331, UniStream, Kallipr) i WITS-DNP3 (UK). Przewaga rynku nie leży w protokole, tylko w tym, że **Kallipr specyfikację publikuje**, a my nie | Publikacja specyfikacji otwiera drogę integratorom i podnosi wiarygodność przy ocenie technicznej przez gminę. Sama zmiana na MQTT — niewiele |
 | 4 | Tożsamość i provisioning | **rozdwojony: model z przodu, wykonanie z tyłu** | Model logiczny (klucz generowany na urządzeniu, brak współdzielonego sekretu, challenge/response) jest **mocniejszy niż większość stawki** — porównywalny z MQTT X.509 UniStream i lepszy niż provisioning fabryczny HWM. Ale: klucz prywatny leży w **jawnym NVS**, a aktywacja wymaga **podłączenia laptopa kablem** w hydroforni, podczas gdy Kallipr robi to aplikacją przez Bluetooth | Argument bezpieczeństwa jest realny i warto go używać w rozmowie z gminą — **pod warunkiem** domknięcia ochrony klucza. Aktywacja przez serial to konkretny koszt każdego wdrożenia |
-| 5 | Format telemetrii | **z przodu** | Okna agregowane, `quality` per punkt, `errors[]` z katalogiem kodów, idempotencja po `(device_id, seq)` z odpowiedzią `200 duplicate` — to jest dojrzalsze niż typowy logger, który wysyła surowe próbki bez metadanych jakości. **Wyjątek: bufor.** 12 minut w RAM przy stawce, która trzyma dane na microSD (Inventia) i w dużej pamięci nieulotnej (Metasphere) | Format się obroni w rozmowie technicznej. Bufor **nie** — i jest wprost sprzeczny z własną deklaracją 72 h (§9.1) |
+| 5 | Format telemetrii | **z przodu** | Okna agregowane, `quality` per punkt, `errors[]` z katalogiem kodów, idempotencja po `(device_id, seq)` z odpowiedzią `200 duplicate` — dojrzalsze niż typowy logger wysyłający surowe próbki bez metadanych jakości. Dochodzi do tego rzecz, której na rynku nie widać w publicznej dokumentacji: **bufor raportuje własne przepełnienie** kodem `WINDOW_DROPPED_BUFFER_FULL`, więc luka w szeregu czasowym jest **jawna, a nie do wywnioskowania z dziury między znacznikami czasu**. **Wyjątek: pojemność bufora.** 12 minut w RAM przy stawce trzymającej dane na microSD (Inventia) i w dużej pamięci nieulotnej (Metasphere) | Format i sygnalizacja jakości obronią się w rozmowie technicznej — to jest realny materiał na argument sprzedażowy wobec gminy, która była już oszukana „ładnym wykresem" bez informacji o brakach. Pojemność bufora **nie** obroni się i jest wprost sprzeczna z własną deklaracją 72 h (§9.1) |
 | 6 | Konfiguracja bez rekompilacji | **z tyłu, i to jest luka obietnica–stan** | Inventia: zdalna konfiguracja i programowanie przez sieć. HWM: mapowanie rejestrów Modbus narzędziem IDT. Kallipr: częstotliwość logowania od 10 s ustawiana z chmury. My: `sensor_registry.yaml` to katalog typów, **nie profil urządzenia** — nowy czujnik wymaga klasy C++ i rekompilacji | „Profil urządzenia" z [`CONTEXT.md`](../business/CONTEXT.md) dziś nie istnieje jako mechanizm. Każdy nietypowy klient = nowa wersja firmware, czyli dokładnie to, przed czym ADR-0002 ostrzega |
 | 7 | OTA i zarządzanie flotą | **z tyłu, całkowicie — mamy zero** | Inventia zdalnie wymienia **firmware i aplikację przez GPRS** i robi to od lat. Metasphere: zdalna aktualizacja firmware. Kallipr: OTA z powiadomieniem w Kloud + osobny produkt Kloud Fleet. My: brak jakiegokolwiek mechanizmu | Bez OTA każda poprawka to wyjazd do obiektu. Gorzej: **przy NIS2/KSC brak procesu aktualizacji jest wprost zagrożeniem nr 7 z §5.2.8 planu** — gmina jako podmiot kluczowy ma prawo tego wymagać kontraktowo i nie mamy czym odpowiedzieć |
 | 8 | Model danych i retencja | **z tyłu** | Stawka w większości nie ujawnia silnika, ale wzorzec inżynierski jest ustalony: hypertable + continuous aggregates + polityka retencji (Timescale), albo data lake (Xylem). My: JSONB w jednej tabeli, **bez retencji i bez downsamplingu**, z `MAX_PACKETS_PER_SERIES = 5000` jako protezą | Przy 15 obiektach × 60 s tabela rośnie bez ograniczenia, a wykresy roczne będą albo wolne, albo obcięte limitem 5000 pakietów. To dług, który rośnie liniowo z czasem działania pilotażu |
@@ -313,8 +345,8 @@ Ta sekcja jest **celowo oddzielona** od tabeli w §3. Golioth, Blues, Balena, Te
 |---|---|---|---|
 | **Blues Wireless** (Notecard + Notehub) | moduł komórkowy **z prepaid transmisją**, secure element z certyfikatem **ECC P-384 wgranym na etapie produkcji chipu**, Notehub: OTA, zarządzanie flotą, zmienne środowiskowe per flota, routing danych do własnej chmury po TLS. Urządzenie **nie ma publicznego adresu IP** i nie stoi w publicznym internecie | **od $49** za Notecard z **10 latami usługi i 500 MB** danych; brak abonamentu i opłat SIM `[P/Ś]` | **Zastępuje nasz modem, nie uzupełnia go.** To decyzja sprzętowa: A7670E + `ModemLink` + `ModemPower` + `TelemetryHttpClient` + `DeviceAuthClient` znikają, zastąpione komunikacją I²C/UART z Notecard. Duża zmiana, ale usuwa najbardziej awaryjną warstwę firmware'u |
 | **Golioth** | zarządzanie urządzeniami, OTA, logi, ustawienia; wspiera ESP-IDF/ESP32 | free tier: **1 GB OTA/mies. i 200 MB logów/mies.**, bez opłat za połączenia. Model płatny od 2026-04-01: **$0,25 za unikalne urządzenie na miesiąc**, $0,35/MB OTA ponad limit, $0,20/MB logów `[P/Ś]` | **Problem: transport.** Golioth komunikuje się przez CoAP/DTLS po stosie sieciowym urządzenia. Nasz gateway nie ma stosu IP — ma modem sterowany komendami AT przez TinyGSM. Integracja wymagałaby albo przejścia na tryb PPP/`esp_modem`, albo przepisania warstwy transportu. **To nie jest „dodaj bibliotekę"** |
-| **Memfault** | obserwowalność urządzeń (coredumpy, metryki, heartbeaty) + OTA | **brak publicznego cennika per urządzenie**; w AWS Marketplace widoczna oferta kontraktowa rzędu **$100 000/rok** `[T/N]` — pozycjonowanie enterprise | Wartość realna (diagnostyka zdalna to nasza słaba strona), ale przy kilku prototypach nieproporcjonalna. **Odłożyć** |
-| **AWS IoT Core** | broker MQTT z X.509, shadow, jobs (OTA), reguły | model per komponent; przykładowo **$0,042 za urządzenie rocznie** za samą łączność `[T/N]` | Tanio i dojrzale, ale wciąga cały ekosystem AWS do backendu, który dziś jest samodzielnym monolitem FastAPI na Render. **Duża zmiana architektoniczna dla jednej funkcji** |
+| **Memfault** | obserwowalność urządzeń (coredumpy, metryki, heartbeaty) + OTA | **brak publicznego cennika per urządzenie.** W AWS Marketplace widoczna pojedyncza oferta kontraktowa rzędu $100 tys./rok `[T/N]` — **nie traktować tego jako ceny produktu**: to jeden listing enterprise, nie cennik. Sygnał jest taki, że produkt nie jest pozycjonowany self-service | Wartość realna (diagnostyka zdalna to nasza słaba strona), ale przy kilku prototypach nieproporcjonalna. **Odłożyć** |
+| **AWS IoT Core** | broker MQTT z X.509, shadow, jobs (OTA), reguły | rozliczenie per komponent (łączność / wiadomości / jobs), naliczane od minut połączenia i liczby wiadomości. Krążąca w zestawieniach kwota „$0,042 za urządzenie rocznie" pochodzi z agregatora cen, nie z AWS `[T/N]` — **przy naszym profilu (połączenie ciągłe, pakiet co 60 s) trzeba ją przeliczyć samodzielnie z oficjalnego cennika, nie przepisywać** | Tanio i dojrzale, ale wciąga cały ekosystem AWS do backendu, który dziś jest samodzielnym monolitem FastAPI na Render. **Duża zmiana architektoniczna dla jednej funkcji** |
 | **balena** | flota urządzeń **linuksowych** w kontenerach | pierwsze **10 urządzeń za darmo**; plany od ~**$159/mies.** (30 urządzeń) `[P/Ś]` | **Nieprzenośne** — wymaga Linuksa. Odrzucone (§1.3) |
 | **Telit deviceWISE** | platforma IoT enterprise, FOTA, kampanie aktualizacji | **nieujawniony** (pay-as-you-go bez publicznego cennika) `[P/N]` | Bez publicznej ceny i publicznej dokumentacji integracyjnej nie da się ocenić. **Odrzucone na tym etapie** |
 
@@ -562,10 +594,69 @@ Wszystkie linki dostępne publicznie, stan na **2026-09-01**. Zgodnie z §0.1 tr
 
 ## 11. Otwarte pytania
 
-Rzeczy, których ta analiza **nie rozstrzygnęła** i które wymagają albo dostępu do źródeł (§0.1), albo decyzji spoza jej zakresu:
+Rzeczy, których ta analiza **nie rozstrzygnęła** i które wymagają albo dostępu do źródeł (§0.1), albo decyzji spoza jej zakresu. **Pozycje 1–3 mają gotową instrukcję wykonania w [§12](#12-runbook-dla-kolejnego-agenta--jak-domknąć-to-badanie).**
 
 1. **Czy hosting na Render udostępnia rozszerzenie TimescaleDB?** Blokuje wybór wariantu w B1 (§5.7). Sprawdzenie: kilkanaście minut, nie zrobione w tej sesji.
 2. **Jaki jest realny format i protokół transmisji AquaRD CellBOX i Hawle.live BOX do systemu nadrzędnego?** Obie pozycje mają „nieujawnione" w wymiarze 3. Karty katalogowe mogą to zawierać — patrz linki w §10.
 3. **Czy Inventia i Ovarro publikują politykę ujawniania podatności?** Istotne dla porównania w wymiarze 11 i dla własnej odpowiedzi na pytania NIS2 od gminy.
 4. **Czy Blues Notecard jest wariantem sprzętowym do porównania w B-01?** Decyzja produktowa, świadomie nieprzesądzona tutaj (§7.2).
 5. **Ile faktycznie waży obraz firmware po zbudowaniu** i ile potrwa jego pobranie przez A7670E — wejście do projektu F2. Do zmierzenia, nie do oszacowania.
+
+---
+
+## 12. Runbook dla kolejnego agenta — jak domknąć to badanie
+
+**Kiedy to uruchomić:** gdy dostępne będzie środowisko z inną polityką egress. Nie ma sensu uruchamiać tego w środowisku, w którym powstał niniejszy dokument.
+
+### 12.0. Najpierw sprawdź, czy w ogóle masz czym — 30 sekund
+
+Ten dokument powstał bez dostępu do stron. **Zanim cokolwiek zaczniesz, potwierdź, że u Ciebie jest inaczej:**
+
+```bash
+curl -sS -o /dev/null -w "%{http_code}\n" --max-time 20 https://www.inventia.pl/wod-kan/
+```
+
+- **`200`** → masz dostęp, przechodź do §12.1.
+- **`curl: (56) CONNECT tunnel failed, response 403`** → masz tę samą blokadę co poprzednik. **Zatrzymaj się i zgłoś to zamiast obchodzić.** Nie próbuj Playwrighta ani Chromium — sprawdzone doświadczalnie, dają `ERR_TUNNEL_CONNECTION_FAILED` na tym samym tunelu (§0.1). Nie próbuj też innych proxy ani wyłączania weryfikacji TLS — to polityka organizacji, nie usterka.
+
+Jeśli jesteś **człowiekiem, a nie agentem**: wystarczy przeglądarka i ~2–3 godziny. Kolejność w §12.1 jest ułożona wg wartości, więc możesz przerwać w dowolnym momencie i i tak coś zyskać.
+
+### 12.1. Co dokładnie pobrać i czego w tym szukać
+
+Uporządkowane malejąco wg wartości. Kolumna „gdzie wpisać" wskazuje sekcję tego dokumentu do podmiany.
+
+| # | Dokument do otwarcia | Czego szukać — konkretnie | Gdzie wpisać |
+|---|---|---|---|
+| 1 | [Kallipr Support](https://kallipr.com/support/) → **specyfikacja MQTT + API guide** | Struktura tematów MQTT, format ładunku, sposób uwierzytelniania urządzenia (klucz/certyfikat?), czy jest webhook. **To najcenniejsza pozycja na liście** — jedyny w stawce publikuje pełną specyfikację, więc jest wzorcem dla naszego §5.6 | §3.1 w. 3–4, §3.2 w. 5, §5.6 |
+| 2 | [Karta katalogowa CellBOX H4 (PDF)](https://aquard.pl/wp-content/uploads/2025/05/Karta-katalogowa-CellBOX-H4.pdf) | Potwierdź: 6 AI + 6 DI, 2× RS485, 5 lat baterii, IP68/IP54. **Dodatkowo:** zakres temperatur pracy, protokół do systemu nadrzędnego (dziś „nieujawniony"), czy jest konfiguracja zdalna | §3.1 w. 3, §3.2 w. 3 |
+| 3 | [Multilog 2 — instrukcja (PDF)](https://www.hwmglobal.com/uploads/manuals/Multilog%202/MAN-147-0018-A%20User%20Manual%20-%20Multilog2.pdf) + [DataGate v2 (PDF)](https://www.hwmglobal.com/uploads/manuals/DataGate2/MAN-130-0015-A%20DataGate2%20Introduction%20for%20Users%20and%20Administrators.pdf) | **Jak dokładnie wygląda mapowanie rejestrów Modbus w narzędziu IDT** — to jest bezpośredni wzorzec dla naszego `device_profiles` (B3). Czy profil jest plikiem? Czy da się go wysłać zdalnie? Czy jest OTA (dziś „nieujawnione")? | §3.2 w. 11, §5.3 |
+| 4 | [Tabela porównawcza modułów Inventia (PDF)](https://www.inventia.pl/wp-content/uploads/2019/03/Tabela-porownawcza-modulow-2019.pdf) | Potwierdź liczby I/O per model. **Uwaga: dokument z 2019** — poszukaj nowszej wersji na `inventia.pl`, zanim go zacytujesz | §3.1 w. 2 |
+| 5 | [TBox MS (PDF)](https://ovarro.com/content-media/assigned/32372/Ovarro_TBox_MS.pdf) | Potwierdź listę 40+ protokołów i **poszukaj mechanizmu aktualizacji firmware** (dziś „nieujawnione") | §3.2 w. 12, §3.3 w. 12 |
+| 6 | [Wavelet V2 EX — karta katalogowa (PDF)](https://www.ayyeka.com/hubfs/Marketing%20Materials%20-%20Marketing%20Manager/Wavelet%20Page/Ayyeka%20Wavelet%20V2%20EX%20-%20Datasheet%20-%202025.pdf) | Katalog wejść pomiarowych (dziś opisany ogólnikowo) + **czy padają słowa „X.509", „secure element", „TPM"** — to rozstrzyga wymiar 4 dla Ayyeki | §3.1 w. 8 |
+| 7 | `inventia.pl` i `ovarro.com` — szukaj **`security.txt`, „responsible disclosure", „vulnerability policy"** | Czy publikują politykę zgłaszania podatności. Istotne dla wymiaru 11 **i dla nas** — to wzorzec czegoś, co sami powinniśmy mieć przy sprzedaży do podmiotu objętego NIS2 | §3.3, §11 pkt 3 |
+| 8 | [Hawle.live](https://www.hawle.com/en/service/services/hawle-live) → szukaj karty katalogowej BOX | Realny katalog czujników i protokół (dziś 4 pola „nieujawnione" — najsłabiej opisany podmiot w całej tabeli) | §3.1–3.3 w. 5 |
+
+### 12.2. Jedna rzecz, której nie trzeba do tego internetu
+
+**Sprawdź, czy Render udostępnia rozszerzenie TimescaleDB** — to blokuje wybór wariantu w pozycji B1 (§5.7) i jest najtańszą do zamknięcia niewiadomą w całym dokumencie:
+
+```sql
+SELECT * FROM pg_available_extensions WHERE name LIKE '%timescale%';
+```
+
+- **Jest** → B1 idzie ścieżką hypertable + continuous aggregates + retention policy.
+- **Nie ma** → B1 idzie wariantem awaryjnym z §5.7 (natywne partycjonowanie po czasie + tabela agregatów godzinowych + `DROP PARTITION`). **Ten wariant daje ~80% korzyści i nie jest porażką** — nie eskaluj tego jako blokady.
+
+### 12.3. Zasady, których trzymaj się przy uzupełnianiu
+
+1. **Podnoś pewność tylko tam, gdzie faktycznie otworzyłeś dokument.** Konwencja etykiet jest w §0.2. Jeśli otworzyłeś PDF producenta i widzisz liczbę na własne oczy — możesz podnieść do `[D/W]` i **dopisz to do §0.1**, że część ustaleń została już zweryfikowana bezpośrednio, z datą.
+2. **Nie zgaduj, żeby wypełnić komórkę.** „nieujawnione" jest poprawną i użyteczną odpowiedzią. Pusta komórka albo domysł psuje cały dokument, bo czytelnik nie odróżni jednego od drugiego.
+3. **Nie przepisuj analizy biznesowej ani UX.** Pierwsza jest w [§5.2 planu](../business/01_plan_biznesowy.md), druga to zlecenie B-03. Jeśli znajdziesz coś, co je koryguje — dopisz do §9, nie przepisuj tamtych dokumentów.
+4. **Nie ruszaj §2 ani §9 bez ponownego sprawdzenia w kodzie.** To są jedyne sekcje o pewności „wysoka" i pochodzą z `grep`, nie z internetu. Jeśli kod się w międzyczasie zmienił — zweryfikuj ponownie i zaktualizuj dowody, nie usuwaj ich.
+5. **Zaktualizuj datę badania** w nagłówku, jeśli uzupełniasz po dłuższym czasie, i zostaw starą jako datę pierwszego przejścia.
+
+### 12.4. Czego ten runbook świadomie nie obejmuje
+
+- **Zrzutów ekranu i warstwy UX** — to zlecenie **B-03**, ma własny brief i własne wymagania co do biblioteki zrzutów. Nie mieszaj.
+- **Rejestracji na dema i płatnych raportów** — wykluczone przez brief. Jeśli dokument jest za bramką rejestracyjną, wpisz „nieujawnione publicznie" i idź dalej.
+- **Kontaktu z producentami** — analiza ma stać na źródłach publicznych. Zapytanie handlowe to inna czynność i inna decyzja.
