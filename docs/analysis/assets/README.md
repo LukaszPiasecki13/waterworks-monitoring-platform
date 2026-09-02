@@ -19,6 +19,14 @@ node capture_screenshots.mjs
 
 Skrypt otwiera każdy adres z listy, robi zrzut pełnej strony w szerokości 1600 px, kompresuje do WebP z jakością 82 i zapisuje pod nazwą `NN_produkt_temat.webp`. Typowy plik wychodzi w okolicach 150–250 KB, czyli poniżej limitu 300 KB/plik z briefu B-03. Skrypt wypisuje na koniec podsumowanie: co się udało, co zwróciło błąd i jaki jest łączny rozmiar katalogu.
 
+**Trzy pozycje wymagają ręcznej roboty — skrypt sam je zgłosi.** Lista ma 48 ujęć, ale 45 adresów: trzy strony dokumentacji niosą po dwa różne wzorce naraz. Zrzut całej strony dałby dwa identyczne pliki, więc skrypt robi tylko pierwszy i wypisuje pozostałe w sekcji „dwa wzorce na jednej stronie; wykadruj drugi fragment ręcznie”:
+
+| Ujęcie | Wykadruj z | Czego szukać na stronie |
+|---|---|---|
+| 14 — tabela kodów jakości | 13 | sekcja z zestawieniem kodów Good / Uncertain / Bad |
+| 22 — filtry tabeli alarmów | 21 | fragment pokazujący filtrowanie po stanie, priorytecie, typie, przypisaniu |
+| 34 — historia działań przy zdarzeniu | 33 | fragment z listą wcześniejszych komentarzy i akcji wraz z czasem i osobą |
+
 Adresy prowadzą wyłącznie do publicznej dokumentacji i stron produktowych — **nie ma wśród nich niczego za logowaniem ani za rejestracją na wersję próbną**, zgodnie z ograniczeniem „tylko źródła publicznie dostępne” z briefu.
 
 ## Jak uzupełnić — wariant ręczny

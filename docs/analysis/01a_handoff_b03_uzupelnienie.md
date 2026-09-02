@@ -24,7 +24,7 @@ done
 
 Brief B-03 wymaga „orientacyjnie 30–60 zrzutów łącznie” w `docs/analysis/assets/`, jako **zasób do przeglądania, nie tylko materiał dowodowy**.
 
-**Co jest przygotowane:** [`assets/README.md`](assets/README.md) zawiera listę **48 konkretnych ujęć** — numer, nazwa pliku, adres, co ma być na ekranie, typ źródła (`[dok]`/`[mkt]`/`[std]`/`[art]`) i wzorzec `W-xx`, którego dotyczy. [`assets/capture_screenshots.mjs`](assets/capture_screenshots.mjs) zbiera je automatycznie.
+**Co jest przygotowane:** [`assets/README.md`](assets/README.md) zawiera listę **48 konkretnych ujęć z 45 stron** — numer, nazwa pliku, adres, co ma być na ekranie, typ źródła (`[dok]`/`[mkt]`/`[std]`/`[art]`) i wzorzec `W-xx`, którego dotyczy. Trzy strony niosą po dwa wzorce naraz; skrypt zrobi z nich jeden zrzut i zgłosi, który fragment wykadrować ręcznie. [`assets/capture_screenshots.mjs`](assets/capture_screenshots.mjs) zbiera je automatycznie.
 
 **Kroki:**
 

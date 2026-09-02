@@ -15,7 +15,7 @@
 
 import { chromium } from 'playwright'
 import sharp from 'sharp'
-import { mkdir, readdir, stat, unlink, writeFile } from 'node:fs/promises'
+import { mkdir, readdir, rm, stat, unlink, writeFile } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -82,14 +82,26 @@ const SHOTS = [
   ['48', 'datacake_rule_engine', 'https://datacake.co/iot-rule-engine-lorawan-mqtt-sms-email-alerting'],
 ]
 
+/** Numery ujęć są dwucyfrowe ('07'), więc --only 7 też ma trafiać. */
+const padNum = (s) => String(s).trim().padStart(2, '0')
+
+function positiveInt(raw, flag, fallback) {
+  const value = Number(raw)
+  if (!Number.isFinite(value) || value <= 0) {
+    console.warn(`Zignorowano ${flag} ${raw} — oczekiwana liczba dodatnia; używam ${fallback}.`)
+    return fallback
+  }
+  return value
+}
+
 function parseArgs(argv) {
   const args = { width: 1600, quality: 82, only: null, force: false }
   for (let i = 0; i < argv.length; i += 1) {
     const flag = argv[i]
     if (flag === '--force') args.force = true
-    else if (flag === '--width') args.width = Number(argv[++i])
-    else if (flag === '--quality') args.quality = Number(argv[++i])
-    else if (flag === '--only') args.only = new Set(argv[++i].split(',').map((s) => s.trim()))
+    else if (flag === '--width') args.width = positiveInt(argv[++i], '--width', args.width)
+    else if (flag === '--quality') args.quality = positiveInt(argv[++i], '--quality', args.quality)
+    else if (flag === '--only') args.only = new Set(argv[++i].split(',').map(padNum))
   }
   return args
 }
@@ -119,23 +131,45 @@ async function dismissConsent(page) {
   }
 }
 
-async function capture(page, args, [num, slug, url]) {
+async function capture(page, args, [num, slug, url], capturedUrls) {
   const target = join(OUT_DIR, `${num}_${slug}.webp`)
-  if (!args.force && existsSync(target)) return { num, url, status: 'skipped' }
+  if (!args.force && existsSync(target)) {
+    // Także przy pominięciu rejestrujemy adres — inaczej po wznowieniu przerwanego
+    // przebiegu bliźniacza pozycja zrobiłaby zrzut tej samej strony drugi raz.
+    if (!capturedUrls.has(url)) capturedUrls.set(url, num)
+    return { num, url, status: 'skipped' }
+  }
 
-  await page.goto(url, { waitUntil: 'networkidle', timeout: 45_000 })
+  // Trzy pozycje na liście dzielą adres z wcześniejszą (README wyjaśnia, które):
+  // jedna strona niesie dwa różne wzorce. Zrzut całej strony dałby dwa
+  // identyczne pliki, więc drugiego nie robimy — trzeba go wykadrować ręcznie.
+  const twin = capturedUrls.get(url)
+  if (twin !== undefined) return { num, url, status: 'duplicate', twin }
+
+  // Świadomie NIE 'networkidle': strony produktowe z analityką i czatem
+  // potrafią nigdy nie osiągnąć bezczynności sieci i kończą się timeoutem
+  // mimo poprawnie wyrenderowanej treści.
+  await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 45_000 })
   await dismissConsent(page)
+  try {
+    await page.waitForLoadState('networkidle', { timeout: 8_000 })
+  } catch {
+    // strona nadal coś dociąga — treść zwykle i tak jest już gotowa
+  }
   await page.waitForTimeout(1200) // dociągnięcie obrazów ładowanych leniwie
 
   const raw = join(TMP_DIR, `${num}.png`)
-  await page.screenshot({ path: raw, fullPage: true })
+  try {
+    await page.screenshot({ path: raw, fullPage: true })
+    await sharp(raw)
+      .resize({ width: args.width, withoutEnlargement: true })
+      .webp({ quality: args.quality })
+      .toFile(target)
+  } finally {
+    await unlink(raw).catch(() => {})
+  }
 
-  await sharp(raw)
-    .resize({ width: args.width, withoutEnlargement: true })
-    .webp({ quality: args.quality })
-    .toFile(target)
-  await unlink(raw)
-
+  capturedUrls.set(url, num)
   const { size } = await stat(target)
   return { num, url, status: 'ok', kb: Math.round(size / 1024) }
 }
@@ -154,12 +188,19 @@ async function main() {
   const page = await context.newPage()
 
   const results = []
+  const capturedUrls = new Map()
+  const messages = {
+    skipped: () => 'pominięto (plik istnieje)',
+    duplicate: (r) => `ta sama strona co [${r.twin}] — wykadruj ręcznie`,
+    ok: (r) => `${r.kb} KB`,
+  }
+
   for (const shot of queue) {
     process.stdout.write(`[${shot[0]}] ${shot[1]} … `)
     try {
-      const result = await capture(page, args, shot)
+      const result = await capture(page, args, shot, capturedUrls)
       results.push(result)
-      console.log(result.status === 'skipped' ? 'pominięto (plik istnieje)' : `${result.kb} KB`)
+      console.log(messages[result.status](result))
     } catch (error) {
       results.push({ num: shot[0], url: shot[2], status: 'error', message: error.message })
       console.log(`BŁĄD: ${error.message.split('\n')[0]}`)
@@ -167,14 +208,24 @@ async function main() {
   }
 
   await browser.close()
+  await rm(TMP_DIR, { recursive: true, force: true })
 
-  const ok = results.filter((r) => r.status === 'ok')
-  const failed = results.filter((r) => r.status === 'error')
+  const of = (status) => results.filter((r) => r.status === status)
+  const ok = of('ok')
+  const failed = of('error')
+  const duplicates = of('duplicate')
   const oversized = ok.filter((r) => r.kb > 300)
 
-  console.log(`\n— zebrano: ${ok.length}, pominięto: ${results.length - ok.length - failed.length}, błędów: ${failed.length}`)
+  console.log(
+    `\n— zebrano: ${ok.length}, pominięto: ${of('skipped').length}, ` +
+      `do ręcznego kadrowania: ${duplicates.length}, błędów: ${failed.length}`,
+  )
   if (oversized.length) {
     console.log(`— powyżej limitu 300 KB (obniż --quality albo --width): ${oversized.map((r) => r.num).join(', ')}`)
+  }
+  if (duplicates.length) {
+    console.log('— dwa wzorce na jednej stronie; wykadruj drugi fragment ręcznie:')
+    for (const d of duplicates) console.log(`   [${d.num}] źródło w pliku [${d.twin}] — ${d.url}`)
   }
   if (failed.length) {
     console.log('— nieudane, do zrobienia ręcznie (patrz README.md):')

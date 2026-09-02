@@ -65,7 +65,7 @@ Zamiast pustego katalogu `assets/` zostawiam w nim **wykonawczy plan uzupełnien
 | 6. Artifact z rekomendacjami | link na górze dokumentu |
 | 7. Biblioteka zrzutów | **zablokowana** — plan wykonania w [`assets/README.md`](assets/README.md) |
 
-Wszystko, czego nie dało się zrobić z tej sesji, jest rozpisane na konkretne kroki w [`02_handoff_b03_uzupelnienie.md`](02_handoff_b03_uzupelnienie.md) — łącznie z tym, które tezy tej analizy są falsyfikowalne i co je obali.
+Wszystko, czego nie dało się zrobić z tej sesji, jest rozpisane na konkretne kroki w [`01a_handoff_b03_uzupelnienie.md`](01a_handoff_b03_uzupelnienie.md) — łącznie z tym, które tezy tej analizy są falsyfikowalne i co je obali.
 
 ### 0.3. Streszczenie — 10 rzeczy do zrobienia
 
@@ -161,7 +161,7 @@ Brief wymaga tych samych wymiarów dla każdego produktu, „żeby dało się po
 2. **Wiersze wod-kan są zdominowane przez ◐ i ○, wiersze IT przez ●.** To nie jest przypadek doboru źródeł, tylko różnica kultury: platformy IT publikują instrukcje, polskie platformy wod-kan publikują foldery sprzedażowe. Wniosek dla nas jest w [§1.1](#11-kategoria-a--wod-kan-i-smart-water): czytelna dokumentacja użytkownika jest w tym segmencie tanią różnicą konkurencyjną.
 3. **Wymiar 5 jest jedynym, w którym mam materiał ● od czterech niezależnych produktów.** To jest dokładnie ten wymiar, w którym my nie mamy nic — i to uzasadnia, dlaczego projekt widoku alarmów w [§6](#6-projekt-widoku-alarmów) jest najbardziej szczegółową częścią tego dokumentu.
 
-> **Jak czytać ○.** Znak „brak informacji publicznej” nie znaczy „produkt tego nie ma”. Znaczy, że nie dało się tego ustalić bez dostępu do ekranu — a dostępu, z przyczyn opisanych w [§0.1](#01-metoda-i-jej-twarde-ograniczenia), nie było. Uzupełnienie tych komórek jest pierwszym zadaniem opisanym w [`02_handoff_b03_uzupelnienie.md`](02_handoff_b03_uzupelnienie.md).
+> **Jak czytać ○.** Znak „brak informacji publicznej” nie znaczy „produkt tego nie ma”. Znaczy, że nie dało się tego ustalić bez dostępu do ekranu — a dostępu, z przyczyn opisanych w [§0.1](#01-metoda-i-jej-twarde-ograniczenia), nie było. Uzupełnienie tych komórek jest pierwszym zadaniem opisanym w [`01a_handoff_b03_uzupelnienie.md`](01a_handoff_b03_uzupelnienie.md).
 
 ### 2.1. Wymiar 1 — ekran startowy
 
