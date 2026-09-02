@@ -30,7 +30,7 @@
 
 ### 0.1. Metoda i jej twarde ograniczenia
 
-**Co udało się zrobić:** przegląd dokumentacji produktowej, instrukcji użytkownika i materiałów producentów dwunastu platform z trzech kategorii, zestawiony z lekturą całego kodu frontendu w `frontend/src/` i wymagań produktowych z [`01_plan_biznesowy.md`](../business/01_plan_biznesowy.md) §2.3, §2.4.3, §2.7, §2.8.
+**Co udało się zrobić:** przegląd dokumentacji produktowej, instrukcji użytkownika i materiałów producentów czternastu platform z trzech kategorii, zestawiony z lekturą całego kodu frontendu w `frontend/src/` i wymagań produktowych z [`01_plan_biznesowy.md`](../business/01_plan_biznesowy.md) §2.3, §2.4.3, §2.7, §2.8.
 
 **Czego nie udało się zrobić i dlaczego — przeczytaj przed oceną kompletności:**
 
@@ -65,6 +65,8 @@ Zamiast pustego katalogu `assets/` zostawiam w nim **wykonawczy plan uzupełnien
 | 6. Artifact z rekomendacjami | link na górze dokumentu |
 | 7. Biblioteka zrzutów | **zablokowana** — plan wykonania w [`assets/README.md`](assets/README.md) |
 
+Wszystko, czego nie dało się zrobić z tej sesji, jest rozpisane na konkretne kroki w [`02_handoff_b03_uzupelnienie.md`](02_handoff_b03_uzupelnienie.md) — łącznie z tym, które tezy tej analizy są falsyfikowalne i co je obali.
+
 ### 0.3. Streszczenie — 10 rzeczy do zrobienia
 
 Kolejność według stosunku wartości do kosztu, pełne uzasadnienie w [§7](#7-backlog-zmian-we-froncie).
@@ -86,7 +88,7 @@ Kolejność według stosunku wartości do kosztu, pełne uzasadnienie w [§7](#7
 
 ## 1. Kogo badano i dlaczego
 
-Brief wymaga minimum ośmiu produktów z trzech kategorii, z czego co najmniej cztery pogłębione. Zbadano dwanaście. Kryterium doboru było **podobieństwo problemu**, nie wielkość marki — dla każdego wpisu poniżej podane jest, jaki nasz problem ten produkt rozwiązał wcześniej.
+Brief wymaga minimum ośmiu produktów z trzech kategorii, z czego co najmniej cztery pogłębione. Zbadano czternaście — sześć w kategorii wod-kan, trzy w przemysłowym monitoringu aktywów, pięć w obserwowalności IT; pięć z nich pogłębionych. Kryterium doboru było **podobieństwo problemu**, nie wielkość marki — dla każdego wpisu poniżej podane jest, jaki nasz problem ten produkt rozwiązał wcześniej.
 
 ### 1.1. Kategoria A — wod-kan i smart water
 
@@ -127,15 +129,49 @@ Odrzucone świadomie: narzędzia BI (Power BI, Tableau) — inny problem, prezen
 
 ## 2. Analiza według dziewięciu wymiarów
 
+### 2.0. Macierz porównawcza — produkt × wymiar
+
+Brief wymaga tych samych wymiarów dla każdego produktu, „żeby dało się porównać”. Macierz mówi, **na jakim materiale opiera się każda komórka** — a nie jak dobrze produkt sobie radzi, bo oceny jakości bez dostępu do ekranu nie da się postawić uczciwie.
+
+- ● — opisane w dokumentacji produktu lub instrukcji użytkownika
+- ◐ — deklarowane w materiale producenta (marketing), bez opisu działania
+- ○ — brak informacji publicznej
+- — — wymiar nie dotyczy tego produktu
+
+| Produkt | 1 ekran startowy | 2 nawigacja | 3 pomiar+jakość | 4 status/kolor | 5 alarmy/triage | 6 wykresy | 7 progi | 8 telefon | 9 onboarding |
+|---|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|
+| Inventia DataPortal | ◐ | ○ | ○ | ○ | ◐ | ◐ | ○ | ○ | ○ |
+| AquaRD / HydraNet | ◐ | ○ | ○ | ○ | ◐ | ◐ | ○ | ○ | ○ |
+| Hawle.live | ◐ | ○ | ○ | ◐ | ◐ | ○ | ○ | ◐ | ○ |
+| Kallipr Kloud | ◐ | ◐ | ◐ | ○ | ◐ | ◐ | ◐ | ○ | ◐ |
+| HWM DataGate | ◐ | ○ | ○ | ○ | ◐ | ◐ | ◐ | ◐ | ○ |
+| Ayyeka FAI | ● | ◐ | ○ | ● | ◐ | ◐ | ◐ | ◐ | ○ |
+| Ignition Perspective | ○ | ● | ● | ● | ○ | ○ | ○ | ● | — |
+| AVEVA Insight | ◐ | ◐ | ○ | ○ | ◐ | ◐ | ○ | ◐ | ○ |
+| ThingsBoard | ◐ | ● | ○ | ○ | ● | ○ | ● | ◐ | ● |
+| Grafana Alerting | ○ | ● | ● | ○ | ● | ● | ● | ○ | — |
+| Zabbix | ● | ○ | ○ | ● | ● | ○ | ○ | ○ | — |
+| Alertmanager | — | — | — | — | ● | — | ◐ | — | — |
+| Datadog Monitors | ○ | ● | ○ | ○ | ● | ○ | ○ | ○ | — |
+| PagerDuty | ● | ○ | — | ○ | ● | — | — | ● | — |
+
+**Trzy rzeczy widać dopiero w tej postaci, a nie w prozie poniżej:**
+
+1. **Kolumna 3 (pomiar razem z czasem i jakością) jest niemal pusta w całej kategorii wod-kan.** Ani jeden z sześciu badanych produktów wodociągowych nie opisuje publicznie, jak pokazuje jakość danych przy wartości. Jedyne udokumentowane rozwiązania tego problemu pochodzą z automatyki przemysłowej (Ignition) i z obserwowalności IT (Grafana). Nasz niezmiennik z §2.4.3 jest więc wymaganiem **ponad** poziomem rynku wod-kan — a nie doganianiem go.
+2. **Wiersze wod-kan są zdominowane przez ◐ i ○, wiersze IT przez ●.** To nie jest przypadek doboru źródeł, tylko różnica kultury: platformy IT publikują instrukcje, polskie platformy wod-kan publikują foldery sprzedażowe. Wniosek dla nas jest w [§1.1](#11-kategoria-a--wod-kan-i-smart-water): czytelna dokumentacja użytkownika jest w tym segmencie tanią różnicą konkurencyjną.
+3. **Wymiar 5 jest jedynym, w którym mam materiał ● od czterech niezależnych produktów.** To jest dokładnie ten wymiar, w którym my nie mamy nic — i to uzasadnia, dlaczego projekt widoku alarmów w [§6](#6-projekt-widoku-alarmów) jest najbardziej szczegółową częścią tego dokumentu.
+
+> **Jak czytać ○.** Znak „brak informacji publicznej” nie znaczy „produkt tego nie ma”. Znaczy, że nie dało się tego ustalić bez dostępu do ekranu — a dostępu, z przyczyn opisanych w [§0.1](#01-metoda-i-jej-twarde-ograniczenia), nie było. Uzupełnienie tych komórek jest pierwszym zadaniem opisanym w [`02_handoff_b03_uzupelnienie.md`](02_handoff_b03_uzupelnienie.md).
+
 ### 2.1. Wymiar 1 — ekran startowy
 
 **Co robi rynek.** Rysują się trzy szkoły:
 
-1. **Lista/tabela priorytetowa.** Zabbix otwiera się na `Monitoring → Problems` — liście tego, co jest w stanie problemowym, a nie liście wszystkiego, co jest monitorowane `[dok]`. To jest wybór „pokaż wyjątki, nie inwentarz”.
+1. **Lista/tabela priorytetowa.** Zabbix ma osobny widok operacyjny `Monitoring → Problems`, który wylicza wyłącznie wyzwalacze będące w stanie problemowym, a nie wszystko, co jest monitorowane `[dok]`; ten sam wykaz jest dostępny jako widżet dashboardu `[dok]`. To jest wybór „pokaż wyjątki, nie inwentarz”. *(Czego nie ustaliłem: który ekran Zabbix pokazuje bezpośrednio po zalogowaniu — bez dostępu do instancji nie da się tego potwierdzić, a dokumentacja tego nie rozstrzyga. Wzorzec dotyczy istnienia widoku wyjątków, nie tego, czy jest ekranem domyślnym.)*
 2. **Mapa jako ekran główny.** Hawle.live buduje interfejs wokół interaktywnej mapy z lokalizacją i statusem hydrantów, zasuw i innych elementów sieci `[mkt]`. HWM DataGate również stawia mapę sieci obok dashboardów i alarmów `[mkt]`.
 3. **Konfigurowalne kafelki.** Ayyeka pozwala kolorować całe regiony mapy według **średniej kondycji urządzeń** albo dowolnego strumienia danych, z rozwinięciem do wykazu per urządzenie `[dok]`. AVEVA Insight opiera się na samoobsługowych dashboardach `[mkt]`.
 
-**Co z tego wynika dla nas.** Plan ([§2.8.1](../business/01_plan_biznesowy.md)) już rozstrzygnął, że mapa jest dodatkiem, a nie zamiennikiem czytelnej listy operacyjnej — i rynek tego nie podważa: nawet produkty mapocentryczne trzymają obok listę i dashboard. Rozstrzygnięta jest natomiast inna rzecz, której plan nie dopowiada: **ekran startowy ma pokazywać wyjątki, nie inwentarz.** Zabbix nie otwiera się na liście wszystkich hostów. My otwieramy się na liście wszystkich obiektów wodociągowych, posortowanej alfabetycznie ([`ObjectsPage.tsx:153`](../../frontend/src/pages/ObjectsPage.tsx#L153) → [`ObjectsGrid`](../../frontend/src/components/objects/ObjectsGrid.tsx)), co przy piętnastu obiektach jeszcze działa, ale nie odpowiada na pytanie „który wymaga uwagi”, tylko „jakie mam obiekty”.
+**Co z tego wynika dla nas.** Plan ([§2.8.1](../business/01_plan_biznesowy.md)) już rozstrzygnął, że mapa jest dodatkiem, a nie zamiennikiem czytelnej listy operacyjnej — i rynek tego nie podważa: nawet produkty mapocentryczne trzymają obok listę i dashboard. Rozstrzygnięta jest natomiast inna rzecz, której plan nie dopowiada: **ekran startowy ma pokazywać wyjątki, nie inwentarz.** Zabbix trzyma wykaz problemów jako osobny, pierwszorzędny widok, oddzielony od inwentarza hostów. My otwieramy się na liście wszystkich obiektów wodociągowych, posortowanej alfabetycznie ([`ObjectsPage.tsx:153`](../../frontend/src/pages/ObjectsPage.tsx#L153) → [`ObjectsGrid`](../../frontend/src/components/objects/ObjectsGrid.tsx)), co przy piętnastu obiektach jeszcze działa, ale nie odpowiada na pytanie „który wymaga uwagi”, tylko „jakie mam obiekty”.
 
 Ważny szczegół z Ayyeki: **kondycja urządzenia jest osobnym, pierwszorzędnym strumieniem danych**, po którym można pokolorować widok, a nie przypisem przy pomiarze `[dok]`. To dokładnie pokrywa nasz `UC-04` (utrata komunikacji) i uzasadnia rozdzielenie „awarii obiektu” od „awarii telemetrii” w warstwie wizualnej.
 
@@ -281,6 +317,8 @@ Sedno zlecenia. Dla każdego wzorca **BIERZ**: co jest dziś w kodzie, co zmieni
 **Co mamy.** Trasa `/` i `/dashboard` przekierowują na `/objects` ([`App.tsx:58-59`](../../frontend/src/App.tsx#L58-L59)). `ObjectsPage` renderuje wszystkie obiekty gminy w siatce kart albo w tabeli, bez sortowania po statusie — kolejność wynika z odpowiedzi API i z przypiętych ręcznie ulubionych ([`ObjectsPage.tsx:109-118`](../../frontend/src/pages/ObjectsPage.tsx#L109-L118)). Nagłówek brzmi „Obiekty wodne”, a podtytuł „Pulpit zarządzania obiektami i monitorowaniem w czasie rzeczywistym” ([`ObjectsPage.tsx:130-133`](../../frontend/src/pages/ObjectsPage.tsx#L130-L133)).
 
 Istnieje też druga, **nieosiągalna** implementacja tego samego: [`DashboardPage.tsx`](../../frontend/src/pages/DashboardPage.tsx) wraz z [`ObjectsStatusTable.tsx`](../../frontend/src/components/dashboard/ObjectsStatusTable.tsx) — kompletny komponent z filtrem statusu i paginacją, do którego nie prowadzi żadna trasa, bo `/dashboard` jest przekierowaniem. Ma własny, zduplikowany słownik etykiet statusów ([`ObjectsStatusTable.tsx:73-79`](../../frontend/src/components/dashboard/ObjectsStatusTable.tsx#L73-L79)), rozjeżdżający się z [`OBJECT_STATUS_LABEL_MAP`](../../frontend/src/lib/statusConfig.ts#L23-L29) (`'OK'` vs `'OK — Aktywne'`).
+
+**I rzecz, która czyni to gorszym niż zwykły martwy kod:** jedynym miejscem w całym repozytorium, które importuje `DashboardPage`, jest [`DashboardPage.test.tsx`](../../frontend/src/pages/DashboardPage.test.tsx) (zweryfikowane przeszukaniem `frontend/src` — poza własnym plikiem i własnym testem nie ma ani jednego odwołania). Ekran jest więc pokryty zielonymi testami i **nie da się do niego wejść w aplikacji**. Zestaw testów daje fałszywe poczucie, że dashboard działa, podczas gdy użytkownik nigdy go nie zobaczy. To jest argument za rozstrzygnięciem sprawy teraz, a nie za odłożeniem jej jako kosmetyki.
 
 **Co zmienić.**
 
@@ -544,7 +582,7 @@ Trzy decyzje projektowe w tym modelu, z uzasadnieniem:
 1. **Wiersz mówi całą historię bez klikania** — obiekt, parametr, wartość która wywołała regułę, próg, czas trwania. Wymaganie §2.8.3 („wyświetlenie wartości, które uruchomiły regułę”) plus wzorzec Grafany „wyciągnij na wierzch to, co zakopane” (W-11).
 2. **Akcje w wierszu, nie w szczegółach** — ThingsBoard (W-09). Dyspozytor obsługuje serię alarmów bez wchodzenia w każdy.
 3. **Grupowanie widoczne jako zwinięty wiersz z licznikiem** — Alertmanager (W-12). Zanik zasilania to jeden wiersz z „+3 powiązane”, nie cztery wiersze. Rozwinięcie pokazuje składowe.
-4. **Domyślny filtr: stany `new` + `active` + `acknowledged`.** Zamknięte i fałszywe są pod przyciskiem „Historia”. Zabbix otwiera się na problemach bieżących, nie na archiwum.
+4. **Domyślny filtr: stany `new` + `active` + `acknowledged`.** Zamknięte i fałszywe są pod przyciskiem „Historia”. Widok `Problems` w Zabbixie z definicji wylicza problemy bieżące — archiwum zdarzeń jest osobnym ekranem `[dok]`.
 5. **Sortowanie: priorytet malejąco, w obrębie priorytetu czas rozpoczęcia rosnąco** (najstarszy nieobsłużony na górze — to on grozi eskalacją).
 6. **Ikona kształtu przy priorytecie** (`⛔`/`▲`/`⚠` → w implementacji `AlertOctagon`/`AlertTriangle`/`Info`) — W-07, WCAG 1.4.1.
 7. **Czas trwania jest wyliczany i pokazywany wprost.** „47 min” niesie więcej informacji operacyjnej niż sam czas rozpoczęcia; czas bezwzględny obok (W-05).
@@ -595,6 +633,37 @@ Lista alarmów jest **jedynym ekranem, który pracownik terenowy naprawdę otwie
 | [`statusConfig.ts`](../../frontend/src/lib/statusConfig.ts) | Mapy koloru, etykiety i ikony dla `AlarmPriority` i `AlarmState` — obok istniejących map statusu obiektu i jakości danych |
 | [`queryKeys.ts`](../../frontend/src/hooks/queryKeys.ts) | Gałąź `alarms` (lista z filtrami, szczegół, licznik) |
 
+### 6.7. Uprawnienia — brakujące kody, bez których ekranu nie da się zbudować
+
+Sprawdziłem katalog uprawnień: [`types/permissions.ts`](../../frontend/src/types/permissions.ts) (lustro `backend/app/modules/security/permission_catalog.py`) zawiera siedemnaście kodów i **żaden z nich nie dotyczy alarmów**. Najbliższe, `CAN_VIEW_ASSETS` i `CAN_MANAGE_ASSETS`, opisują rejestr obiektów, urządzeń i punktów pomiarowych — nie obsługę zdarzeń. Bez nowych kodów każdy, kto widzi obiekty, mógłby zamykać cudze alarmy.
+
+Propozycja do dodania **najpierw w backendowym katalogu**, potem w lustrze frontowym (kolejność ma znaczenie — komentarz w pliku mówi wprost, że lustro utrzymuje się ręcznie):
+
+| Kod | Nazwa w katalogu | Co odblokowuje |
+|---|---|---|
+| `CAN_VIEW_ALARMS` | Podgląd alarmów | Wejście na `/alarms`, zakładka „Alarmy” w obiekcie, licznik w sidebarze |
+| `CAN_ACK_ALARMS` | Obsługa alarmów | Potwierdź, Komentarz, Zamknij, Oznacz jako fałszywy |
+| `CAN_SILENCE_ALARMS` | Wyciszanie alarmów | Wycisz — celowo osobno od obsługi, bo wyciszenie ukrywa problem przed całą organizacją |
+| `CAN_MANAGE_ALARM_RULES` | Zarządzanie regułami alarmowymi | Kreator progów (W-14) |
+
+Mapowanie na role z [§2.7.3 planu](../business/01_plan_biznesowy.md): użytkownik operacyjny dostaje pierwsze dwa (plan mówi wprost, że „potwierdza alarmy i dodaje informacje dotyczące obsługi zdarzenia”), administrator klienta wszystkie cztery, użytkownik tylko do odczytu wyłącznie `CAN_VIEW_ALARMS`.
+
+Egzekwowanie w kodzie: trasa przez [`RequirePermission`](../../frontend/src/components/RequirePermission.tsx) jak pozostałe chronione ekrany w [`App.tsx`](../../frontend/src/App.tsx), przyciski akcji przez `hasPermission()` z [`useActivePermissions`](../../frontend/src/hooks/useActivePermissions.ts). Zasada fail-closed tego hooka (brak kontekstu = pusta lista uprawnień) obowiązuje bez zmian.
+
+### 6.8. Stany brzegowe i zachowania, które inaczej trzeba by zgadywać
+
+| Sytuacja | Zachowanie |
+|---|---|
+| **Brak alarmów** | Nie pusta tabela, tylko komunikat potwierdzający: „Żaden obiekt nie zgłasza problemów”, z czasem ostatniego odświeżenia i odnośnikiem „Pokaż historię”. Cisza w systemie monitoringu jest informacją, a nie brakiem informacji — pusty ekran bez daty jest nieodróżnialny od zepsutego zapytania |
+| **Ładowanie** | Szkielet wierszy zamiast spinnera na całą stronę — lista alarmów jest odświeżana cyklicznie i pełnoekranowy spinner co 15 s czyniłby ekran nieczytelnym |
+| **Błąd pobrania** | Komunikat z przyciskiem ponowienia, ale **ostatnie znane alarmy zostają na ekranie**, wyszarzone, z etykietą „dane sprzed HH:MM”. Znikająca lista alarmów przy chwilowym błędzie sieci to gorszy stan niż lista nieaktualna i oznaczona |
+| **Odświeżanie** | `refetchInterval` 15 s, spójnie z [`useTelemetryObjectDetail`](../../frontend/src/hooks/useTelemetryApi.ts#L22) — i z poz. 1 backlogu, która wyrównuje do tego resztę |
+| **Akcja na zgrupowanym wierszu** | Potwierdzenie grupy potwierdza **wszystkie** alarmy w grupie jednym komentarzem; dialog mówi to wprost („Potwierdzisz 4 alarmy z tej samej przyczyny”). Zamknięcie grupy zamyka tylko te składowe, których warunek już ustąpił, a pozostałe zostawia — i informuje o tym po wykonaniu |
+| **Alarm wyciszony** | Zostaje na liście, wyszarzony, z ikoną i czasem do końca wyciszenia. Nie znika — wyciszenie wycisza powiadomienia, nie problem. Filtr „Tylko aktywne” może go schować, ale nie jest to stan domyślny |
+| **Alarm z jakością danych ≠ `good` w chwili wyzwolenia** | Wiersz dostaje dodatkowy znacznik „do weryfikacji”, bo to pierwszy kandydat na fałszywy alarm ([§2.6.3 planu](../business/01_plan_biznesowy.md) zabrania ewaluacji na niedopuszczonej jakości — jeśli taki alarm powstał, reguła jest źle skonfigurowana) |
+| **Paginacja** | Serwerowa, 50 pozycji na stronę, z sortowaniem po stronie API. Świadomie **nie** powtarzamy wzorca z [`ObjectsStatusTable.tsx:17`](../../frontend/src/components/dashboard/ObjectsStatusTable.tsx#L17), gdzie pobierane jest 50 rekordów i paginowane po 20 po stronie klienta — przy alarmach ta konstrukcja po cichu ukryłaby najstarsze zdarzenia |
+| **Głębokie linkowanie** | `/alarms/:alarmId` otwiera listę z rozwiniętym panelem, filtry w query stringu — żeby dyspozytor mógł wysłać pracownikowi terenowemu link do konkretnego alarmu |
+
 ---
 
 ## 7. Backlog zmian we froncie
@@ -632,7 +701,8 @@ Uszeregowany według stosunku wartości do kosztu. Koszt w skali XS (< 1 h) / S 
 
 | # | Zmiana | Wzorzec | Zależność | Koszt |
 |---|---|---|---|---|
-| 18 | Widok alarmów wg [§6](#6-projekt-widoku-alarmów) | W-09…W-13, W-15 | moduł alarmów w backendzie | L |
+| 18a | Cztery kody uprawnień do alarmów w katalogu backendu + lustro we froncie ([§6.7](#67-uprawnienia--brakujące-kody-bez-których-ekranu-nie-da-się-zbudować)) | — | poprzedza poz. 18 | S |
+| 18 | Widok alarmów wg [§6](#6-projekt-widoku-alarmów) | W-09…W-13, W-15 | moduł alarmów w backendzie + poz. 18a | L |
 | 19 | Wariant mobilny listy alarmów | W-16 | poz. 18 | M |
 | 20 | Kreator reguł alarmowych | W-14, W-15 | moduł alarmów w backendzie | M |
 | 21 | Kreator dodania obiektu w krokach | W-17 | brak (API istnieje) | M |
@@ -659,6 +729,8 @@ Rzeczy znalezione przy tej analizie, które korygują albo uzupełniają dokumen
 3. **ISA 18.2 formułuje regułę, której warto użyć wprost w §2.6:** alarm niewymagający reakcji operatora ma być zdarzeniem informacyjnym. Nasz katalog już rozdziela §2.6.1–2 od §2.6.3, ale nie mówi, że to rozdzielenie ma być egzekwowane przy dodawaniu każdej nowej reguły.
 4. **[`frontend-architecture.md` §10](../technical/frontend/frontend-architecture.md)** („Responsywność i dostępność”) stwierdza, że konwencje żyją w komponentach `components/ui/`. Audyt z [§2.8](#28-wymiar-8--praca-na-telefonie) pokazuje, że w `DataTable` tych konwencji nie ma (brak obsługi klawiatury, brak przewijania poziomego). Sekcja wymaga uzupełnienia o minimalne wymagania: cel dotykowy 44 px, tabela przewijalna, element interaktywny osiągalny z klawiatury.
 5. **Typ [`ObjectSummary['status']`](../../frontend/src/types/telemetry.ts#L20) nie zawiera `'alarm'`, choć [`statusConfig.ts`](../../frontend/src/lib/statusConfig.ts) tę wartość definiuje i obsługuje.** Do uzgodnienia z kontraktem API — jeśli backend zwraca `alarm`, typ jest błędny; jeśli nie zwraca, `statusConfig` obsługuje stan nieosiągalny. Nie zmieniałem, bo rozstrzygnięcie należy do warstwy kontraktu.
+6. **Katalog uprawnień nie przewiduje alarmów.** [§2.7.3 planu](../business/01_plan_biznesowy.md) definiuje rolę „użytkownik operacyjny”, która „potwierdza alarmy i dodaje informacje dotyczące obsługi zdarzenia”, ale w `permission_catalog.py` i jego froncie ([`types/permissions.ts`](../../frontend/src/types/permissions.ts)) nie ma ani jednego kodu, który by to wyrażał. Cztery brakujące kody wraz z mapowaniem na role: [§6.7](#67-uprawnienia--brakujące-kody-bez-których-ekranu-nie-da-się-zbudować). Do dodania w backendzie **przed** implementacją ekranu.
+7. **`DashboardPage` jest pokryty testami, ale nieosiągalny w aplikacji** ([§4.1](#41-w-01--ekran-startowy-pokazuje-wyjątki)). Zestaw testów raportuje sprawność ekranu, do którego nie prowadzi żadna trasa. Niezależnie od tego, czy strona wróci czy zniknie, ten stan powinien zostać rozstrzygnięty, bo fałszuje obraz pokrycia testami.
 
 ---
 
