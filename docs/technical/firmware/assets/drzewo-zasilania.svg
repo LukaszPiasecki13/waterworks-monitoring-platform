@@ -1,0 +1,140 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1100 660" width="1100" height="660" role="img"
+     aria-label="Drzewo zasilania gatewaya: stan obecny (USB 5 V plus osobny zasilacz 5 V dla modemu) oraz stan docelowy (230 V AC do 24 V DC, przetwornica XL4015 do 5 V, LDO 3,3 V)">
+  <title>Drzewo zasilania gatewaya</title>
+  <desc>Panel lewy: stan obecny PoC, zweryfikowany w dokumentacji sprzętowej. Panel prawy: łańcuch docelowy, status draft — pochodzi z planu, nie z repozytorium.</desc>
+  <style>
+    svg {
+      --bg: #f6f8fb;
+      --card: #ffffff;
+      --panel: #eef2f7;
+      --line: #47536b;
+      --ink: #0f172a;
+      --muted: #52627a;
+      --pwr: #b91c1c;
+      --draft: #b45309;
+      --ok: #15803d;
+    }
+    @media (prefers-color-scheme: dark) {
+      svg {
+        --bg: #0d1524;
+        --card: #1a2436;
+        --panel: #131c2c;
+        --line: #93a3bb;
+        --ink: #e8eef7;
+        --muted: #a7b4c7;
+        --pwr: #fb7185;
+        --draft: #fbbf24;
+        --ok: #6ee7a8;
+      }
+    }
+    .bg { fill: var(--bg); }
+    .panel { fill: var(--panel); stroke: var(--line); stroke-width: 1.2; }
+    .card { fill: var(--card); stroke: var(--line); stroke-width: 1.5; }
+    .card-draft { fill: var(--card); stroke: var(--draft); stroke-width: 1.5; stroke-dasharray: 7 5; }
+    .gndbar { fill: var(--card); stroke: var(--line); stroke-width: 2.4; }
+    .t { font-family: ui-sans-serif, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; fill: var(--ink); }
+    .mut { fill: var(--muted); }
+    .h1 { font-size: 21px; font-weight: 700; }
+    .h2 { font-size: 15px; font-weight: 700; }
+    .bx { font-size: 13px; }
+    .lbl { font-size: 11.5px; }
+    .a { stroke: var(--pwr); stroke-width: 2.4; fill: none; marker-end: url(#arrow); }
+    .a-draft { stroke: var(--draft); stroke-width: 2.4; fill: none; stroke-dasharray: 7 5; marker-end: url(#arrowD); }
+    .a-gnd { stroke: var(--line); stroke-width: 2.2; fill: none; }
+  </style>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--pwr)"/>
+    </marker>
+    <marker id="arrowD" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--draft)"/>
+    </marker>
+  </defs>
+
+  <rect class="bg" x="0" y="0" width="1100" height="660"/>
+  <text class="t h1" x="550" y="36" text-anchor="middle">Drzewo zasilania gatewaya</text>
+  <text class="t lbl mut" x="550" y="58" text-anchor="middle">Panel lewy — stan obecny stanowiska. Panel prawy — łańcuch docelowy w polu (draft, z planu; nie ma odpowiednika w repozytorium).</text>
+
+  <!-- ================= PANEL A ================= -->
+  <rect class="panel" x="30" y="80" width="490" height="545" rx="10"/>
+  <text class="t h2" x="50" y="106">Stan obecny — stanowisko laboratoryjne</text>
+  <text class="t lbl mut" x="50" y="124">źródło: 01_hardware.md §7, uwagi krytyczne</text>
+
+  <rect class="card" x="50" y="146" width="200" height="52" rx="7"/>
+  <text class="t bx" x="150" y="170" text-anchor="middle">USB-C dev-kitu</text>
+  <text class="t lbl mut" x="150" y="188" text-anchor="middle">5 V, prąd ograniczony</text>
+
+  <rect class="card" x="290" y="146" width="210" height="52" rx="7"/>
+  <text class="t bx" x="395" y="170" text-anchor="middle">Zasilacz 5 V / ≥ 2 A</text>
+  <text class="t lbl mut" x="395" y="188" text-anchor="middle">osobny, nie z USB</text>
+
+  <path class="a" d="M150 198 L150 236"/>
+  <path class="a" d="M395 198 L395 236"/>
+
+  <rect class="card" x="50" y="242" width="200" height="60" rx="7"/>
+  <text class="t bx" x="150" y="266" text-anchor="middle">ESP32-S3-DevKitC-1</text>
+  <text class="t lbl mut" x="150" y="284" text-anchor="middle">LDO on-board → 3,3 V</text>
+
+  <rect class="card" x="290" y="242" width="210" height="60" rx="7"/>
+  <text class="t bx" x="395" y="266" text-anchor="middle">KAmod HAT, piny 2 i 4</text>
+  <text class="t lbl mut" x="395" y="284" text-anchor="middle">→ modem A7670E</text>
+
+  <path class="a" d="M150 302 L150 340"/>
+  <rect class="card" x="50" y="346" width="200" height="52" rx="7"/>
+  <text class="t bx" x="150" y="370" text-anchor="middle">MAX31865</text>
+  <text class="t lbl mut" x="150" y="388" text-anchor="middle">VIN 3,3 V, ok. 10 mA</text>
+
+  <path class="a-gnd" d="M150 398 L150 452"/>
+  <path class="a-gnd" d="M395 302 L395 452"/>
+  <rect class="gndbar" x="50" y="452" width="450" height="42" rx="7"/>
+  <text class="t bx" x="275" y="478" text-anchor="middle">GND — jedna wspólna masa całego zestawu</text>
+
+  <text class="t lbl" x="50" y="522">Bez wspólnej masy UART między ESP32-S3 a modemem nie zadziała,</text>
+  <text class="t lbl" x="50" y="540">nawet przy poprawnie założonych zworkach J2.</text>
+  <text class="t lbl mut" x="50" y="566">Szczyty poboru przy nadawaniu LTE to ok. 2 A na module modemu —</text>
+  <text class="t lbl mut" x="50" y="584">stąd wymóg osobnego zasilacza (dane producenta, nie pomiar).</text>
+  <text class="t lbl mut" x="50" y="608">Bilans prądowy nie był liczony — to zakres osobnego zlecenia.</text>
+
+  <!-- ================= PANEL B ================= -->
+  <rect class="panel" x="560" y="80" width="510" height="545" rx="10"/>
+  <text class="t h2" x="580" y="106">Stan docelowy w polu — draft</text>
+  <text class="t lbl mut" x="580" y="124">źródło: plan (BOM planu biznesowego §4.2.2 i brief B-11), nie kod</text>
+
+  <rect class="card-draft" x="580" y="146" width="240" height="46" rx="7"/>
+  <text class="t bx" x="700" y="175" text-anchor="middle">Sieć 230 V AC (szafa hydroforni)</text>
+  <path class="a-draft" d="M700 192 L700 224"/>
+
+  <rect class="card-draft" x="580" y="230" width="240" height="52" rx="7"/>
+  <text class="t bx" x="700" y="252" text-anchor="middle">Zasilacz DIN 230 V AC → 24 V DC</text>
+  <text class="t lbl mut" x="700" y="270" text-anchor="middle">ochrona przepięciowa na wejściu</text>
+
+  <path class="a-draft" d="M700 282 L700 302 L670 302 L670 322"/>
+  <path class="a-draft" d="M700 282 L700 302 L935 302 L935 322"/>
+
+  <rect class="card-draft" x="580" y="328" width="180" height="56" rx="7"/>
+  <text class="t bx" x="670" y="350" text-anchor="middle">XL4015</text>
+  <text class="t lbl mut" x="670" y="368" text-anchor="middle">24 V → 5 V / 2 A</text>
+
+  <rect class="card-draft" x="820" y="328" width="230" height="56" rx="7"/>
+  <text class="t bx" x="935" y="350" text-anchor="middle">Pętla prądowa 4-20 mA</text>
+  <text class="t lbl mut" x="935" y="368" text-anchor="middle">zasilanie przetwornika PT-506</text>
+
+  <path class="a-draft" d="M670 384 L670 416"/>
+  <rect class="card-draft" x="580" y="422" width="240" height="56" rx="7"/>
+  <text class="t bx" x="700" y="444" text-anchor="middle">5 V → ESP32-S3 (VIN) + HAT</text>
+  <text class="t lbl mut" x="700" y="462" text-anchor="middle">jedno źródło zamiast dwóch</text>
+
+  <path class="a-draft" d="M700 478 L700 510"/>
+  <rect class="card-draft" x="580" y="516" width="240" height="56" rx="7"/>
+  <text class="t bx" x="700" y="538" text-anchor="middle">3,3 V — LDO na dev-kicie</text>
+  <text class="t lbl mut" x="700" y="556" text-anchor="middle">MAX31865, ADS1015</text>
+
+  <text class="t lbl mut" x="850" y="428">Do rozstrzygnięcia przed montażem:</text>
+  <text class="t lbl mut" x="850" y="450">· separacja galwaniczna wejść</text>
+  <text class="t lbl mut" x="850" y="472">· ochrona przepięciowa linii sygnałowej</text>
+  <text class="t lbl mut" x="850" y="494">· zapas prądowy przetwornicy w szczycie</text>
+  <text class="t lbl mut" x="850" y="516">· detekcja zaniku 230 V (POWER_LOW)</text>
+  <text class="t lbl mut" x="850" y="538">· sygnał z pętli 4-20 mA trafia na AIN0</text>
+  <text class="t lbl mut" x="850" y="560">  ADS1015, nie do gałęzi zasilania</text>
+  <text class="t lbl mut" x="580" y="600">Żaden element tego panelu nie jest zweryfikowany na sprzęcie ani obecny w firmware.</text>
+</svg>

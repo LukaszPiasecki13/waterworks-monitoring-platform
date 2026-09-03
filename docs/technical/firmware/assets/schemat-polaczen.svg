@@ -1,0 +1,209 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 860" width="1200" height="860" role="img"
+     aria-label="Schemat połączeń gatewaya: ESP32-S3-DevKitC-1 z modułem KAmod A7670E, konwerterem MAX31865 z czujnikiem PT100 oraz planowanym ADS1015 z czujnikiem ciśnienia PT-506">
+  <title>Schemat połączeń gatewaya ESP32-S3</title>
+  <desc>Linie ciągłe: połączenia wynikające z firmware/include/Config.h. Linie przerywane: elementy planowane, bez odpowiednika w kodzie firmware.</desc>
+  <style>
+    svg {
+      --bg: #f6f8fb;
+      --card: #ffffff;
+      --card2: #eaeff6;
+      --line: #47536b;
+      --ink: #0f172a;
+      --muted: #52627a;
+      --accent: #1d4ed8;
+      --draft: #b45309;
+      --pwr: #b91c1c;
+    }
+    @media (prefers-color-scheme: dark) {
+      svg {
+        --bg: #0d1524;
+        --card: #1a2436;
+        --card2: #16202f;
+        --line: #93a3bb;
+        --ink: #e8eef7;
+        --muted: #a7b4c7;
+        --accent: #7aa2f7;
+        --draft: #fbbf24;
+        --pwr: #fb7185;
+      }
+    }
+    .bg { fill: var(--bg); }
+    .card { fill: var(--card); stroke: var(--line); stroke-width: 1.6; }
+    .card-draft { fill: var(--card); stroke: var(--draft); stroke-width: 1.6; stroke-dasharray: 7 5; }
+    .note { fill: var(--card2); stroke: var(--line); stroke-width: 1; }
+    .t { font-family: ui-sans-serif, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; fill: var(--ink); }
+    .m { font-family: ui-monospace, "Cascadia Mono", Consolas, "DejaVu Sans Mono", monospace; fill: var(--ink); }
+    .mut { fill: var(--muted); }
+    .h1 { font-size: 21px; font-weight: 700; }
+    .h2 { font-size: 14.5px; font-weight: 700; }
+    .sub { font-size: 11.5px; }
+    .pin { font-size: 12px; }
+    .lbl { font-size: 11px; }
+    .w { stroke: var(--accent); stroke-width: 2; fill: none; }
+    .w-draft { stroke: var(--draft); stroke-width: 2; fill: none; stroke-dasharray: 7 5; }
+    .w-pwr { stroke: var(--pwr); stroke-width: 2.4; fill: none; }
+    .w-gnd { stroke: var(--line); stroke-width: 2.4; fill: none; }
+    .sep { stroke: var(--line); stroke-width: 1; opacity: .45; }
+    .dot { fill: var(--accent); }
+  </style>
+
+  <rect class="bg" x="0" y="0" width="1200" height="860"/>
+
+  <text class="t h1" x="600" y="36" text-anchor="middle">Schemat połączeń gatewaya — ESP32-S3 + KAmod A7670E + czujniki</text>
+  <text class="t sub mut" x="600" y="58" text-anchor="middle">Jedyne źródło prawdy dla numerów GPIO: firmware/include/Config.h</text>
+
+  <!-- legenda -->
+  <line class="w" x1="290" y1="86" x2="326" y2="86"/>
+  <text class="t lbl" x="334" y="90">sygnał zweryfikowany w kodzie</text>
+  <line class="w-draft" x1="540" y1="86" x2="576" y2="86"/>
+  <text class="t lbl" x="584" y="90">draft — brak w kodzie firmware</text>
+  <line class="w-pwr" x1="790" y1="86" x2="826" y2="86"/>
+  <text class="t lbl" x="834" y="90">zasilanie</text>
+  <line class="w-gnd" x1="900" y1="86" x2="936" y2="86"/>
+  <text class="t lbl" x="944" y="90">masa (wspólna)</text>
+
+  <!-- ================= KAmod HAT ================= -->
+  <rect class="card" x="40" y="170" width="310" height="218" rx="8"/>
+  <text class="t h2" x="56" y="196">KAmod LTE CAT1-GNSS</text>
+  <text class="t sub mut" x="56" y="213">A7670E-FASE, HAT na złączu 40-pin RPi</text>
+  <line class="sep" x1="56" y1="222" x2="334" y2="222"/>
+  <text class="m pin" x="56" y="240">pin 8  · RXD modemu</text>
+  <text class="m pin" x="56" y="268">pin 10 · TXD modemu</text>
+  <text class="m pin" x="56" y="296">pin 12 · RST (active-high)</text>
+  <text class="m pin" x="56" y="324">pin 7  · PWK (active-high)</text>
+  <text class="m pin" x="56" y="352">GND · piny 6,9,14,20,25,30,34,39</text>
+  <text class="m pin" x="56" y="374">+5 V · piny 2 i 4</text>
+
+  <!-- zasilanie HAT -->
+  <path class="w-pwr" d="M195 388 L195 404"/>
+  <rect class="note" x="40" y="404" width="310" height="94" rx="8"/>
+  <text class="t h2" x="56" y="425">Zasilanie modułu HAT</text>
+  <text class="t lbl" x="56" y="445">5 V / min. 2 A z osobnego zasilacza na piny 2 i 4.</text>
+  <text class="t lbl" x="56" y="463">USB dev-kitu ESP32-S3 nie zapewnia tego prądu.</text>
+  <text class="t lbl" x="56" y="485">Masa zasilacza wspólna z masą ESP32-S3 — obowiązkowo.</text>
+
+  <rect class="note" x="40" y="514" width="310" height="126" rx="8"/>
+  <text class="t h2" x="56" y="535">Zworki i złącza na płytce HAT</text>
+  <text class="t lbl" x="56" y="555">J2 — osobna zworka dla TXD, RXD, PWK i RST.</text>
+  <text class="t lbl" x="56" y="573">Bez założonej zworki sygnał nie dociera do złącza.</text>
+  <text class="t lbl" x="56" y="595">J_APWK (spód płytki) — auto power-on modemu;</text>
+  <text class="t lbl" x="56" y="613">możliwa kolizja z ModemPower::powerOn().</text>
+  <text class="t lbl" x="56" y="632">Dwa gniazda U.FL: LTE i GNSS. Gniazdo micro SIM.</text>
+
+  <!-- ================= ESP32-S3 ================= -->
+  <rect class="card" x="470" y="170" width="290" height="490" rx="8"/>
+  <text class="t h2" x="615" y="196" text-anchor="middle">ESP32-S3-DevKitC-1</text>
+  <text class="t sub mut" x="615" y="213" text-anchor="middle">wariant modułu — do potwierdzenia</text>
+  <line class="sep" x1="486" y1="222" x2="744" y2="222"/>
+
+  <text class="m pin" x="486" y="240">GPIO17 · TX1</text>
+  <text class="m pin" x="744" y="240" text-anchor="end">MOSI · GPIO11</text>
+  <text class="m pin" x="486" y="268">GPIO18 · RX1</text>
+  <text class="m pin" x="744" y="268" text-anchor="end">SCK · GPIO12</text>
+  <text class="m pin" x="486" y="296">GPIO5 · RESET</text>
+  <text class="m pin" x="744" y="296" text-anchor="end">MISO · GPIO13</text>
+  <text class="m pin" x="486" y="324">GPIO4 · PWRKEY</text>
+  <text class="m pin" x="744" y="324" text-anchor="end">CS · GPIO14</text>
+  <text class="m pin" x="486" y="352">GND</text>
+  <text class="m pin" x="744" y="352" text-anchor="end">3V3</text>
+  <text class="m pin" x="744" y="380" text-anchor="end">GND</text>
+
+  <line class="sep" x1="486" y1="396" x2="744" y2="396"/>
+  <text class="m pin" x="486" y="416">GPIO48 · RGB WS2812</text>
+  <text class="t lbl mut" x="486" y="433">on-board; 1 mignięcie = OK, 3 = błąd</text>
+  <text class="m pin" x="486" y="457">USB-C · logi 115200 8N1</text>
+
+  <line class="sep" x1="486" y1="472" x2="744" y2="472"/>
+  <text class="m pin" x="486" y="492">SDA / SCL — I²C dla ADS1015</text>
+  <text class="t lbl" x="486" y="509">nieokreślone w Config.h → nie zgadywać</text>
+
+  <line class="sep" x1="486" y1="524" x2="744" y2="524"/>
+  <text class="t lbl mut" x="486" y="544">Piny zajęte lub ryzykowne wg karty</text>
+  <text class="t lbl mut" x="486" y="561">katalogowej ESP32-S3 (nie zweryfikowane</text>
+  <text class="t lbl mut" x="486" y="578">na tej płytce):</text>
+  <text class="t lbl mut" x="486" y="600">· GPIO0, 3, 45, 46 — strapping</text>
+  <text class="t lbl mut" x="486" y="618">· GPIO19, 20 — USB D− / D+</text>
+  <text class="t lbl mut" x="486" y="636">· GPIO26–37 — flash i PSRAM</text>
+
+  <!-- ================= MAX31865 ================= -->
+  <rect class="card" x="880" y="170" width="280" height="260" rx="8"/>
+  <text class="t h2" x="1020" y="196" text-anchor="middle">MAX31865</text>
+  <text class="t sub mut" x="1020" y="213" text-anchor="middle">konwerter RTD → SPI, Rref = 430 Ω</text>
+  <line class="sep" x1="896" y1="222" x2="1144" y2="222"/>
+  <text class="m pin" x="896" y="240">SDI  (MOSI)</text>
+  <text class="m pin" x="896" y="268">CLK  (SCK)</text>
+  <text class="m pin" x="896" y="296">SDO  (MISO)</text>
+  <text class="m pin" x="896" y="324">CS</text>
+  <text class="m pin" x="896" y="352">VIN  3,3 V</text>
+  <text class="m pin" x="896" y="380">GND</text>
+  <line class="sep" x1="896" y1="394" x2="1144" y2="394"/>
+  <text class="m pin" x="896" y="414">Wejścia RTD: F+ RTD+ RTD−</text>
+
+  <!-- ================= PT100 ================= -->
+  <rect class="card" x="900" y="454" width="240" height="80" rx="8"/>
+  <text class="t h2" x="1020" y="478" text-anchor="middle">PT100 — 3-przewodowy</text>
+  <text class="t lbl mut" x="1020" y="498" text-anchor="middle">para zwarta wewnętrznie → F+ i RTD+</text>
+  <text class="t lbl mut" x="1020" y="516" text-anchor="middle">trzeci przewód → RTD−, zworka 2/3W zwarta</text>
+
+  <!-- ================= ADS1015 (draft) ================= -->
+  <rect class="card-draft" x="880" y="560" width="280" height="144" rx="8"/>
+  <text class="t h2" x="1020" y="584" text-anchor="middle">ADS1015 — draft</text>
+  <text class="t sub mut" x="1020" y="602" text-anchor="middle">12-bit A/C na I²C, PGA ±4,096 V</text>
+  <line class="sep" x1="896" y1="612" x2="1144" y2="612"/>
+  <text class="m pin" x="896" y="632">SDA / SCL ← ESP32-S3</text>
+  <text class="t lbl mut" x="896" y="649">piny do ustalenia (draft)</text>
+  <text class="m pin" x="896" y="672">AIN0 ← pętla 4-20 mA</text>
+  <text class="t lbl mut" x="896" y="691">AIN1–AIN3 wolne · VDD 3,3 V · GND</text>
+
+  <!-- ================= PT-506 (draft) ================= -->
+  <rect class="card-draft" x="900" y="748" width="240" height="86" rx="8"/>
+  <text class="t h2" x="1020" y="772" text-anchor="middle">PT-506 — draft</text>
+  <text class="t lbl mut" x="1020" y="791" text-anchor="middle">przetwornik ciśnienia 4-20 mA</text>
+  <text class="t lbl mut" x="1020" y="808" text-anchor="middle">gwint 1/4&quot; G, kontakt z wodą pitną</text>
+  <text class="t lbl mut" x="1020" y="825" text-anchor="middle">pętla zasilana z szyny 24 V</text>
+
+  <!-- ================= przewody: HAT ↔ ESP32 ================= -->
+  <path class="w" d="M350 235 L470 235"/>
+  <path class="w" d="M350 263 L470 263"/>
+  <path class="w" d="M350 291 L470 291"/>
+  <path class="w" d="M350 319 L470 319"/>
+  <path class="w-gnd" d="M350 347 L470 347"/>
+  <circle class="dot" cx="470" cy="235" r="3"/>
+  <circle class="dot" cx="470" cy="263" r="3"/>
+  <circle class="dot" cx="470" cy="291" r="3"/>
+  <circle class="dot" cx="470" cy="319" r="3"/>
+  <text class="t lbl mut" x="410" y="229" text-anchor="middle">TX → RX</text>
+  <text class="t lbl mut" x="410" y="257" text-anchor="middle">RX ← TX</text>
+  <text class="t lbl mut" x="410" y="285" text-anchor="middle">RST</text>
+  <text class="t lbl mut" x="410" y="313" text-anchor="middle">PWK</text>
+  <text class="t lbl mut" x="410" y="341" text-anchor="middle">GND</text>
+
+  <!-- ================= przewody: ESP32 ↔ MAX31865 ================= -->
+  <path class="w" d="M760 235 L880 235"/>
+  <path class="w" d="M760 263 L880 263"/>
+  <path class="w" d="M760 291 L880 291"/>
+  <path class="w" d="M760 319 L880 319"/>
+  <path class="w-pwr" d="M760 347 L880 347"/>
+  <path class="w-gnd" d="M760 375 L880 375"/>
+  <circle class="dot" cx="880" cy="235" r="3"/>
+  <circle class="dot" cx="880" cy="263" r="3"/>
+  <circle class="dot" cx="880" cy="291" r="3"/>
+  <circle class="dot" cx="880" cy="319" r="3"/>
+  <text class="t lbl mut" x="820" y="229" text-anchor="middle">SPI</text>
+  <text class="t lbl mut" x="820" y="341" text-anchor="middle">3,3 V</text>
+  <text class="t lbl mut" x="820" y="369" text-anchor="middle">GND</text>
+
+  <!-- MAX31865 → PT100 -->
+  <path class="w" d="M1020 430 L1020 454"/>
+  <text class="t lbl mut" x="1030" y="448">3 przewody</text>
+
+  <!-- ESP32 → ADS1015 (draft) -->
+  <path class="w-draft" d="M760 500 L820 500 L820 626 L880 626"/>
+  <text class="t lbl" x="828" y="516">I²C (draft)</text>
+
+  <!-- ADS1015 → PT-506 (draft), z rezystorem pomiarowym -->
+  <path class="w-draft" d="M1020 704 L1020 748"/>
+  <rect x="1004" y="718" width="32" height="16" rx="3" fill="none" stroke="var(--draft)" stroke-width="1.6"/>
+  <text class="t lbl" x="996" y="723" text-anchor="end">R = 136 Ω (2 × 68 Ω) do masy</text>
+  <text class="t lbl mut" x="996" y="739" text-anchor="end">4 mA → 0,54 V · 20 mA → 2,72 V</text>
+</svg>

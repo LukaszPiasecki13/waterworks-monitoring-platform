@@ -1,8 +1,9 @@
 # Firmware: komunikacja z modemem A7670E-FASE
 
-> Dokumentacja kontroli, resetu i diagnostyki modemu LTE A7670E-FASE na płytce KAmod. Towarzysz tego dokumentu na sprzęcie: [`firmware/HARDWARE.md`](../../../firmware/HARDWARE.md).
+> Dokumentacja kontroli, resetu i diagnostyki modemu LTE A7670E-FASE na płytce KAmod. Mapa pinów i uwagi o module: [`01_hardware.md`](./01_hardware.md). Przegląd całości: [`00_przeglad.md`](./00_przeglad.md).
 >
-> **Status: zweryfikowane na 2026-08-22** — procedura hardReset testowana, komunikacja AT potwierdzona (5/5 prób pre-reset i post-reset), diagnostyka LED działająca.
+> **Status: zweryfikowane na sprzęcie 2026-08-22** — procedura hardReset testowana, komunikacja AT potwierdzona (5/5 prób pre-reset i post-reset), diagnostyka LED działająca.
+> **Uzgodnione z kodem: 2026-09-03** — poprawione czasy sekwencji, tabela pinów i sekcja diagnostyki.
 
 ## 1. Cel
 
@@ -24,15 +25,17 @@ Modem A7670E-FASE dostarcza łączność LTE-M do backendu. Firmware musi:
 
 ### 2.2 Pin mapping (ESP32-S3 ↔ A7670E, KAmod HAT)
 
-| ESP32-S3 GPIO | Funkcja | Pin KAmod | Uwagi |
+| ESP32-S3 GPIO | Funkcja | Pin złącza 40-pin HAT | Uwagi |
 |---|---|---|---|
-| 17 | UART1 TX | A7670E RX | Konfiguracja: `Config.h:17` |
-| 18 | UART1 RX | A7670E TX | Konfiguracja: `Config.h:18` |
-| 4 | PWRKEY | J1 pin 7 | Active-high, wymaga impulsu min. 50ms do włączenia |
-| 5 | RESET | J1 pin 12 | Active-high, wymuszenie resetu (HIGH trzyma w resecie) |
-| – | Baud rate | – | Obie strony: 115200 bps, 8N1 |
+| 17 | UART1 TX | pin 8 (RXD modemu) | [`Config.h:17`](../../../firmware/include/Config.h#L17) |
+| 18 | UART1 RX | pin 10 (TXD modemu) | [`Config.h:16`](../../../firmware/include/Config.h#L16) |
+| 4 | PWRKEY | pin 7 | Active-high, [`Config.h:18`](../../../firmware/include/Config.h#L18) |
+| 5 | RESET | pin 12 | Active-high, HIGH trzyma modem w resecie, [`Config.h:19`](../../../firmware/include/Config.h#L19) |
+| – | Baud rate | – | Obie strony: 115200 bps, 8N1 (`MODEM_BAUD`) |
 
-**Źródło:** [`firmware/HARDWARE.md`](../../../firmware/HARDWARE.md) (autorytetu), wiki KAmod (https://wiki.kamamilabs.com/).
+**Źródło:** [`Config.h`](../../../firmware/include/Config.h) dla numerów GPIO,
+[`01_hardware.md §7`](./01_hardware.md#7-a7670e-fase--moduł-kamod-lte-cat1-gnss-hat) dla przełożenia
+na piny złącza HAT (status: draft), wiki KAmod (https://wiki.kamamilabs.com/).
 
 ### 2.3 LED Indicators (KAmod płytka)
 
@@ -56,7 +59,9 @@ Wywoływana raz w `setup()`:
    - Postaw HIGH
    - Czekaj 3000ms (modem się bootuje, J_APWK autopower tworzy własny impuls)
 
-**Timing:** `powerOn()` całkowicie blokuje przez ~4.8s. To setup, nie loop — nieproblematyczne.
+**Timing:** `powerOn()` blokuje przez **~4,3 s** (100 + 1200 + 3000 ms; POWER_ENABLE jest wyłączone,
+`-1`). Wołane z `setup()` albo z `handleEnrollmentPhase()`, nie z gorącej ścieżki `loop()`.
+Weryfikacja: [`ModemPower.cpp:7-28`](../../../firmware/lib/ModemPower/src/ModemPower.cpp#L7-L28).
 
 **Auto-power (J_APWK):** Płytka KAmod zawiera obwód generujący impuls PWK automatycznie po podłączeniu zasilania. Jeśli J_APWK jumper **nie jest przecięty** (domyślnie), modem może bootować asynchronicznie względem ESP32, niezależnie od `powerOn()` sekwencji (jest to feature, nie bug — zmniejsza opóźnienie startu całego systemu).
 
@@ -69,27 +74,29 @@ Wywoływana raz w `setup()`:
 
 Wywoływana z `loop()` lub przez handler zewnętrzny (watchdog, zdalny command):
 
-```cpp
-void ModemPower::hardReset() {
-  if (reset_pin_ >= 0) {
-    pinMode(reset_pin_, OUTPUT);
-    digitalWrite(reset_pin_, HIGH);  // Assert reset (active-high)
-    delay(2600);                      // Trzymaj w resecie 2.6s
-    digitalWrite(reset_pin_, LOW);    // Release reset
-    delay(1500);                      // Czekaj na reboot modemem
-  }
-  // PWRKEY sekwencja (patrz poniżej) — opcjonalna
-}
-```
+Pełne źródło: [`ModemPower.cpp:30-50`](../../../firmware/lib/ModemPower/src/ModemPower.cpp#L30-L50).
 
-**Timing:**
-- HIGH 2600ms: modem resetuje się wewnętrznie
-- LOW 1500ms: modem się bootuje i wraca do gotowości na AT
-- **Razem:** ~4.1s pełnego resetu bez utraty zasilania
+**Timing — dwie fazy, obie wykonywane zawsze:**
 
-**Weryfikacja (2026-08-22):** Test pokazał, że post-reset modem odpowiada na 5/5 AT commands — procedura 100% niezawodna.
+| Faza | Kroki | Czas |
+|---|---|---|
+| RESET | HIGH 2600 ms (reset wewnętrzny) → LOW 1500 ms (boot modemu) | 4,1 s |
+| PWRKEY | LOW 3000 → HIGH 1000 → LOW 1000 → HIGH 5000 ms | 10,0 s |
+| **Razem** | | **~14,1 s** |
 
-**W `hardReset()`:** jeśli `pwrkey_pin_ >= 0`, sekwencja PWRKEY jest również wykonywana (toggle LOW→HIGH→LOW→HIGH z timingami). To *opcjonalne* — same RESET (HIGH→LOW) wystarczy.
+**Sprostowanie wobec wcześniejszej wersji tego dokumentu.** Pisała ona o „~4,1 s pełnego resetu",
+a sekwencję PWRKEY nazywała *opcjonalną*. W kodzie jest bezwarunkowa dla `pwrkey_pin_ >= 0`, a
+`MODEM_PWRKEY_PIN` = 4, więc **wykonuje się zawsze** — realny czas twardego resetu to ~14,1 s.
+
+**Uwaga o watchdogu.** `hardReset()` nie wywołuje w środku `esp_task_wdt_reset()`, a wołający ją
+[`Watchdog::attemptRecovery()`](../../../firmware/lib/Watchdog/src/Watchdog.cpp#L32-L35) dokłada
+jeszcze `delay(3000)` — łącznie ~17 s blokady w jednej iteracji `loop()`, przy limicie Task WDT
+ustawionym na 15 s ([`platformio.ini:19`](../../../firmware/platformio.ini#L19)). Czy kończy się to
+zadziałaniem watchdoga, zależy od tego, czy zadanie `loopTask` jest w ogóle zapisane do Task WDT —
+tego nie da się rozstrzygnąć z samego kodu tego repozytorium. **Do sprawdzenia na sprzęcie:**
+obserwuj, czy po recovery poziomu 2 pojawia się w logu `task_wdt: Task watchdog got triggered`.
+
+**Weryfikacja (2026-08-22):** Test pokazał, że post-reset modem odpowiada na 5/5 komend AT.
 
 ## 5. Komunikacja AT (TinyGSM / UART)
 
@@ -120,7 +127,14 @@ modem_->localIP()               // Pokaż IP (powinno być != "0.0.0.0")
 TinyGsmAutoBaud(serial_at_, 9600, 115200);
 ```
 
-Jeśli modem się wysyła garbage (nieznany baud), TinyGSM automatycznie próbuje 9600 i 115200 bps. Blokuje na max ~2s.
+Jeśli modem wysyła śmieci (nieznany baud), TinyGSM próbuje kolejno 9600 i 115200 bps.
+
+**Cała sekwencja `ModemLink::init()` blokuje 7–17 s**: `delay(5000)` na stabilizację UART →
+`delay(500)`, opróżnienie bufora RX pętlą `while (serial_at_.available())`, `delay(500)` →
+`TinyGsmAutoBaud()` + `delay(1000)` → do 10 s prób `modem_->init()` co 500 ms.
+Każdy krok jest otoczony `esp_task_wdt_reset()`
+([`ModemLink.cpp:15-52`](../../../firmware/lib/ModemLink/src/ModemLink.cpp#L15-L52)). Dalej dochodzi
+do 60 s oczekiwania na rejestrację w sieci i do 30 s na kontekst GPRS.
 
 ## 6. Diagnostyka i troubleshooting
 
@@ -154,16 +168,25 @@ Przykład:
 | Zły IP (`0.0.0.0`) | GPRS connection failed | Spróbuj `modem_->gprsDisconnect()` i reconnect, lub hardReset. |
 | UART garbage | Auto-baud fail, hardware problem | Sprawdź GPIO17/18. Jeśli hardware jest OK, baud problem — spróbuj ręcznie `serial_at_.begin(115200, SERIAL_8N1, 18, 17)` w testowym sketch. |
 
-### 6.3 Ręczny test modemem
+### 6.3 Diagnostyka na żywo
 
-Testowy firmware w [`firmware/src/main.cpp`](../../../firmware/src/main.cpp) (toggle `#define TEST_MODEM 1`):
-- Auto-baud UART
-- Loopback test (TX/RX echo)
-- 5x AT command test pre-reset
-- hardReset procedure
-- 5x AT command test post-reset
+**Trybu testowego `#define TEST_MODEM` już nie ma** — opisywał on wersję `main.cpp` sprzed refaktoru
+i został usunięty z kodu. Dostępne dziś narzędzia diagnostyczne to:
 
-Zbuduj i uploaduj: `pio run -t upload -e esp32-s3`. Obserwuj serial monitor: szukaj `[RESULT] Success rate: 5/5` na obu etapach.
+1. **Log startowy.** `pio run -t upload -e esp32-s3 && pio device monitor -b 115200`. Prawidłowa
+   sekwencja to `[MODEM] Starting UART...` → `[MODEM] Init OK` → `[NET] Network connected` →
+   `[DATA] GPRS/LTE connected` → `[DATA] Local IP: ...`. Zatrzymanie się na którymkolwiek z tych
+   kroków wskazuje etap z tabeli w [§6.2](#62-scenariusze-błędów).
+2. **Czas inicjalizacji.** `main.cpp` mierzy go i loguje: `[BOOT] Modem ready in NNNN ms`. Wartość
+   rzędu 100–200 ms oznacza modem już wystartowany (np. przez J_APWK); kilkanaście sekund — pełną
+   sekwencję power-on; brak linii — porażkę.
+3. **Diody na płytce HAT** (PWR/STA/NET) — patrz [§2.3](#23-led-indicators-kamod-płytka). Dają obraz
+   niezależny od logów, przydatny gdy UART w ogóle nie odpowiada.
+4. **Test AT z poziomu recovery.** `Watchdog` poziomu 1 woła `ModemLink::testAT()` po 5 minutach bez
+   udanej wysyłki. **Uwaga: [`Watchdog.cpp`](../../../firmware/lib/Watchdog/src/Watchdog.cpp) nie
+   loguje niczego** — recovery przebiega bezgłośnie, więc w logu widać tylko jego skutki (przerwa w
+   komunikatach na czas twardego resetu, ewentualny restart ESP32). Zob.
+   [`03_esp32_reset_and_recovery.md §3`](./03_esp32_reset_and_recovery.md#3-strategia-recovery-3-level).
 
 ## 7. Znane problemy i obejścia
 
@@ -185,7 +208,7 @@ Jeśli w przyszłości wymaga się soft-resetu (np. do cofnięcia zmian APN bez 
 
 **Root cause:** Na płytce KAmod pin RESET jest active-HIGH (HIGH = reset asserted, LOW = normal operation). Kodeks musiał ustawiać RESET = LOW po inicjalizacji, aby zwolnić modem.
 
-**Fix:** [`lib/ModemPower/src/ModemPower.cpp:16`](../../../firmware/lib/ModemPower/src/ModemPower.cpp#L16) — zmiana `digitalWrite(reset_pin_, HIGH)` na `digitalWrite(reset_pin_, LOW)`. Sekwencja teraz pasuje do udokumentowanej procedury (linia 49–57) i `hardReset()` (linie 30–38).
+**Fix:** [`lib/ModemPower/src/ModemPower.cpp:16`](../../../firmware/lib/ModemPower/src/ModemPower.cpp#L16) — zmiana `digitalWrite(reset_pin_, HIGH)` na `digitalWrite(reset_pin_, LOW)`. Sekwencja pasuje teraz do procedury opisanej w [§3](#3-sekwencja-inicjalizacji-libmodempowerpoweron) i do `hardReset()` z [§4](#4-procedura-zdalnego-resetu-libmodempowerhardreset).
 
 **Weryfikacja (2026-08-23):** Modem AT init teraz kompletuje się w **132ms** zamiast timeout'u. Network auto-connect, GPRS/LTE online, żadnych watchdog'ów. ✓
 
@@ -193,6 +216,6 @@ Jeśli w przyszłości wymaga się soft-resetu (np. do cofnięcia zmian APN bez 
 
 - **KAmod wiki:** https://wiki.kamamilabs.com/index.php?title=KAmod_LTE_CAT1-GNSS_z_modu%C5%82em_A7670E-FASE_(PL)
 - **SIMCom A7670E spec:** (PDF na stronie KAmod, lub https://www.simcom.com/)
-- **TinyGSM:** https://github.com/vshymanskyy/TinyGSM
-- **Firmware HARDWARE.md:** [`firmware/HARDWARE.md`](../../../firmware/HARDWARE.md)
-- **Config.h:** [`firmware/include/Config.h`](../../../firmware/include/Config.h#L15-L19) — pin definitions
+- **TinyGSM (fork używany w projekcie):** https://github.com/lewisxhe/TinyGSM-fork — zob. [`platformio.ini:10`](../../../firmware/platformio.ini#L10)
+- **Mapa sprzętowa:** [`01_hardware.md`](./01_hardware.md)
+- **Config.h:** [`firmware/include/Config.h`](../../../firmware/include/Config.h#L15-L20) — definicje pinów
