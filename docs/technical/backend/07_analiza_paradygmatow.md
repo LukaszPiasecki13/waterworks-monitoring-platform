@@ -36,12 +36,12 @@ ADR nie powstaje z jednej obserwacji ani dla oczywistego wyboru bez realnej alte
 
 | # | Wzorzec | Dowód | Klasa | ADR |
 |---|---|---|---|---|
-| W-01 | Backend w całości synchroniczny (`def`, `Session`) | ~50 endpointów `def`, 0 wystąpień `AsyncSession`; 10 endpointów `async def` w jednym module jako odstępstwo | reguła + dług | [0001](../adr/0001-backend-synchroniczny.md) |
+| W-01 | Backend w całości synchroniczny (`def`, `Session`) | 56 endpointów `def`, 0 wystąpień `AsyncSession`; 10 endpointów `async def` w jednym module jako odstępstwo | reguła + dług | [0001](../adr/0001-backend-synchroniczny.md) |
 | W-02 | Commit bez wpisu audytowego jest błędem sesji | `AuditAwareSession`; 17 jawnych `skip_audit` w 3 rozłącznych kategoriach | reguła + wyjątek | [0002](../adr/0002-commit-bez-audytu-jest-bledem.md) |
 | W-03 | Audyt jako delta z migawki `_state()` | 6 serwisów, identyczny kształt, bez kontrprzykładu | reguła | [0003](../adr/0003-audyt-jako-delta-ze-snapshotu.md) |
 | W-04 | `transaction()` jedyną granicą transakcji; repozytoria nie commitują | 36 wystąpień; 1 świadomy wyjątek (seed), 4 miejsca łamiące (dług) | reguła + wyjątek | [0004](../adr/0004-transaction-jedyna-granica-transakcji.md) |
 | W-05 | `get_` zwraca `None`, `find_` rzuca | 43/43 metody repozytoriów zgodne, 0 kontrprzykładów | reguła | [0005](../adr/0005-get-zwraca-none-find-rzuca.md) |
-| W-06 | Kontrakt błędu `detail` + opcjonalny `code`; `HTTPException` tylko w `dependencies.py` | 0 `HTTPException` w `api/` i `services/`, 14 w 2 plikach zależności; frontend mapuje `code` | reguła | [0006](../adr/0006-kontrakt-bledu-detail-plus-code.md) |
+| W-06 | Kontrakt błędu `detail` + opcjonalny `code`; `HTTPException` tylko w `dependencies.py` | 0 `raise HTTPException` w `api/` i `services/`, 12 w 2 plikach zależności; frontend mapuje `code` | reguła | [0006](../adr/0006-kontrakt-bledu-detail-plus-code.md) |
 | W-07 | Autoryzacja w zależnościach, kontekst dostępu do serwisu; 404 na członkostwo, 403 na uprawnienie | 3 fabryki zależności, wszystkie endpointy org/platform | reguła | [0007](../adr/0007-autoryzacja-w-zaleznosciach.md) |
 | W-08 | Dwa podmioty (user/device) na jednym bearer, claim `type` | 3 typy tokenów, 3 miejsca weryfikacji typu | reguła | [0008](../adr/0008-dwa-podmioty-jeden-bearer.md) |
 | W-09 | Telemetria jako surowy pakiet JSONB, bez tabeli pomiarów | brak modelu wartości; cały odczyt rozpakowuje `payload` | reguła | [0009](../adr/0009-telemetria-jako-surowy-pakiet-jsonb.md) |
@@ -49,12 +49,12 @@ ADR nie powstaje z jednej obserwacji ani dla oczywistego wyboru bez realnej alte
 | W-11 | `sensor_registry.yaml` = SSoT dla typów punktów i kodów błędów, i tylko dla nich | walidacja ingestu + hook pre-build; 4 elementy kontraktu poza rejestrem | reguła + granica | [0011](../adr/0011-zakres-sensor-registry.md) |
 | W-12 | Autoprovisioning punktów pomiarowych z pakietu | `get_or_create_internal` + `POINT_TYPE_MISMATCH` | reguła | [0012](../adr/0012-autoprovisioning-punktow-pomiarowych.md) |
 | W-13 | Moduł wspierający bez `api/`, udostępniany portem z `core/` | `audit` — jedyny taki moduł; 2 konsumentów portu | reguła | [0013](../adr/0013-modul-bez-warstwy-api.md) |
-| W-14 | Bezstanowa logika jako funkcje modułowe; kontekst jako frozen dataclass | 2 moduły bezklasowe + 8 funkcji modułowych; 6 zamrożonych dataclass | reguła | [0014](../adr/0014-bezstanowa-logika-poza-klasami.md) |
-| W-15 | Modele `core_data` jako wspólny słownik domenowy | ~15 cross-modułowych importów modeli; 1 wyjątek zapisowy | wyjątek (granica reguły §2.3) | [0015](../adr/0015-modele-core-data-jako-wspolny-slownik.md) |
+| W-14 | Bezstanowa logika jako funkcje modułowe; kontekst jako frozen dataclass | 2 moduły bezklasowe + 15 funkcji modułowych w `services/`; 6 zamrożonych dataclass | reguła | [0014](../adr/0014-bezstanowa-logika-poza-klasami.md) |
+| W-15 | Modele `core_data` jako wspólny słownik domenowy | 15 cross-modułowych importów modeli; 1 wyjątek zapisowy | wyjątek (granica reguły §2.3) | [0015](../adr/0015-modele-core-data-jako-wspolny-slownik.md) |
 
 ### W-01 — Backend synchroniczny
 
-**Wystąpienia.** Wszystkie endpointy w `core_data/api/`, `security/api/`, `telemetry/api/` są zadeklarowane jako `def`. `async def` w kodzie produkcyjnym pojawia się 14 razy: 3 razy tam, gdzie wymaga tego framework ([`main.py:55`](../../../backend/app/main.py#L55), 3 handlery w [`core/errors.py`](../../../backend/app/core/errors.py#L86)), i **10 razy we wszystkich endpointach `device_identity/api/`**. `AsyncSession` nie występuje w repozytorium ani razu; wszystkie repozytoria przyjmują `sqlalchemy.orm.Session`.
+**Wystąpienia.** Wszystkie endpointy w `core_data/api/`, `security/api/`, `telemetry/api/` są zadeklarowane jako `def`. Endpointów synchronicznych jest 56. `async def` w kodzie produkcyjnym pojawia się 14 razy: 4 razy tam, gdzie wymaga tego framework (`lifespan` w [`main.py:55`](../../../backend/app/main.py#L55) i 3 handlery w [`core/errors.py`](../../../backend/app/core/errors.py#L86)), i **10 razy we wszystkich endpointach `device_identity/api/`**. `AsyncSession` nie występuje w repozytorium ani razu; wszystkie repozytoria przyjmują `sqlalchemy.orm.Session`.
 
 **Klasyfikacja.** Reguła (synchroniczność) plus dług ([D-05](#d-05)) — `async def` wołające synchroniczną sesję blokuje pętlę zdarzeń, czyli daje efekt odwrotny do zamierzonego. Nie ma śladu uzasadnienia: te same operacje w innych modułach są synchroniczne.
 
@@ -64,7 +64,7 @@ ADR nie powstaje z jednej obserwacji ani dla oczywistego wyboru bez realnej alte
 
 | Kategoria | Miejsca | Uzasadnienie widoczne w kodzie |
 |---|---|---|
-| pusta delta stanu | 11 (`users`, `water_objects`, `organizations`, `devices`, `measurement_points`, `auth`, `groups` ×5, `activation_codes:244`) | `if not calculate_delta(...): tx.skip_audit()` |
+| pusta delta stanu | 12 (`users`, `water_objects`, `organizations`, `devices`, `measurement_points`, `auth`, `groups` ×5, `activation_codes:244`) | `if not calculate_delta(...): tx.skip_audit()` |
 | zapis niebędący zmianą biznesową | 4 (ingest telemetrii, challenge urządzenia, 2× ścieżki `verify`) | strumień pomiarowy i przejściowy nonce |
 | bootstrap bez aktora | 1 ([`seed.py:40`](../../../backend/app/modules/security/services/seed.py#L40)) | seed uprawnień przy starcie, brak użytkownika |
 
@@ -177,7 +177,7 @@ Poprawka to nawiasy w każdym z trzech miejsc: `except (ValueError, TypeError):`
 **D-16. Mieszanie API SQLAlchemy 1.x i 2.0.** `session.query(...)` w 11 plikach, `select(...) + session.execute(...)` w 7 — w tym w tych samych plikach (`users.py`, `groups.py`, `permissions.py`, `packets.py`). Bez rozpoznawalnego kryterium podziału.
 
 <a id="d-17"></a>
-**D-17. Niespójna inicjalizacja repozytoriów.** 10 repozytoriów robi `self.session = session`, 3 wołają `super().__init__(session)`. Efekt jest ten sam, ale pierwsza forma milcząco zakłada, że klasa bazowa nie zyska nigdy stanu.
+**D-17. Niespójna inicjalizacja repozytoriów.** 9 z 13 repozytoriów robi `self.session = session`, 4 wołają `super().__init__(session)`. Efekt jest ten sam, ale pierwsza forma milcząco zakłada, że klasa bazowa nie zyska nigdy stanu.
 
 <a id="d-18"></a>
 **D-18. `MissingAuditRecordError` w module domenowym.** [`infrastructure/sql/factory.py:7`](../../../backend/app/infrastructure/sql/factory.py#L7) importuje wyjątek z `modules/audit/` — infrastruktura zależy od modułu, co jest odwróceniem dozwolonego kierunku zależności (§2.1 architektury). Wyjątek powinien mieszkać w `core/errors.py`.

@@ -6,7 +6,7 @@ Odpowiedź błędu ma kształt natywny dla FastAPI: `{"detail": "..."}`, a tam, 
 Proposed
 
 ## Kontekst
-Hierarchia `APIError` ([`core/errors.py`](../../../backend/app/core/errors.py)) niesie `status_code` i opcjonalny `code`, a globalny handler tłumaczy ją na JSON. W całym backendzie nie ma ani jednego `HTTPException` w `api/` ani w `services/` — wszystkie 14 wystąpień są w [`security/dependencies.py`](../../../backend/app/modules/security/dependencies.py) i [`device_identity/dependencies.py`](../../../backend/app/modules/device_identity/dependencies.py), gdzie odpowiedź 401 musi nieść nagłówek `WWW-Authenticate`. Po drugiej stronie kontraktu frontend czyta dokładnie ten kształt i mapuje `code` na polski komunikat ([`frontend/src/lib/errors.ts:31-41`](../../../frontend/src/lib/errors.ts#L31-L41)).
+Hierarchia `APIError` ([`core/errors.py`](../../../backend/app/core/errors.py)) niesie `status_code` i opcjonalny `code`, a globalny handler tłumaczy ją na JSON. W całym backendzie nie ma ani jednego `HTTPException` w `api/` ani w `services/` — wszystkie 12 wystąpień `raise HTTPException` są w [`security/dependencies.py`](../../../backend/app/modules/security/dependencies.py) i [`device_identity/dependencies.py`](../../../backend/app/modules/device_identity/dependencies.py), gdzie odpowiedź 401 musi nieść nagłówek `WWW-Authenticate`. Po drugiej stronie kontraktu frontend czyta dokładnie ten kształt i mapuje `code` na polski komunikat ([`frontend/src/lib/errors.ts:31-41`](../../../frontend/src/lib/errors.ts#L31-L41)).
 
 ## Decyzja
 - Kod statusu i treść wynikają z klasy wyjątku; serwis nie zna HTTP.
