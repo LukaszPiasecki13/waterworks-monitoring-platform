@@ -273,9 +273,18 @@ flowchart LR
     HTTP --> LINK
 ```
 
-`Logger` jest pominięty na diagramie — to nagłówek z makrami, używany praktycznie wszędzie.
-`Watchdog` dodatkowo odpytuje `TelemetrySender` o to, czy ostatni błąd był trwały (krawędź pominięta,
-żeby nie zamykać cyklu na rysunku).
+**Co diagram świadomie pomija** — wszystkie narysowane strzałki odpowiadają faktycznym zależnościom
+w kodzie, ale nie odwrotnie; dla czytelności nie narysowano trzech grup krawędzi:
+
+- **`main.cpp` → wszystko pozostałe.** Poza czterema klasami wołanymi z `loop()` `main.cpp` tworzy
+  i trzyma również `StatusLed`, `DeviceIdentity`, `ModemPower`, `ModemLink`, `TelemetryHttpClient`,
+  `TelemetryPayload`, listę czujników oraz zmienne w pamięci RTC, a `TimeSync` inicjalizuje
+  statycznie. Stąd podpis „jedyny właściciel instancji" — narysowanie tych dziewięciu strzałek
+  zamieniłoby rysunek w gwiazdę.
+- **`Watchdog` → `TelemetrySender`.** Watchdog odpytuje sender o to, czy ostatni błąd był trwały
+  ([`Watchdog.cpp:18`](../../../firmware/lib/Watchdog/src/Watchdog.cpp#L18)); krawędź pominięta, żeby
+  nie zamykać cyklu na rysunku.
+- **`Logger`.** Nagłówek z makrami, dołączany praktycznie wszędzie — jako węzeł nic nie wnosi.
 
 | Biblioteka | Odpowiedzialność | Stan, który trzyma |
 |---|---|---|

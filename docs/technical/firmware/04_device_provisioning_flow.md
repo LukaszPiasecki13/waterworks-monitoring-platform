@@ -110,8 +110,9 @@ Polaryzacja RESET (GPIO5) i historia regresji z tym związanej opisane w [`02_mo
 
 ### 3.4 Watchdog podczas `ModemLink::init()`
 
-Sekwencja blokuje 7–17 s: `delay(5000)` (stabilizacja UART) → 2 × `delay(500)` (czyszczenie bufora RX)
-→ auto-baud + `delay(1000)` → do 10 s prób `modem_->init()` co 500 ms. Każdy krok jest otoczony
+Sekwencja blokuje 7–17 s: `delay(5000)` (stabilizacja UART) → `delay(500)`, opróżnienie bufora RX
+pętlą `while (serial_at_.available())`, `delay(500)` → `TinyGsmAutoBaud()` + `delay(1000)` → do 10 s
+prób `modem_->init()` co 500 ms. Każdy krok jest otoczony
 `esp_task_wdt_reset()`, bo Task WDT (15 s) ma tu ciaśniejszy limit niż budżet czasowy samej sekwencji.
 Po niej dochodzi jeszcze do 60 s oczekiwania na rejestrację w sieci i do 30 s na kontekst GPRS —
 oba w pętlach, które również karmią watchdoga.

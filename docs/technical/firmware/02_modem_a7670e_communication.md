@@ -130,8 +130,9 @@ TinyGsmAutoBaud(serial_at_, 9600, 115200);
 Jeśli modem wysyła śmieci (nieznany baud), TinyGSM próbuje kolejno 9600 i 115200 bps.
 
 **Cała sekwencja `ModemLink::init()` blokuje 7–17 s**: `delay(5000)` na stabilizację UART →
-2 × `delay(500)` na czyszczenie bufora RX → `delay(1000)` po auto-baudzie → do 10 s prób
-`modem_->init()` co 500 ms. Każdy krok jest otoczony `esp_task_wdt_reset()`
+`delay(500)`, opróżnienie bufora RX pętlą `while (serial_at_.available())`, `delay(500)` →
+`TinyGsmAutoBaud()` + `delay(1000)` → do 10 s prób `modem_->init()` co 500 ms.
+Każdy krok jest otoczony `esp_task_wdt_reset()`
 ([`ModemLink.cpp:15-52`](../../../firmware/lib/ModemLink/src/ModemLink.cpp#L15-L52)). Dalej dochodzi
 do 60 s oczekiwania na rejestrację w sieci i do 30 s na kontekst GPRS.
 
