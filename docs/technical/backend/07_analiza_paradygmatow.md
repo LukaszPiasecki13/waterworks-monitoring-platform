@@ -6,13 +6,11 @@
 
 ---
 
-## 0. Zacznij tutaj — dwa ustalenia, które wyprzedzają całą resztę
+## 0. Zacznij tutaj — twarda zależność od Pythona 3.14
 
-**Backend w obecnym stanie nie startuje.** Trzy pliki zawierają błąd składni Pythona (`except ValueError, TypeError:` — składnia Pythona 2, niedozwolona w 3.x). Jednym z nich jest [`security/dependencies.py`](../../../backend/app/modules/security/dependencies.py#L118), importowany praktycznie przez każdy router — import aplikacji kończy się `SyntaxError`. Ten sam stan jest na `main`. Szczegóły i poprawka: **[D-01](#d-01)**.
+Backend **wymaga Pythona 3.14 i na niczym starszym się nie uruchomi** — nie z powodu biblioteki, tylko samej składni. Trzy pliki używają konstrukcji z [PEP 758](https://peps.python.org/pep-0758/) (wyjątki bez nawiasów, `except ValueError, TypeError:`), wprowadzonej dopiero w 3.14: [`security/dependencies.py:118`](../../../backend/app/modules/security/dependencies.py#L118), [`device_identity/dependencies.py:133`](../../../backend/app/modules/device_identity/dependencies.py#L133), [`device_identity/services/signature.py:32`](../../../backend/app/modules/device_identity/services/signature.py#L32). Na interpreterze 3.13 import pierwszego z nich — a importuje go praktycznie każdy router — kończy się `SyntaxError`.
 
-**Brama jakości tego nie wykrywa i nie wykryje.** `ruff check` oraz `ruff format` (0.15.8, konfiguracja z `pyproject.toml`) przechodzą na tych plikach bez jednego ostrzeżenia — zweryfikowane na minimalnym przykładzie odtwarzającym konstrukcję. W `.pre-commit-config.yaml` nie ma ani `mypy`, ani `pytest`, ani żadnego kroku parsującego kod; w repozytorium nie ma też konfiguracji CI. Nic w projekcie nie sprawdza dziś, czy backend w ogóle da się zaimportować. Szczegóły: **[D-02](#d-02)**.
-
-Reszta dokumentu opisuje wzorce w kodzie tak, jak są napisane — obie powyższe usterki są mechaniczne i nie zmieniają wniosków o architekturze.
+Jest to zgodne z deklaracjami projektu (`requires-python = ">=3.14"`, `ruff target-version = "py314"`, `mypy python_version = "3.14"`), więc **kod nie jest zepsuty** — jest po prostu związany z najnowszym wydaniem Pythona mocniej, niż wynikałoby to z listy zależności. Konsekwencje i ryzyko: **[D-01](#d-01)**. Osobno: nic w projekcie nie weryfikuje kodu przeciw interpreterowi, na którym faktycznie pojedzie — **[D-02](#d-02)**.
 
 ---
 
@@ -28,7 +26,7 @@ Dla każdego wzorca: zebranie **wszystkich** wystąpień (nie jednego), policzen
 
 ADR nie powstaje z jednej obserwacji ani dla oczywistego wyboru bez realnej alternatywy — kryteria z `ai-tools/.claude/skills/domain-modeling/ADR-FORMAT.md`.
 
-**Ograniczenia weryfikacji.** W środowisku analizy nie były zainstalowane zależności backendu, więc **nie uruchomiono testów ani `mypy`** (`mypy` dodatkowo przerywa pracę na składni generyków PEP 695 przy interpreterze starszym niż wymagany przez projekt 3.14). Wszystkie liczby poniżej pochodzą z analizy statycznej: parsowania AST, przeszukiwania kodu i lektury. Uruchomiono natomiast `ruff check` (przechodzi) oraz parser Pythona 3.13 na całym `app/` (3 błędy składni).
+**Ograniczenia weryfikacji.** W środowisku analizy nie były zainstalowane zależności backendu, więc **nie uruchomiono testów ani `mypy`** (`mypy` dodatkowo przerywa pracę na składni generyków PEP 695 przy interpreterze starszym niż wymagany przez projekt 3.14). Wszystkie liczby poniżej pochodzą z analizy statycznej: parsowania AST, przeszukiwania kodu i lektury. Uruchomiono natomiast `ruff check` i `ruff format --check` z konfiguracją projektu (oba przechodzą, 188 plików) oraz parser Pythona 3.13 na całym `app/` — trzy pliki się na nim nie parsują, co jest oczekiwane przy kodzie pisanym pod 3.14 (patrz §0).
 
 ---
 
@@ -117,18 +115,17 @@ Reguła obejmuje trzy rzeczy: `schema_version`, `point_types[].id`, `error_codes
 
 Pozycje gotowe do przepisania na osobne zadania. Kolejność według skutku, nie według trudności.
 
-### Krytyczne — blokują uruchomienie
+### Środowisko uruchomieniowe i brama jakości
 
 <a id="d-01"></a>
-**D-01. Trzy pliki z błędem składni Pythona.** Konstrukcja `except ValueError, TypeError:` (składnia Py2) w:
-- [`security/dependencies.py:118`](../../../backend/app/modules/security/dependencies.py#L118)
-- [`device_identity/dependencies.py:133`](../../../backend/app/modules/device_identity/dependencies.py#L133)
-- [`device_identity/services/signature.py:32`](../../../backend/app/modules/device_identity/services/signature.py#L32)
+**D-01. Składnia PEP 758 wiąże backend z Pythonem 3.14 — bez zapasowej ścieżki.** Trzy miejsca używają wyjątków bez nawiasów: [`security/dependencies.py:118`](../../../backend/app/modules/security/dependencies.py#L118), [`device_identity/dependencies.py:133`](../../../backend/app/modules/device_identity/dependencies.py#L133), [`device_identity/services/signature.py:32`](../../../backend/app/modules/device_identity/services/signature.py#L32).
 
-Poprawka to nawiasy w każdym z trzech miejsc: `except (ValueError, TypeError):`. Stan występuje również na `main`. Weryfikacja po poprawce: `python -m compileall -q backend/app`.
+To jest poprawny Python 3.14 i zgodny z `requires-python = ">=3.14"` — nie jest to błąd do naprawienia. Jest to natomiast ryzyko operacyjne warte świadomej decyzji, bo 3.14 to najnowsze wydanie: obraz bazowy, hosting i lokalne środowiska deweloperów muszą je mieć, a downgrade na 3.13 „na chwilę" jest niemożliwy bez zmiany kodu. Zysk z tej składni to trzy pary nawiasów.
+
+Do rozstrzygnięcia ([P-06](#p-06)): albo świadomie zostawić i zapisać wymóg 3.14 w README oraz w obrazie wdrożeniowym, albo zejść do 3.12/3.13 (dodać nawiasy **i** obniżyć `target-version`, bo `ruff format` z `py314` usuwa je z powrotem — sprawdzone). Uwaga na kolejność: sama zmiana kodu bez zmiany konfiguracji zostanie cofnięta przez formater przy najbliższym `pre-commit`.
 
 <a id="d-02"></a>
-**D-02. Brama jakości nie wykrywa niedziałającego kodu.** `ruff check` i `ruff format --check` przechodzą na plikach z D-01 (zweryfikowane na izolowanym przykładzie: `ruff --isolated` zwraca „All checks passed", `python3.13 -c ast.parse` zwraca `SyntaxError`). W `.pre-commit-config.yaml` są tylko `ruff-check`, `ruff-format`, `eslint`, `tsc`, `clang-format` — nic nie parsuje ani nie uruchamia Pythona; w repozytorium nie ma konfiguracji CI. Minimalna naprawa: dodać hook `check-ast` z `pre-commit-hooks` oraz krok uruchamiający `pytest` na backendzie.
+**D-02. Nic nie weryfikuje kodu przeciw interpreterowi, na którym pojedzie.** W `.pre-commit-config.yaml` są tylko `ruff-check`, `ruff-format`, `eslint`, `tsc`, `clang-format` — żadnego kroku uruchamiającego Pythona: ani `mypy`, ani `pytest`, ani nawet `check-ast`. W repozytorium nie ma też konfiguracji CI (`.github/workflows` nie istnieje). Ruff sprawdza składnię wyłącznie względem `target-version` z konfiguracji, a nie względem interpretera, którym projekt faktycznie zostanie uruchomiony — przy D-01 to jest różnica między „przechodzi" a „startuje". Minimalna naprawa: hook `check-ast` z `pre-commit-hooks` (wykonywany zainstalowanym interpreterem) plus krok `pytest` na backendzie.
 
 ### Wysokie — widoczne dla użytkownika albo grożące utratą danych
 
@@ -333,6 +330,9 @@ Rzeczy, których nie da się rozstrzygnąć samym kodem — wymagają decyzji, n
 <a id="p-04"></a>
 **P-04. Jaka jest polityka języka komunikatów błędów?** Angielski w `detail` z tłumaczeniem po stronie interfejsu przez `code` (wymaga uzupełnienia `code` wszędzie tam, gdzie użytkownik ma to zobaczyć — [D-11](#d-11)), czy polski w `detail` (prościej dziś, ale API przestaje być językowo neutralne). Kod robi dziś jedno i drugie.
 
+<a id="p-06"></a>
+**P-06. Zostajemy na Pythonie 3.14, czy schodzimy niżej?** Trzy miejsca używają składni PEP 758, która wiąże projekt z najnowszym wydaniem Pythona (D-01). Decyzja jest binarna i dotyczy środowiska wdrożeniowego, nie kodu: albo 3.14 jest wymogiem zapisanym w README i obrazie, albo schodzimy do 3.12/3.13 i wtedy trzeba zmienić jednocześnie kod i `target-version` w `pyproject.toml`.
+
 <a id="p-05"></a>
 **P-05. Kiedy przestaje wystarczać JSONB?** [ADR-0009](../adr/0009-telemetria-jako-surowy-pakiet-jsonb.md) jest słuszny przy kilku prototypach, ale nie ma dziś ustalonego progu (liczba obiektów × retencja × częstość odpytywania), po którego przekroczeniu trzeba znormalizować pomiary albo sięgnąć po bazę szeregów czasowych. Bez tego progu decyzja zostanie odłożona do momentu, w którym wykresy zaczną się urywać na `truncated`.
 
@@ -341,7 +341,8 @@ Rzeczy, których nie da się rozstrzygnąć samym kodem — wymagają decyzji, n
 ## Załącznik: jak odtworzyć ustalenia
 
 ```bash
-# Błędy składni (D-01) — parser Pythona zamiast lintera
+# Zgodność z interpreterem (D-01/D-02) — parser Pythona zamiast lintera.
+# Na 3.13 zgłosi 3 pliki z PEP 758; na 3.14 przejdzie czysto.
 python3 - <<'PY'
 import ast, pathlib
 for p in sorted(pathlib.Path('backend/app').rglob('*.py')):
