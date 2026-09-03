@@ -103,19 +103,24 @@ pio run --target upload
 pio device monitor -b 115200
 ```
 
-Spodziewany przebieg:
+Spodziewany przebieg (fragment — pominięte linie pośrednie; pierwsze pole to `millis()` od startu,
+więc Twoje wartości będą inne):
 
 ```
-[INFO][BOOT] ESP32-S3 + A7670E telemetry sender
-[INFO][BOOT] Powering on modem...
-[INFO][MODEM] Starting UART...
-[INFO][MODEM] Auto-bauding...
-[INFO][MODEM] Init OK
-[INFO][NET] Network connected
-[INFO][NET] Signal quality: 18
-[INFO][DATA] GPRS/LTE connected
-[INFO][DATA] Local IP: 10.x.x.x
+[247][INFO][BOOT] ESP32-S3 + A7670E telemetry sender
+[262][INFO][BOOT] Powering on modem...
+[7554][INFO][MODEM] Starting UART...
+[13068][INFO][MODEM] Auto-bauding...
+[14712][INFO][MODEM] Init OK
+[16884][INFO][NET] Network connected
+[16891][INFO][NET] Signal quality: 18
+[19342][INFO][DATA] GPRS/LTE connected
+[19351][INFO][DATA] Local IP: 10.x.x.x
 ```
+
+Skok z ~260 ms do ~7,5 s to sekwencja włączania modemu (`powerOn()` ~4,3 s plus 3 s na start), a
+kolejne ~7 s to opóźnienia wewnątrz `ModemLink::init()`. Oba są normalne — patrz
+[`02_modem_a7670e_communication.md §3`](./02_modem_a7670e_communication.md#3-sekwencja-inicjalizacji-libmodempowerpoweron).
 
 Jeśli zatrzyma się na którymkolwiek z tych kroków — tabela objawów i przyczyn jest w
 [`02_modem_a7670e_communication.md §6.2`](./02_modem_a7670e_communication.md#62-scenariusze-błędów).
@@ -164,8 +169,8 @@ zmierz.**
 **Test:** po ponownym wgraniu firmware w logu powinno się pojawić:
 
 ```
-[INFO][PT100] Initialized
-[INFO][PT100] Temperature: 22.45°C
+[20418][INFO][PT100] Initialized
+[20460][INFO][PT100] Temperature: 22.45°C
 ```
 
 Odczyt powinien odpowiadać temperaturze otoczenia. Chwyć czujnik w dłoń — wartość powinna rosnąć w
@@ -217,10 +222,15 @@ Numer seryjny urządzenia odczytasz z logu startowego albo wyliczysz z adresu MA
 komplet:
 
 ```
-[INFO][PT100] Temperature: 22.45°C     ← cztery razy, co 15 s
-[INFO][DATA] Payload: {"v":2,"device_id":"WW-...",...}
-[INFO][LOOP] Send OK, seq=1787497190
+[68230][INFO][PT100] Temperature: 22.45°C
+[83240][INFO][PT100] Temperature: 22.48°C
+[98250][INFO][PT100] Temperature: 22.44°C
+[113260][INFO][PT100] Temperature: 22.51°C
+[113310][INFO][DATA] Payload: {"v":2,"device_id":"WW-3CDC756F6DC0",...}
+[114980][INFO][LOOP] Send OK, seq=1787497190
 ```
+
+Cztery odczyty co 15 s, po nich jedna wysyłka — tego wzorca szukasz w logu.
 
 oraz **jedno mignięcie zielonej diody na GPIO48** po każdej udanej wysyłce (trzy mignięcia = błąd).
 

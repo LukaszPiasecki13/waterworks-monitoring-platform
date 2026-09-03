@@ -76,49 +76,28 @@ Ten sam schemat w Mermaid, gdyby SVG się nie załadowało:
 
 ```mermaid
 flowchart LR
-    subgraph HAT["KAmod LTE CAT1-GNSS (A7670E-FASE) — HAT 40-pin"]
-        H8["pin 8 · RXD modemu"]
-        H10["pin 10 · TXD modemu"]
-        H12["pin 12 · RST"]
-        H7["pin 7 · PWK"]
-        HP["piny 2,4 · +5 V — z zewnętrznego zasilacza"]
-        HG["piny 6,9,14,20,25,30,34,39 · GND"]
-    end
+    PWR["Zasilacz 5 V / min. 2 A<br/>osobny, nie z USB"]
+    HAT["KAmod LTE CAT1-GNSS<br/>A7670E-FASE, HAT 40-pin"]
+    ESP["ESP32-S3-DevKitC-1<br/>GPIO48 · RGB WS2812 on-board"]
+    MAX["MAX31865<br/>Rref 430 Ω"]
+    PT["PT100<br/>3-przewodowy"]
+    ADS["ADS1015<br/>draft"]
+    PT506["PT-506 · 4-20 mA<br/>draft"]
 
-    subgraph ESP["ESP32-S3-DevKitC-1"]
-        G17["GPIO17 · UART1 TX"]
-        G18["GPIO18 · UART1 RX"]
-        G5["GPIO5 · RESET"]
-        G4["GPIO4 · PWRKEY"]
-        G11["GPIO11 · SPI MOSI"]
-        G12["GPIO12 · SPI SCK"]
-        G13["GPIO13 · SPI MISO"]
-        G14["GPIO14 · SPI CS"]
-        G48["GPIO48 · RGB WS2812"]
-        GI["SDA/SCL — nieokreślone (draft)"]
-    end
+    PWR -- "+5 V → piny 2 i 4" --> HAT
+    PWR -- "wspólna masa" --- ESP
+    ESP -- "GPIO17 → pin 8 · RXD modemu" --> HAT
+    HAT -- "pin 10 · TXD modemu → GPIO18" --> ESP
+    ESP -- "GPIO5 → pin 12 · RST" --> HAT
+    ESP -- "GPIO4 → pin 7 · PWK" --> HAT
+    ESP -- "GND → piny 6,9,14,20,25,30,34,39" --- HAT
 
-    subgraph SENS["Czujniki"]
-        MAX["MAX31865 · Rref 430 Ω"]
-        PT100["PT100 3-przewodowy"]
-        ADS["ADS1015 (draft)"]
-        PT506["PT-506 4-20 mA (draft)"]
-    end
+    ESP -- "SPI: GPIO11 MOSI, 12 SCK, 13 MISO, 14 CS" --> MAX
+    ESP -- "3,3 V + GND" --> MAX
+    MAX -- "F+, RTD+, RTD−" --- PT
 
-    G17 --> H8
-    H10 --> G18
-    G5 --> H12
-    G4 --> H7
-    ESP --- HG
-
-    G11 --> MAX
-    G12 --> MAX
-    MAX --> G13
-    G14 --> MAX
-    MAX --- PT100
-
-    GI -. "I²C — draft" .-> ADS
-    ADS -. "AIN0, R = 136 Ω" .-> PT506
+    ESP -. "I²C — piny nieustalone" .-> ADS
+    ADS -. "AIN0 przez R = 136 Ω" .- PT506
 ```
 
 ### 4.1. Piny — tabela kanoniczna
