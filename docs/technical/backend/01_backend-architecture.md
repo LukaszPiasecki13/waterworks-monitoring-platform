@@ -45,6 +45,10 @@
 
 ---
 
+> **Decyzje techniczne i niezapisane konwencje.** Wzorce, które ten dokument opisuje pośrednio albo wcale, są zinwentaryzowane w [`07_analiza_paradygmatow.md`](./07_analiza_paradygmatow.md) (wraz z listą długu technicznego), a potwierdzone z nich zapisane jako ADR-y w [`docs/technical/adr/`](../adr/).
+
+---
+
 # 1. Przegląd architektury
 
 Architektura systemu to **architektura warstwowa (Layered Architecture)** zorganizowana jako **modularny monolit (Modular Monolith)**.
@@ -440,7 +444,7 @@ Niezmienny, append-only log zmian biznesowych. Nie ma własnej warstwy `api/` �
 
 Asymetryczna autentykacja urządzeń IoT — każde urządzenie generuje na sobie parę kluczy EC P-256 i dowodzi jej posiadania podpisem (challenge/response), bez współdzielonego sekretu z backendem. Provisioning przez jednorazowe kody aktywacyjne (operator platformy) lub ścieżkę administracyjną (import fabryczny). Moduł operuje na poziomie urządzenia, bez powiązania z organizacjami; org-scoping (przypisanie do obiektu wodociągowego) to osobny krok, wykonywany po zakończeniu auth.
 
-**Nowe:** [`DeviceLifecycleService`](../../backend/app/modules/device_identity/services/device_lifecycle.py) — orchestrator kaskadowego usunięcia urządzenia z platformy: usuwa telemetrię, device record (cascaduje measurement_points), credential. Atomowy w jednej transakcji.
+**Nowe:** [`DeviceLifecycleService`](../../../backend/app/modules/core_data/services/device_lifecycle.py) — orchestrator kaskadowego usunięcia urządzenia z platformy: usuwa telemetrię, device record (cascaduje measurement_points), credential. Atomowy w jednej transakcji.
 
 → Pełny opis: [`06_device_identity_module.md`](./06_device_identity_module.md)
 

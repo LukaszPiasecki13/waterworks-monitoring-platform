@@ -2,7 +2,7 @@
 
 > Wynik autonomicznego przeglądu kodu backendu i warstwy styku (B-04). Potwierdzone wzorce zostały zapisane jako szkice ADR w [`docs/technical/adr/`](../adr/) ze statusem `Proposed`. Firmware (poza kontraktem `sensor_registry.yaml`) i frontend (poza kontraktem API) są poza zakresem.
 >
-> Stan kodu w chwili analizy: gałąź `claude/backend-paradigms-analysis-6x5o78`, backend `app/` = 15 715 linii w 202 plikach.
+> Stan kodu w chwili analizy: gałąź `claude/backend-paradigms-analysis-6x5o78`, `backend/app/` = 15 715 linii w 188 plikach (z czego 10 269 linii kodu produkcyjnego w 143 plikach, reszta to testy).
 
 ---
 
@@ -51,6 +51,8 @@ ADR nie powstaje z jednej obserwacji ani dla oczywistego wyboru bez realnej alte
 | W-13 | Moduł wspierający bez `api/`, udostępniany portem z `core/` | `audit` — jedyny taki moduł; 2 konsumentów portu | reguła | [0013](../adr/0013-modul-bez-warstwy-api.md) |
 | W-14 | Bezstanowa logika jako funkcje modułowe; kontekst jako frozen dataclass | 2 moduły bezklasowe + 15 funkcji modułowych w `services/`; 6 zamrożonych dataclass | reguła | [0014](../adr/0014-bezstanowa-logika-poza-klasami.md) |
 | W-15 | Modele `core_data` jako wspólny słownik domenowy | 15 cross-modułowych importów modeli; 1 wyjątek zapisowy | wyjątek (granica reguły §2.3) | [0015](../adr/0015-modele-core-data-jako-wspolny-slownik.md) |
+
+**Siła poszczególnych ADR-ów jest nierówna — to jest do rozstrzygnięcia przy przeglądzie.** Wszystkie 15 spełnia progi z briefu (min. 2–3 zgodne wystąpienia albo pokrycie w dokumentacji architektury), ale nie wszystkie są równie „trudne do odwrócenia" w rozumieniu `ADR-FORMAT.md`. Najmocniejsze są 0002, 0009 i 0010 — cofnięcie każdej z tych decyzji oznacza migrację danych albo przebudowę warstwy zapisu. Najsłabsze to **0005** (konwencja nazewnicza) i **0014** (funkcja modułowa kontra metoda) — to konwencje kodowania, których odwrócenie jest tanim refaktorem; zapisano je, bo są w kodzie w 100 % konsekwentne i warto, żeby nowy kod ich nie łamał przypadkiem, ale bez oporu można je odrzucić albo przenieść do `.claude/rules/` zamiast trzymać jako ADR. **0013** z kolei w dużej mierze przepisuje decyzję już opisaną w [`01_backend-architecture.md` §6.4](01_backend-architecture.md) — nowa jest w nim tylko wydestylowana reguła „kiedy moduł powinien być bezportowy".
 
 ### W-01 — Backend synchroniczny
 
@@ -198,7 +200,7 @@ Poprawka to nawiasy w każdym z trzech miejsc: `except (ValueError, TypeError):`
 **D-23. `quality` jako wolny string porównywany z literałem.** [`query.py:101`](../../../backend/app/modules/telemetry/services/query.py#L101) uznaje wszystko poza `"good"` za ostrzeżenie. Wartości nie ma w rejestrze ani w schemacie jako `Literal` — literówka w firmware daje obiekt trwale w stanie `warning`.
 
 <a id="d-24"></a>
-**D-24. Dokumentacja rozjechana z kodem.** [`05_audit_module.md` §2](05_audit_module.md) wymienia 7 wartości `EntityType`, w kodzie jest 9 (brakuje `device_identity_credential` i `device_identity_activation_code`). [`01_backend-architecture.md` §3](01_backend-architecture.md) opisuje strukturę z `core/base.py` i `infrastructure/nosql/`, których nie ma, a §5.2 i §9 pokazują `async def` i `AsyncSession` wbrew W-01.
+**D-24. Dokumentacja rozjechana z kodem.** [`05_audit_module.md` §2](05_audit_module.md) wymienia 7 wartości `EntityType`, w kodzie jest 9 (brakuje `device_identity_credential` i `device_identity_activation_code`). [`01_backend-architecture.md` §3](01_backend-architecture.md) opisuje strukturę z `core/base.py` i `infrastructure/nosql/`, których nie ma, a §5.2 i §9 pokazują `async def` i `AsyncSession` wbrew W-01. §6.5 lokalizowało `DeviceLifecycleService` w module `device_identity`, podczas gdy klasa mieszka w `core_data` — link był martwy i został poprawiony w tej samej zmianie, razem z dopisaniem wskaźnika do niniejszego raportu i katalogu ADR.
 
 <a id="d-25"></a>
 **D-25. `passlib` w zależnościach, nieużywany w kodzie.** Hasła obsługuje bezpośrednio `bcrypt` ([`password.py`](../../../backend/app/modules/security/services/password.py)); `passlib==1.7.4` zostaje w `requirements.txt` i w `pyproject.toml` jako martwa zależność (i jedna pozycja więcej do śledzenia pod kątem podatności).
