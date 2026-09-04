@@ -1,123 +1,154 @@
+// Regresja: pakiety ze znacznikami z 1970 roku.
+//
+// Objaw z terenu: `sample(millis())` zamiast `sample(utcMs)` dawało
+// "window_start":"1970-01-01T00:00:15.000Z". Backend przyjmował takie pakiety
+// (data jest formalnie poprawna), więc dane trafiały do bazy z bezużytecznym
+// czasem i nikt tego nie zauważał.
+//
+// Poprzednia wersja tego pliku miała własną kopię `formatIso8601` i asertowała
+// na kopii — przechodziłaby także wtedy, gdyby firmware był zepsuty. Tu
+// sprawdzany jest prawdziwy TelemetryPayload i prawdziwy TelemetrySender.
 #include <gtest/gtest.h>
-#include <ctime>
-#include <string>
 
-// Core bug: passing millis() to formatIso8601 produces 1970 timestamps
+#include <ArduinoJson.h>
+#include <FakeSensor.h>
+#include <Fakes.h>
+#include <TelemetryPayload.h>
+#include <TelemetrySender.h>
+
+#include <string>
+#include <vector>
+
+namespace {
+
 class TimestampRegressionTest : public ::testing::Test {
  protected:
-  std::string formatIso8601(uint64_t utcMs) {
-    if (utcMs == 0) {
-      return "";
-    }
-
-    time_t seconds = utcMs / 1000;
-    uint32_t ms = utcMs % 1000;
-
-    struct tm timeinfo;
-    gmtime_r(&seconds, &timeinfo);
-
-    char buffer[30];
-    snprintf(buffer, sizeof(buffer), "%04d-%02d-%02dT%02d:%02d:%02d.%03luZ", timeinfo.tm_year + 1900,
-             timeinfo.tm_mon + 1, timeinfo.tm_mday, timeinfo.tm_hour, timeinfo.tm_min, timeinfo.tm_sec,
-             (unsigned long)ms);
-
-    return std::string(buffer);
+  void SetUp() override {
+    NativeClock::reset();
+    sensor = new FakeSensor("pt100_temperature", "temperature", "\xC2\xB0" "C", "[PT100]");
+    sensors.push_back(sensor);
+    payload = new TelemetryPayload(String("WW-TEST"), sensors);
   }
+
+  void TearDown() override {
+    delete payload;
+    delete sensor;
+  }
+
+  std::string firstWindowStart(uint64_t sampleUtcMs) {
+    for (size_t i = 0; i < TelemetryPayload::WINDOWS_PER_BATCH; ++i) {
+      payload->sample(sampleUtcMs + i * 15000ULL);
+    }
+    JsonDocument doc;
+    EXPECT_FALSE(deserializeJson(doc, payload->build(1)));
+    return doc["windows"][0]["window_start"].as<std::string>();
+  }
+
+  FakeSensor* sensor = nullptr;
+  std::vector<ISensor*> sensors;
+  TelemetryPayload* payload = nullptr;
 };
 
-// Test 1: CRITICAL - millis() produces 1970 timestamp (BUG PROOF)
-TEST_F(TimestampRegressionTest, MillisProduces1970Timestamp) {
-  unsigned long millisValue = 15000;  // 15 seconds from boot
-  std::string result = formatIso8601(millisValue);
+// --- sedno regresji --------------------------------------------------------
 
-  // This is WRONG and proves the bug exists if sample(millis()) is used
-  EXPECT_THAT(result, ::testing::HasSubstr("1970-01-01"));
-  EXPECT_THAT(result, ::testing::HasSubstr("T00:00:15"));
+TEST_F(TimestampRegressionTest, CzasUtcDajeBiezacaDate) {
+  payload->setGetUtcTime([]() { return 1786419982000ULL; });
+
+  std::string windowStart = firstWindowStart(1786419922000ULL);
+
+  EXPECT_EQ(windowStart, "2026-08-11T03:45:22.000Z");
+  EXPECT_EQ(windowStart.find("1970"), std::string::npos);
 }
 
-// Test 2: Correct - UTC timestamp produces correct 2026 date
-TEST_F(TimestampRegressionTest, UtcTimestampProduces2026Date) {
-  const uint64_t utcMs = 1693219400000ULL;  // Aug 27, 2026 06:43:20 UTC
-  std::string result = formatIso8601(utcMs);
+TEST_F(TimestampRegressionTest, CzasOdStartuUrzadzeniaDaje1970) {
+  // Dokładne odtworzenie błędu: 15 000 ms od bootu potraktowane jak czas UTC.
+  payload->setGetUtcTime([]() { return 15000ULL; });
 
-  EXPECT_THAT(result, ::testing::HasSubstr("2026-08-27"));
-  EXPECT_THAT(result, ::testing::HasSubstr("T06:43:20"));
-  EXPECT_FALSE(result.find("1970") != std::string::npos);  // Must NOT contain 1970
+  std::string windowStart = firstWindowStart(15000ULL);
+
+  EXPECT_EQ(windowStart.rfind("1970-01-01T00:00:15", 0), 0u)
+      << "gdyby to się zmieniło, powyższy test straciłby sens";
 }
 
-// Test 3: Edge case - zero UTC timestamp
-TEST_F(TimestampRegressionTest, ZeroUtcReturnsEmpty) {
-  std::string result = formatIso8601(0);
-  EXPECT_TRUE(result.empty());
+TEST_F(TimestampRegressionTest, ZerowyCzasDajePustyZnacznik) {
+  payload->setGetUtcTime([]() { return 0ULL; });
+  payload->sample(0);
+  payload->sample(15000);
+  payload->sample(30000);
+  payload->sample(45000);
+
+  JsonDocument doc;
+  ASSERT_FALSE(deserializeJson(doc, payload->build(1)));
+
+  // Pusty łańcuch zamiast daty z 1970 — backend odrzuci pakiet zamiast
+  // przyjąć go z bezużytecznym czasem.
+  EXPECT_STREQ(doc["sent_at"].as<const char*>(), "");
+  EXPECT_STREQ(doc["windows"][0]["window_start"].as<const char*>(), "");
 }
 
-// Test 4: Edge case - very large UTC timestamp (year 2050)
-TEST_F(TimestampRegressionTest, Year2050Timestamp) {
-  // 2050-01-01 00:00:00 UTC ≈ 2524608000 seconds = 2524608000000 ms
-  const uint64_t utcMs = 2524608000000ULL;
-  std::string result = formatIso8601(utcMs);
+// --- warstwa wyżej: sender w ogóle nie próbkuje bez czasu ------------------
 
-  EXPECT_THAT(result, ::testing::HasSubstr("2050-01-01"));
-  EXPECT_THAT(result, ::testing::HasSubstr("T00:00:00"));
+TEST_F(TimestampRegressionTest, SenderNiePróbkujeDopokiCzasNieJestZsynchronizowany) {
+  FakeClock clock;
+  FakeHttpClient http;
+  FakeModemLink modem;
+  FakeStatusLed led;
+  FakeDeviceIdentity identity;
+  clock.synced = false;
+
+  TelemetrySender sender(modem, http, *payload, led, identity, clock, 15000, 5000);
+  for (unsigned long now = 15000; now <= 150000; now += 15000) {
+    sender.update(now);
+  }
+
+  EXPECT_EQ(payload->bufferedWindows(), 0u)
+      << "bez synchronizacji NTP każde okno miałoby znacznik z 1970";
 }
 
-// Test 5: Millisecond precision preserved
-TEST_F(TimestampRegressionTest, MillisecondPrecisionPreserved) {
-  const uint64_t utcMs = 1693219400999ULL;  // .999 milliseconds
-  std::string result = formatIso8601(utcMs);
+TEST_F(TimestampRegressionTest, SenderPróbkujeGdyCzasJestZsynchronizowany) {
+  FakeClock clock;
+  FakeHttpClient http;
+  FakeModemLink modem;
+  FakeStatusLed led;
+  FakeDeviceIdentity identity;
+  clock.synced = true;
+  clock.setUtcSeconds(1786419922);
+  modem.connected = false;  // blokuje wysyłkę, zostawia samo próbkowanie
+  payload->setGetUtcTime([&clock]() { return clock.utcMs(); });
 
-  EXPECT_THAT(result, ::testing::HasSubstr(".999Z"));
+  TelemetrySender sender(modem, http, *payload, led, identity, clock, 15000, 5000);
+  sender.update(15000);
+
+  ASSERT_EQ(payload->bufferedWindows(), 1u);
 }
 
-// Test 6: Example from serial log - first packet
-TEST_F(TimestampRegressionTest, SerialLogExamplePacket1) {
-  // From serial: "sent_at":"2026-08-27T06:44:22.125Z"
-  // This is roughly 1693219462125 ms
-  const uint64_t utcMs = 1693219462125ULL;
-  std::string result = formatIso8601(utcMs);
+// --- format i zakres -------------------------------------------------------
 
-  EXPECT_THAT(result, ::testing::HasSubstr("2026-08-27"));
-  EXPECT_THAT(result, ::testing::HasSubstr("06:44:22"));
-  EXPECT_THAT(result, ::testing::HasSubstr(".125Z"));
+TEST_F(TimestampRegressionTest, ZnacznikMaFormatIso8601ZeStrefaZ) {
+  payload->setGetUtcTime([]() { return 1786419982123ULL; });
+  for (size_t i = 0; i < TelemetryPayload::WINDOWS_PER_BATCH; ++i) {
+    payload->sample(1786419922456ULL + i * 15000ULL);
+  }
+
+  JsonDocument doc;
+  ASSERT_FALSE(deserializeJson(doc, payload->build(1)));
+
+  std::string sentAt = doc["sent_at"].as<std::string>();
+  ASSERT_EQ(sentAt.size(), 24u) << sentAt;  // YYYY-MM-DDTHH:MM:SS.sssZ
+  EXPECT_EQ(sentAt[4], '-');
+  EXPECT_EQ(sentAt[7], '-');
+  EXPECT_EQ(sentAt[10], 'T');
+  EXPECT_EQ(sentAt[19], '.');
+  EXPECT_EQ(sentAt.back(), 'Z');
+  EXPECT_EQ(sentAt.substr(20, 3), "123") << "milisekundy muszą przetrwać";
 }
 
-// Test 7: Example from serial log - second packet (60s later)
-TEST_F(TimestampRegressionTest, SerialLogExamplePacket2) {
-  // 60 seconds = 60000 ms later
-  const uint64_t utcMs = 1693219522151ULL;  // 60s later
-  std::string result = formatIso8601(utcMs);
+TEST_F(TimestampRegressionTest, ZnacznikPozaRokiem2038JestPoprawny) {
+  // uint64_t w milisekundach; limit 2038 (32-bitowy time_t) nie obowiązuje.
+  payload->setGetUtcTime([]() { return 2524608000000ULL; });  // 2050-01-01T00:00:00Z
+  std::string windowStart = firstWindowStart(2524608000000ULL);
 
-  EXPECT_THAT(result, ::testing::HasSubstr("2026-08-27"));
-  EXPECT_THAT(result, ::testing::HasSubstr("06:45:22"));
-  EXPECT_THAT(result, ::testing::HasSubstr(".151Z"));
+  EXPECT_EQ(windowStart, "2050-01-01T00:00:00.000Z");
 }
 
-// Test 8: Verify format matches ISO8601 standard
-TEST_F(TimestampRegressionTest, MatchesIso8601Standard) {
-  const uint64_t utcMs = 1693219400000ULL;
-  std::string result = formatIso8601(utcMs);
-
-  // ISO8601: YYYY-MM-DDTHH:MM:SS.sssZ
-  EXPECT_THAT(result, ::testing::MatchesRegex("\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z"));
-}
-
-// Test 9: Verify year 2106 boundary (uint32_t Unix seconds limit)
-TEST_F(TimestampRegressionTest, Year2106Boundary) {
-  // Year 2106: Beyond uint32_t max seconds (2^32 - 1 = 4294967295, ~Feb 2106)
-  const uint64_t utcMs = 4294967295000ULL;  // Max uint32 in ms
-  std::string result = formatIso8601(utcMs);
-
-  EXPECT_THAT(result, ::testing::HasSubstr("2106-02-07"));
-  // Note: Our design uses uint32_t for nowUnix in send_seq_, valid until 2106
-}
-
-// Test 10: Verify millis() never exceeds 2^32 (theoretical device uptime limit)
-TEST_F(TimestampRegressionTest, MillisMaxValue) {
-  // Max millis on 32-bit system: ~49.7 days (4294967295 ms)
-  const unsigned long maxMillis = 4294967295UL;
-  std::string result = formatIso8601(maxMillis);
-
-  // This should still format to 1970 (proving the bug)
-  EXPECT_THAT(result, ::testing::HasSubstr("1970-01-01"));
-  // Seconds = 4294967295 / 1000 = 4294967 seconds ≈ 49.7 days from epoch
-}
+}  // namespace

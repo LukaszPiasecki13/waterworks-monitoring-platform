@@ -1,15 +1,23 @@
 #!/usr/bin/env python3
-"""Sensor registry pre-build workflow: generate header + verify sync.
+"""Pre-build: generacja plików pochodnych i walidacja kontraktów.
 
-Workflow:
-1. Generate firmware/include/SensorRegistry.h from YAML (single source of truth)
-2. Verify that firmware and backend registry are synced
+Kroki:
+1. Wygeneruj ``firmware/include/SensorRegistry.h`` z ``sensor_registry.yaml``
+   (jedyne źródło prawdy o typach punktów i kodach błędów).
+2. Sprawdź, że wygenerowany nagłówek zgadza się z YAML-em.
+3. Tylko dla ``env:native``: wygeneruj ``firmware/test/contract/PayloadContract.h``
+   ze schematu backendu, żeby test kontraktowy sprawdzał aktualne reguły.
 
-Can be used in two ways:
-1. Standalone: python3 prebuild.py
-2. PlatformIO pre-build hook: extra_scripts = scripts/prebuild.py
+Uruchomienie:
+1. Samodzielnie:            python3 firmware/scripts/prebuild.py
+2. Hook PlatformIO:         extra_scripts = pre:scripts/prebuild.py
+
+Uwaga na katalog roboczy: PlatformIO uruchamia hook z katalogu ``firmware/``,
+a człowiek zwykle z korzenia repozytorium. Wszystkie ścieżki są więc liczone
+od położenia tego pliku, nie od ``os.getcwd()``.
 """
 
+import inspect
 import json
 import re
 import subprocess
@@ -17,6 +25,15 @@ import sys
 from pathlib import Path
 
 import yaml
+
+# SCons wykonuje skrypty `extra_scripts` przez exec(), a wtedy `__file__` nie
+# istnieje. `co_filename` bieżącej ramki działa w obu trybach uruchomienia.
+SCRIPT_DIR = Path(inspect.currentframe().f_code.co_filename).resolve().parent
+
+REPO_ROOT = SCRIPT_DIR.parents[1]
+FIRMWARE_HEADER = REPO_ROOT / "firmware" / "include" / "SensorRegistry.h"
+YAML_REGISTRY = REPO_ROOT / "sensor_registry.yaml"
+CONTRACT_SCRIPT = SCRIPT_DIR / "generate_payload_contract.py"
 
 # Force UTF-8 output on Windows
 if sys.platform == "win32":
@@ -30,8 +47,7 @@ def generate():
     Returns:
         bool: True if generation succeeded, False otherwise
     """
-    script_dir = Path(__file__).parent
-    generator_script = script_dir / "generate_sensor_registry.py"
+    generator_script = SCRIPT_DIR / "generate_sensor_registry.py"
 
     if not generator_script.exists():
         print(f"❌ Generator script not found: {generator_script}", file=sys.stderr)
@@ -39,9 +55,9 @@ def generate():
 
     result = subprocess.run(
         [sys.executable, str(generator_script)],
-        cwd=Path(__file__).parent.parent.parent,  # Project root
+        cwd=REPO_ROOT,
         capture_output=True,
-        text=True
+        text=True,
     )
 
     if result.stdout:
@@ -58,24 +74,21 @@ def validate():
     Returns:
         bool: True if registries match, False if validation failed
     """
-    firmware_h = Path("firmware/include/SensorRegistry.h")
-    yaml_registry = Path("sensor_registry.yaml")
-
     # Extract embedded JSON from .h file
     try:
-        with open(firmware_h, encoding="utf-8") as f:
+        with open(FIRMWARE_HEADER, encoding="utf-8") as f:
             content = f.read()
     except FileNotFoundError:
-        print(f"❌ Firmware header not found: {firmware_h}", file=sys.stderr)
+        print(f"❌ Firmware header not found: {FIRMWARE_HEADER}", file=sys.stderr)
         return False
     except OSError as e:
-        print(f"❌ Error reading {firmware_h}: {e}", file=sys.stderr)
+        print(f"❌ Error reading {FIRMWARE_HEADER}: {e}", file=sys.stderr)
         return False
 
     # Extract JSON from R"({...})"; format
     match = re.search(r'R"\((\{.+?\})\)";', content, re.DOTALL)
     if not match:
-        print(f"❌ Invalid header format: could not find embedded JSON in {firmware_h}", file=sys.stderr)
+        print(f"❌ Invalid header format: could not find embedded JSON in {FIRMWARE_HEADER}", file=sys.stderr)
         return False
 
     try:
@@ -86,16 +99,16 @@ def validate():
 
     # Load YAML registry
     try:
-        with open(yaml_registry, encoding="utf-8") as f:
+        with open(YAML_REGISTRY, encoding="utf-8") as f:
             yaml_data = yaml.safe_load(f)
     except FileNotFoundError:
-        print(f"❌ YAML registry not found: {yaml_registry}", file=sys.stderr)
+        print(f"❌ YAML registry not found: {YAML_REGISTRY}", file=sys.stderr)
         return False
     except yaml.YAMLError as e:
-        print(f"❌ Invalid YAML in {yaml_registry}: {e}", file=sys.stderr)
+        print(f"❌ Invalid YAML in {YAML_REGISTRY}: {e}", file=sys.stderr)
         return False
     except OSError as e:
-        print(f"❌ Error reading {yaml_registry}: {e}", file=sys.stderr)
+        print(f"❌ Error reading {YAML_REGISTRY}: {e}", file=sys.stderr)
         return False
 
     # Validate schema_version matches
@@ -115,10 +128,7 @@ def validate():
     if fw_types != yaml_types:
         missing_in_fw = yaml_types - fw_types
         removed_from_backend = fw_types - yaml_types
-        print(
-            f"❌ Point types mismatch:",
-            file=sys.stderr,
-        )
+        print("❌ Point types mismatch:", file=sys.stderr)
         if missing_in_fw:
             print(f"   Missing in firmware: {missing_in_fw}", file=sys.stderr)
         if removed_from_backend:
@@ -131,10 +141,7 @@ def validate():
     if fw_codes != yaml_codes:
         missing_in_fw = yaml_codes - fw_codes
         removed_from_backend = fw_codes - yaml_codes
-        print(
-            f"❌ Error codes mismatch:",
-            file=sys.stderr,
-        )
+        print("❌ Error codes mismatch:", file=sys.stderr)
         if missing_in_fw:
             print(f"   Missing in firmware: {missing_in_fw}", file=sys.stderr)
         if removed_from_backend:
@@ -145,61 +152,94 @@ def validate():
     return True
 
 
-def platformio_prebuild(source, target, env):
-    """PlatformIO pre-build hook: generate registry header + verify sync.
+def generate_payload_contract():
+    """Regenerate the payload contract header used by the native contract test.
 
-    Called by PlatformIO before firmware.elf is built.
-    Workflow:
-    1. Generate SensorRegistry.h from YAML (single source of truth)
-    2. Verify firmware and backend are synced
+    Only relevant for `env:native`: the header describes the backend's
+    MeasurementPacketRequest and never ends up in the device binary.
+
+    Returns:
+        bool: True if generation succeeded, False otherwise
     """
-    print("\n" + "="*70)
-    print("PRE-BUILD: Sensor registry workflow...")
-    print("="*70)
+    if not CONTRACT_SCRIPT.exists():
+        print(f"❌ Contract generator not found: {CONTRACT_SCRIPT}", file=sys.stderr)
+        return False
 
-    # Step 1: Generate header from YAML
-    print("\n[1/2] Generating firmware/include/SensorRegistry.h from YAML...")
-    if not generate():
-        print("\n" + "="*70)
-        print("❌ BUILD FAILED: SensorRegistry.h generation failed!")
-        print("="*70)
-        env.Exit(1)
+    result = subprocess.run(
+        [sys.executable, str(CONTRACT_SCRIPT)],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+    )
 
-    # Step 2: Verify sync
-    print("\n[2/2] Verifying firmware/backend sync...")
-    if not validate():
-        print("\n" + "="*70)
-        print("❌ BUILD FAILED: Firmware registry out of sync with backend!")
-        print("="*70)
-        env.Exit(1)
+    if result.stdout:
+        print(result.stdout)
+    if result.stderr:
+        print(result.stderr, file=sys.stderr)
 
-    print("="*70)
-    print("✅ Sensor registry ready for build")
-    print("="*70 + "\n")
+    return result.returncode == 0
+
+
+def run(include_payload_contract):
+    """Run every pre-build step; returns True when all of them pass."""
+    steps = [
+        ("Generating firmware/include/SensorRegistry.h from YAML", generate),
+        ("Verifying firmware/backend registry sync", validate),
+    ]
+    if include_payload_contract:
+        steps.append(("Generating payload contract from backend schema", generate_payload_contract))
+
+    for index, (title, step) in enumerate(steps, start=1):
+        print(f"\n[{index}/{len(steps)}] {title}...")
+        if not step():
+            return False
+    return True
 
 
 if __name__ == "__main__":
-    # Standalone mode: python3 prebuild.py
     print("=" * 70)
-    print("Sensor registry workflow")
+    print("Pre-build: sensor registry + payload contract")
     print("=" * 70)
 
-    print("\n[1/2] Generating SensorRegistry.h from YAML...")
-    if not generate():
-        sys.exit(1)
-
-    print("\n[2/2] Verifying firmware/backend sync...")
-    if not validate():
+    if not run(include_payload_contract=True):
         sys.exit(1)
 
     print("\n" + "=" * 70)
-    print("✅ Registry ready")
+    print("✅ Generated artifacts ready")
     print("=" * 70)
     sys.exit(0)
 
-# PlatformIO pre-build hook integration
+# Integracja z PlatformIO.
+#
+# Skrypt jest podpięty jako `pre:scripts/prebuild.py`, więc wykonuje się przy
+# ładowaniu środowiska — zanim ruszy kompilacja czegokolwiek. Poprzednia wersja
+# wieszała się na `AddPreAction("$BUILD_DIR/firmware.elf")`, przez co w ogóle
+# nie działała dla `env:native` (tam celem jest `program`, nie `firmware.elf`).
+#
+# `except NameError` obejmuje WYŁĄCZNIE import środowiska SCons. Gdyby objąć nim
+# całe ciało hooka, literówka w kodzie generacji zamieniałaby pre-build w cichy
+# no-op, a build szedłby dalej na nieaktualnym albo brakującym nagłówku.
+_scons_env = None
 try:
-    Import("env")
-    env.AddPreAction("$BUILD_DIR/firmware.elf", platformio_prebuild)
+    Import("env")  # noqa: F821 - wstrzykiwane przez SCons
+    _scons_env = env  # noqa: F821
 except NameError:
     pass
+
+if _scons_env is not None:
+    _env_name = _scons_env["PIOENV"]
+    _is_native = _scons_env.get("PIOPLATFORM") == "native"
+
+    print("\n" + "=" * 70)
+    print(f"PRE-BUILD [{_env_name}]: sensor registry" + (" + payload contract" if _is_native else ""))
+    print("=" * 70)
+
+    if not run(include_payload_contract=_is_native):
+        print("\n" + "=" * 70)
+        print("❌ BUILD FAILED: pre-build generation/validation failed")
+        print("=" * 70)
+        _scons_env.Exit(1)
+
+    print("=" * 70)
+    print("✅ Pre-build OK")
+    print("=" * 70 + "\n")

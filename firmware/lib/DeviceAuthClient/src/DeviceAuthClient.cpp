@@ -3,13 +3,14 @@
 #include <cstring>
 #include <time.h>
 #include "DeviceAuthClient.h"
-#include <DeviceIdentity.h>
-#include <TelemetryHttpClient.h>
-#include <TimeSync.h>
 #include <Config.h>
+#include <IClock.h>
+#include <IDeviceIdentity.h>
+#include <IHttpClient.h>
 
-DeviceAuthClient::DeviceAuthClient(DeviceIdentity& identity, TelemetryHttpClient& http, unsigned long pollIntervalMs)
-    : identity_(identity), http_(http), poll_interval_ms_(pollIntervalMs) {}
+DeviceAuthClient::DeviceAuthClient(IDeviceIdentity& identity, IHttpClient& http, IClock& clock,
+                                   unsigned long pollIntervalMs)
+    : identity_(identity), http_(http), clock_(clock), poll_interval_ms_(pollIntervalMs) {}
 
 uint32_t DeviceAuthClient::parseIso8601ToUnix(const String& iso8601) {
   // Parse "2026-08-22T14:30:45.123Z" -> unix timestamp (seconds since 1970-01-01 00:00:00 UTC)
@@ -23,6 +24,23 @@ uint32_t DeviceAuthClient::parseIso8601ToUnix(const String& iso8601) {
 
   // Days per month (non-leap year)
   static const int daysPerMonth[] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
+
+  // Odrzuć wartości spoza zakresu kalendarza — bez tego "2026-13-45T..." dałoby
+  // przypadkowy, ale niezerowy znacznik czasu i token uznany za ważny.
+  if (year < 1970 || month < 1 || month > 12 || hour < 0 || hour > 23 || minute < 0 || minute > 59 || second < 0 ||
+      second > 60) {
+    return 0;
+  }
+
+  // Dzień musi mieścić się w faktycznej długości miesiąca. Sam limit 31 dni
+  // przepuszczałby "2026-02-30", co dałoby znacznik przesunięty o dwa dni —
+  // urządzenie uznawałoby sesję za ważną po wygaśnięciu tokenu i dostawałoby
+  // 401 przy każdej wysyłce.
+  const bool isLeapYear = (year % 4 == 0 && (year % 100 != 0 || year % 400 == 0));
+  const int daysInMonth = daysPerMonth[month - 1] + ((month == 2 && isLeapYear) ? 1 : 0);
+  if (day < 1 || day > daysInMonth) {
+    return 0;
+  }
 
   // Count days from 1970-01-01 to target date
   uint32_t totalDays = 0;
@@ -85,15 +103,9 @@ bool DeviceAuthClient::attemptAuth() {
     return false;
   }
 
-  // Step 2: Decode base64url challenge to nonce bytes, then sign nonce
-  uint8_t challengeBytes[64];
-  size_t challengeBytesLen = 0;
-  if (!DeviceIdentity::decodeBase64Url(challenge.c_str(), challenge.length(), challengeBytes, sizeof(challengeBytes),
-                                       challengeBytesLen)) {
-    return false;
-  }
-
-  String signature = identity_.signBase64(challengeBytes, challengeBytesLen);
+  // Step 2: Podpisz nonce zakodowany w challenge (dekodowanie base64url +
+  // ECDSA leżą po stronie DeviceIdentity).
+  String signature = identity_.signChallengeBase64(challenge);
   if (signature.isEmpty()) {
     return false;
   }
@@ -140,23 +152,25 @@ bool DeviceAuthClient::attemptAuth() {
 
 void DeviceAuthClient::update(unsigned long nowMs) {
   // Guard: NTP must be synced for unix-time comparisons
-  if (!TimeSync::isSynced()) {
+  if (!clock_.isSynced()) {
     return;
   }
 
-  // Throttle polling
-  if (nowMs < next_allowed_poll_ms_) {
+  // Throttle polling — różnica bez znaku przetrwa przewinięcie millis().
+  if (poll_scheduled_ && (long)(nowMs - next_allowed_poll_ms_) < 0) {
     return;
   }
 
-  uint32_t nowUnix = (uint32_t)(TimeSync::getUtcTimestamp() / 1000);
+  uint32_t nowUnix = clock_.utcSeconds();
 
   // Check if session is still valid (with refresh margin)
   if (identity_.hasValidSession(nowUnix)) {
     next_allowed_poll_ms_ = nowMs + poll_interval_ms_;
+    poll_scheduled_ = true;
     return;
   }
 
   attemptAuth();
   next_allowed_poll_ms_ = nowMs + poll_interval_ms_;
+  poll_scheduled_ = true;
 }

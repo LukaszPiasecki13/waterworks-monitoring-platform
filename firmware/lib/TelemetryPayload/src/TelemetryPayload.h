@@ -28,14 +28,23 @@ class TelemetryPayload {
   void acknowledge();
   void setGetUtcTime(std::function<uint64_t()> getUtcTime);
   bool isReadyToSend() const;
-  void addError(const char* code, const char* pointId, const char* severity, const char* message);
 
- private:
+  // Severity dobierana jest z rejestru czujników (SensorRegistry) na podstawie
+  // kodu — firmware nie trzyma własnej kopii poziomów, których backend
+  // waliduje jako Literal["info","warning","critical"]. Kod spoza rejestru
+  // jest odrzucany, bo i tak unieważniłby cały pakiet po stronie backendu.
+  void addError(const char* code, const char* pointId, const char* message);
+
+  // Stan bufora — podstawa do diagnostyki i asercji w testach.
+  size_t bufferedWindows() const { return windows_buffer_.size(); }
+  size_t pendingErrors() const { return errors_buffer_.size(); }
+
   static constexpr size_t WINDOWS_PER_BATCH = 4;
   static constexpr size_t RETAIN_WINDOWS_MAX = WINDOWS_PER_BATCH * 12;
   static constexpr size_t MAX_ERRORS = 64;
   static constexpr uint32_t WINDOW_SECONDS = 15;
 
+ private:
   String device_id_;
   std::vector<ISensor*> sensors_;
   std::function<uint64_t()> getUtcTime_;

@@ -1,0 +1,27 @@
+{
+  "name": "Interfaces",
+  "version": "0.1.0",
+  "description": "Abstrakcje (porty) oddzielajace logike firmware od sterownikow sprzetu i sieci: IHttpClient, IModemLink, IModemPower, IStatusLed, IDeviceIdentity, IClock, ISystemControl, ITelemetryHealth",
+  "keywords": [
+    "interfaces",
+    "ports",
+    "testability"
+  ],
+  "authors": [
+    {
+      "name": "Waterworks"
+    }
+  ],
+  "license": "MIT",
+  "headers": [
+    "HttpTypes.h",
+    "IClock.h",
+    "IDeviceIdentity.h",
+    "IHttpClient.h",
+    "IModemLink.h",
+    "IModemPower.h",
+    "IStatusLed.h",
+    "ISystemControl.h",
+    "ITelemetryHealth.h"
+  ]
+}

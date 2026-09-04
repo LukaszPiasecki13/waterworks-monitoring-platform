@@ -1,86 +1,152 @@
+// PT100Sensor: przejście z odczytu MAX31865 na SensorReading.
+// Poprzednia wersja tego pliku nie kompilowała się (odwoływała się do
+// nieistniejącej stałej POINT_TYPE_TEMPERATURE) i sprawdzała `EXPECT_TRUE(true)`.
+// Tu sterownik zastępuje atrapa z test/support/Adafruit_MAX31865.h.
 #include <gtest/gtest.h>
+
+#include <Arduino.h>
+#include <Config.h>
 #include <PT100Sensor.h>
 #include <SensorRegistry.h>
 
+#include <string>
+
+namespace {
+
 class PT100SensorTest : public ::testing::Test {
  protected:
-  PT100Sensor* sensor = nullptr;
-
   void SetUp() override {
-    sensor = new PT100Sensor(14);  // CS pin 14
+    NativeMax31865State::reset();
+    Serial.clearCaptured();
+    sensor = new PT100Sensor(PT100_SPI_CS);
   }
 
-  void TearDown() override {
-    if (sensor) delete sensor;
-  }
+  void TearDown() override { delete sensor; }
+
+  NativeMax31865State& driver() { return NativeMax31865State::instance(); }
+
+  PT100Sensor* sensor = nullptr;
 };
 
-TEST_F(PT100SensorTest, InitSuccess) {
-  // Note: init() depends on SPI hardware which may not be available in native test
-  // This test is structural; full init test requires hardware
-  bool result = sensor->init();
-  // init() may fail in native environment without hardware
-  // Just verify it doesn't crash
-  EXPECT_TRUE(true);
+// --- metadane punktu pomiarowego -------------------------------------------
+
+TEST_F(PT100SensorTest, MetadanePunktuZgadzajaSieZRejestrem) {
+  EXPECT_STREQ(sensor->pointId(), "pt100_temperature");
+  EXPECT_STREQ(sensor->pointType(), "temperature");
+  EXPECT_STREQ(sensor->unit(), "\xC2\xB0" "C");
+  EXPECT_STREQ(sensor->getTag(), "[PT100]");
+
+  // Typ punktu musi istnieć w rejestrze — inaczej backend odrzuci pomiar.
+  EXPECT_TRUE(SensorRegistry::isValidPointType(sensor->pointType()));
 }
 
-TEST_F(PT100SensorTest, ReadReturnsSensorReading) {
-  // read() now returns SensorReading struct
+TEST_F(PT100SensorTest, DzialaPrzezInterfejsISensor) {
+  ISensor* iface = sensor;
+  EXPECT_STREQ(iface->pointId(), "pt100_temperature");
+  EXPECT_STREQ(iface->pointType(), "temperature");
+}
+
+// --- inicjalizacja ---------------------------------------------------------
+
+TEST_F(PT100SensorTest, InitOtwieraSpiNaPinachZKonfiguracji) {
+  ASSERT_TRUE(sensor->init());
+
+  EXPECT_TRUE(SPI.began);
+  EXPECT_EQ(SPI.sck_pin, PT100_SPI_SCK);
+  EXPECT_EQ(SPI.miso_pin, PT100_SPI_MISO);
+  EXPECT_EQ(SPI.mosi_pin, PT100_SPI_MOSI);
+  EXPECT_EQ(SPI.cs_pin, PT100_SPI_CS);
+  EXPECT_EQ(driver().begin_calls, 1);
+}
+
+TEST_F(PT100SensorTest, NieudanyInitJestZglaszanyIZalogowany) {
+  driver().begin_ok = false;
+
+  EXPECT_FALSE(sensor->init());
+  EXPECT_NE(Serial.captured().find("[ERROR]"), std::string::npos);
+}
+
+// --- odczyt ----------------------------------------------------------------
+
+TEST_F(PT100SensorTest, PoprawnyOdczytZwracaTemperatureBezKoduBledu) {
+  driver().rtd_raw = 7620;  // 100 Ω, czyli ~0 °C
+  driver().fault = 0;
+
   SensorReading reading = sensor->read();
-  // In native env without hardware, expect failure
-  EXPECT_TRUE(reading.ok || !reading.ok);  // Reading should have ok field
-  if (!reading.ok) {
-    EXPECT_TRUE(reading.errorCode != nullptr);  // Should have error code
+
+  EXPECT_TRUE(reading.ok);
+  EXPECT_EQ(reading.errorCode, nullptr);
+  EXPECT_NEAR(reading.value, 0.0f, 1.0f);
+}
+
+TEST_F(PT100SensorTest, OdczytWZakresieRoboczymJestSensowny) {
+  // ~110 Ω to około 25 °C: raw = 110/430 * 32768.
+  driver().rtd_raw = static_cast<uint16_t>(110.0 / 430.0 * 32768.0);
+
+  SensorReading reading = sensor->read();
+
+  ASSERT_TRUE(reading.ok);
+  EXPECT_GT(reading.value, 20.0f);
+  EXPECT_LT(reading.value, 30.0f);
+}
+
+TEST_F(PT100SensorTest, TemperaturaRosnieWrazZRezystancja) {
+  driver().rtd_raw = 7620;
+  float atZero = sensor->read().value;
+
+  driver().rtd_raw = 10000;
+  float higher = sensor->read().value;
+
+  EXPECT_GT(higher, atZero);
+}
+
+// --- błędy sprzętowe -------------------------------------------------------
+
+TEST_F(PT100SensorTest, FlagaBleduDajeSensorFaultHw) {
+  driver().fault = MAX31865_FAULT_RTDINLOW;  // np. przerwany przewód RTD
+
+  SensorReading reading = sensor->read();
+
+  EXPECT_FALSE(reading.ok);
+  ASSERT_NE(reading.errorCode, nullptr);
+  EXPECT_STREQ(reading.errorCode, "SENSOR_FAULT_HW");
+  EXPECT_FLOAT_EQ(reading.value, 0.0f) << "przy błędzie nie wolno podawać wartości pomiaru";
+}
+
+TEST_F(PT100SensorTest, KodBleduIstniejeWRejestrze) {
+  driver().fault = MAX31865_FAULT_OVUV;
+
+  SensorReading reading = sensor->read();
+
+  ASSERT_NE(reading.errorCode, nullptr);
+  EXPECT_TRUE(SensorRegistry::isValidErrorCode(reading.errorCode));
+  EXPECT_STREQ(SensorRegistry::severityForErrorCode(reading.errorCode), "critical");
+}
+
+TEST_F(PT100SensorTest, BladJestKasowanyPoZgloszeniu) {
+  // Bez clearFault() rejestr błędu MAX31865 zostaje ustawiony na zawsze
+  // i czujnik nigdy nie wróciłby do normalnej pracy.
+  driver().fault = MAX31865_FAULT_HIGHTHRESH;
+
+  ASSERT_FALSE(sensor->read().ok);
+  EXPECT_EQ(driver().clear_fault_calls, 1);
+
+  SensorReading afterClear = sensor->read();
+  EXPECT_TRUE(afterClear.ok) << "po skasowaniu flagi czujnik musi znowu czytać";
+}
+
+TEST_F(PT100SensorTest, KazdaFlagaBleduJestRozpoznawana) {
+  const uint8_t faults[] = {MAX31865_FAULT_HIGHTHRESH, MAX31865_FAULT_LOWTHRESH, MAX31865_FAULT_REFINLOW,
+                            MAX31865_FAULT_REFINHIGH,  MAX31865_FAULT_RTDINLOW,  MAX31865_FAULT_OVUV};
+  for (uint8_t fault : faults) {
+    NativeMax31865State::reset();
+    driver().fault = fault;
+
+    SensorReading reading = sensor->read();
+
+    EXPECT_FALSE(reading.ok) << "flaga 0x" << std::hex << static_cast<int>(fault);
+    EXPECT_STREQ(reading.errorCode, "SENSOR_FAULT_HW");
   }
 }
 
-TEST_F(PT100SensorTest, GetTagReturnsCorrectString) {
-  const char* tag = sensor->getTag();
-  EXPECT_STREQ(tag, "[PT100]");
-}
-
-TEST_F(PT100SensorTest, PointIdReturnsString) {
-  const char* pointId = sensor->pointId();
-  EXPECT_STREQ(pointId, "pt100_temperature");
-}
-
-TEST_F(PT100SensorTest, PointTypeReturnsTemperature) {
-  const char* pointType = sensor->pointType();
-  EXPECT_STREQ(pointType, POINT_TYPE_TEMPERATURE);
-}
-
-TEST_F(PT100SensorTest, UnitReturnsCelsius) {
-  const char* unit = sensor->unit();
-  EXPECT_STREQ(unit, "°C");
-}
-
-TEST_F(PT100SensorTest, InterfaceImplementation) {
-  // Verify PT100Sensor implements ISensor interface
-  ISensor* iface = sensor;
-  EXPECT_TRUE(iface != nullptr);
-  EXPECT_STREQ(iface->getTag(), "[PT100]");
-  EXPECT_STREQ(iface->pointId(), "pt100_temperature");
-  EXPECT_STREQ(iface->pointType(), POINT_TYPE_TEMPERATURE);
-  EXPECT_STREQ(iface->unit(), "°C");
-}
-
-TEST_F(PT100SensorTest, ConstructorWithPin) {
-  PT100Sensor s1(14);
-  EXPECT_STREQ(s1.getTag(), "[PT100]");
-  EXPECT_STREQ(s1.pointId(), "pt100_temperature");
-
-  PT100Sensor s2(13);
-  EXPECT_STREQ(s2.getTag(), "[PT100]");
-}
-
-TEST_F(PT100SensorTest, SensorReadingStructure) {
-  // Verify SensorReading has correct fields
-  SensorReading reading = sensor->read();
-
-  // All fields should be accessible
-  bool okValue = reading.ok;
-  float value = reading.value;
-  const char* errorCode = reading.errorCode;
-
-  EXPECT_TRUE(true);  // If compilation passed, struct is correct
-}
+}  // namespace

@@ -140,6 +140,11 @@ bool ModemLink::connectGprs() {
 }
 
 bool ModemLink::ensureConnected() {
+  if (!modem_) {
+    LOG_ERROR("[NET]", "ensureConnected() before init()");
+    return false;
+  }
+
   if (!modem_->isNetworkConnected()) {
     LOG_WARN("[NET]", "Network lost, reconnecting...");
 

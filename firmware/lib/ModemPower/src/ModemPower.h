@@ -1,11 +1,13 @@
 #pragma once
 
-class ModemPower {
+#include <IModemPower.h>
+
+class ModemPower : public IModemPower {
  public:
   ModemPower(int pwrkeyPin, int resetPin, int powerEnablePin = -1);
 
-  void powerOn();
-  void hardReset();
+  void powerOn() override;
+  void hardReset() override;
 
  private:
   int pwrkey_pin_;

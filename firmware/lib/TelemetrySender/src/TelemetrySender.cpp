@@ -2,37 +2,41 @@
 #include <ArduinoJson.h>
 #include <Config.h>
 #include "TelemetrySender.h"
-#include <ModemLink.h>
+#include <IClock.h>
+#include <IDeviceIdentity.h>
+#include <IHttpClient.h>
+#include <IModemLink.h>
+#include <IStatusLed.h>
 #include <Logger.h>
-#include <TelemetryHttpClient.h>
 #include <TelemetryPayload.h>
-#include <StatusLed.h>
-#include <TimeSync.h>
-#include <DeviceIdentity.h>
 
-TelemetrySender::TelemetrySender(ModemLink& modem, TelemetryHttpClient& httpClient, TelemetryPayload& payload,
-                                 StatusLed& led, DeviceIdentity& identity, unsigned long sampleIntervalMs,
+TelemetrySender::TelemetrySender(IModemLink& modem, IHttpClient& httpClient, TelemetryPayload& payload, IStatusLed& led,
+                                 IDeviceIdentity& identity, IClock& clock, unsigned long sampleIntervalMs,
                                  unsigned long errorRetryMs)
     : modem_(modem),
       http_(httpClient),
       payload_(payload),
       led_(led),
       identity_(identity),
+      clock_(clock),
       sample_interval_ms_(sampleIntervalMs),
       error_retry_ms_(errorRetryMs) {}
 
 void TelemetrySender::update(unsigned long now) {
-  if (!TimeSync::isSynced()) {
+  if (!clock_.isSynced()) {
     return;
   }
 
-  if (now >= last_sample_ms_ + sample_interval_ms_) {
+  // Porównania przez różnicę bez znaku są poprawne także po przewinięciu
+  // millis() (co ~49,7 dnia). Zapis `now >= last + interval` przepełniałby się
+  // po prawej stronie i przez kilkanaście sekund próbkował w każdej iteracji
+  // pętli, zasypując bufor okien.
+  if ((now - last_sample_ms_) >= sample_interval_ms_) {
     last_sample_ms_ = now;
-    uint64_t utcMs = TimeSync::getUtcTimestamp();
-    payload_.sample(utcMs);
+    payload_.sample(clock_.utcMs());
   }
 
-  if (now < next_send_attempt_ms_) {
+  if (send_attempt_scheduled_ && (long)(now - next_send_attempt_ms_) < 0) {
     return;
   }
 
@@ -43,16 +47,23 @@ void TelemetrySender::update(unsigned long now) {
   if (!modem_.ensureConnected()) {
     LOG_WARN("[LOOP]", "Connection not ready");
     led_.blinkError();
-    next_send_attempt_ms_ = now + error_retry_ms_;
+    // Brak łącza to problem przejściowy, nie odmowa backendu. Bez wyzerowania
+    // flagi jedno wcześniejsze 403/409/410 blokowałoby watchdoga na zawsze
+    // i urządzenie zostałoby martwe aż do ręcznego wyłączenia zasilania.
+    last_error_was_permanent_ = false;
+    scheduleNextAttempt(now + error_retry_ms_);
     return;
   }
 
   // Note: uint32_t truncates Unix timestamp to 32-bit seconds. Valid until year 2106.
-  uint32_t nowUnix = (uint32_t)(TimeSync::getUtcTimestamp() / 1000);
+  uint32_t nowUnix = clock_.utcSeconds();
 
   if (!identity_.hasValidSession(nowUnix)) {
     LOG_WARN("[LOOP]", "No valid session, skipping telemetry");
-    next_send_attempt_ms_ = now + error_retry_ms_;
+    // Jak wyżej: brak ważnego tokenu to stan przejściowy (DeviceAuthClient
+    // właśnie go odnawia), a nie trwała odmowa ze strony backendu.
+    last_error_was_permanent_ = false;
+    scheduleNextAttempt(now + error_retry_ms_);
     return;
   }
 
@@ -64,16 +75,16 @@ void TelemetrySender::update(unsigned long now) {
   HttpResponse resp = http_.post(RESOURCE, payloadStr, token);
 
   if (resp.statusCode == 200 || resp.statusCode == 202) {
-    LOG_INFO("[LOOP]", "Send OK, seq=%lu", send_seq_);
+    LOG_INFO("[LOOP]", "Send OK, seq=%lu", (unsigned long)send_seq_);
     payload_.acknowledge();
     led_.blinkSuccess();
     last_success_ms_ = now;
     last_error_was_permanent_ = false;
-    next_send_attempt_ms_ = now + sample_interval_ms_;
+    scheduleNextAttempt(now + sample_interval_ms_);
   } else {
-    LOG_ERROR("[LOOP]", "Send failed, seq=%lu", send_seq_);
+    LOG_ERROR("[LOOP]", "Send failed, seq=%lu", (unsigned long)send_seq_);
     led_.blinkError();
-    next_send_attempt_ms_ = now + error_retry_ms_;
+    scheduleNextAttempt(now + error_retry_ms_);
 
     if (resp.statusCode == 401) {
       JsonDocument doc;

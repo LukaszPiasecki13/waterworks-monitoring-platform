@@ -131,6 +131,20 @@ String DeviceIdentity::signBase64(const uint8_t* msg, size_t len) {
   return result;
 }
 
+String DeviceIdentity::signChallengeBase64(const String& challengeBase64Url) {
+  if (challengeBase64Url.isEmpty()) {
+    return "";
+  }
+
+  uint8_t nonce[64];
+  size_t nonce_len = 0;
+  if (!decodeBase64Url(challengeBase64Url.c_str(), challengeBase64Url.length(), nonce, sizeof(nonce), nonce_len)) {
+    return "";
+  }
+
+  return signBase64(nonce, nonce_len);
+}
+
 bool DeviceIdentity::isProvisioningCompleted() const {
   prefs.begin("devid", true);
   bool claimed = prefs.getBool("claimed", false);
