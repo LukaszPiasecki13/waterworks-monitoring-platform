@@ -261,7 +261,47 @@ Tak — kolumna **Dlaczego** w tabeli podaje gotową odpowiedź dla każdego z 5
 
 ## 12. Instrukcja dla kolejnego agenta — praca do dokończenia
 
-**Warunek wstępny:** środowisko z **odblokowanym dostępem sieciowym** (WebFetch lub przeglądarka sterowana Playwrightem) oraz możliwością **pobierania i czytania plików PDF**. Bez tego zadania A–G są niewykonalne — to jedyny powód, dla którego nie zostały zrobione tutaj. Sprawdź to na starcie: `curl -sS -o /dev/null -w "%{http_code}" https://ezamowienia.gov.pl/` — kod 200 oznacza, że można zaczynać; 403 z proxy oznacza, że trzeba zmienić środowisko, a nie obchodzić blokadę.
+### Warunek wstępny — ustawienie środowiska (do zrobienia przez właściciela projektu, nie przez agenta)
+
+Zadania A–G nie zostały wykonane z jednego powodu: środowisko chmurowe tej sesji miało poziom dostępu sieciowego **Trusted**, który przepuszcza tylko rejestry pakietów, GitHub i API Anthropic. Każdy inny host zwracał 403 z proxy — dotyczyło to `ezamowienia.gov.pl`, wszystkich BIP-ów gmin, KRS, CEIDG i stron dostawców. **Agent nie może tego zmienić z wnętrza sesji i nie wolno mu tego obchodzić** — to ustawienie konfiguracyjne, nie przeszkoda techniczna.
+
+**Co trzeba zmienić:** w [claude.ai/code](https://claude.ai/code) kliknąć ikonę chmury z nazwą środowiska (wiersz nad polem wiadomości) → najechać na środowisko → ikona ustawień → pole **Network access**. Dostępne poziomy: `None`, `Trusted` (obecny), `Full` (dowolna domena), `Custom` (własna lista dozwolonych domen). Szczegóły: [dokumentacja środowisk chmurowych](https://code.claude.com/docs/en/cloud-environments#access-levels).
+
+**Rekomendacja: `Full`, w osobnym środowisku roboczym utworzonym na czas tego zadania.** Powód jest merytoryczny, nie wygodowy: zadanie A wymaga wejścia na BIP-y dowolnych gmin w Polsce, a tej listy **nie da się ułożyć z góry** — każda gmina ma własną domenę. `Custom` z ręczną listą będzie się wykrzaczał na co drugim postępowaniu. Po zakończeniu prac środowisko można zarchiwizować.
+
+Jeśli mimo to potrzebna jest lista `Custom`, poniżej minimum pokrywające wszystko poza BIP-ami gmin:
+
+```text
+ezamowienia.gov.pl
+*.ezamowienia.gov.pl
+przetargi.egospodarka.pl
+biznes-polska.pl
+atlasprzetargow.pl
+przetargi.info
+portalzp.pl
+wyszukiwarka-krs.ms.gov.pl
+aplikacja.ceidg.gov.pl
+rejestr.io
+igwp.org.pl
+wod-kan.biz
+*.targi-wod-kan.pl
+woda-scieki.com
+wodkaneko.pl
+```
+
+**Uwaga o momencie zmiany:** konfiguracja środowiska jest wczytywana przy starcie sesji, a nie w trakcie — zmiana poziomu dostępu **nie odblokuje sieci w sesji już uruchomionej**. Po zmianie trzeba założyć nową sesję. Zmiana listy dozwolonych hostów powoduje też ponowne uruchomienie skryptu startowego i przebudowę cache środowiska.
+
+**Weryfikacja na starcie nowej sesji — jedna komenda:**
+
+```bash
+curl -sS -o /dev/null -w "%{http_code}\n" https://ezamowienia.gov.pl/
+```
+
+`200` — można zaczynać. `000` z komunikatem `CONNECT tunnel failed, response 403` — polityka nadal blokuje, wróć do ustawień środowiska. **Nie próbuj obchodzić blokady** (własne proxy, `HTTPS_PROXY`, wyłączenie weryfikacji TLS) — to naruszenie polityki organizacji, a nie sprytne obejście.
+
+**Co już jest w środowisku i czego nie trzeba instalować:** Chromium dla Playwrighta (`/opt/pw-browsers/chromium-1194/chrome-linux/chrome`, zmienna `PLAYWRIGHT_BROWSERS_PATH` ustawiona — **nie uruchamiaj `playwright install`**). Bibliotek do czytania PDF-ów nie ma, ale `pypi.org` jest dostępne niezależnie od polityki sieciowej, więc `pip install pdfplumber` zadziała nawet przy poziomie `Trusted`.
+
+**Alternatywa, jeśli zmiana polityki jest niemożliwa:** wykonać zadania A–G lokalnie w terminalowym Claude Code (tam nie ma tego proxy) albo podpiąć konektor MCP do pobierania stron — ruch konektorów idzie przez serwery Anthropic i **nie podlega liście dozwolonych domen** środowiska.
 
 **Zasady obowiązujące we wszystkich zadaniach:** dokument po polsku · każdy nowy wpis z linkiem do źródła i datą sprawdzenia · „nieustalone" zamiast zgadywania · **gmina pilotażowa pozostaje anonimowa** (pisz „województwo małopolskie/podkarpackie", nigdy nazwy gminy, nawet jeśli natrafisz na nią w dokumentach przetargowych) · nie przepisywać profili z [§5.2](./01_plan_biznesowy.md#52-analiza-konkurencji).
 
