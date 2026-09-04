@@ -1,0 +1,810 @@
+<title>Dwanaście zmian we froncie</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Condensed:wght@600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+  :root {
+    --ground: #f4f7f6;
+    --surface: #ffffff;
+    --surface-sunk: #eef3f1;
+    --ink: #0f1b1a;
+    --ink-mid: #3c4d4a;
+    --ink-mute: #64756f;
+    --rule: #dbe5e2;
+    --rule-strong: #c2d1cd;
+    --accent: #0a7a6f;
+    --accent-ink: #06544c;
+    --accent-soft: #e2f1ee;
+    --alarm: #a72019;
+    --alarm-soft: #f9e6e4;
+    --warn: #8a5a00;
+    --warn-soft: #f8eedb;
+    --ok: #2c6a4a;
+    --shadow: 0 1px 2px rgba(15, 27, 26, .06), 0 8px 24px -14px rgba(15, 27, 26, .22);
+    --measure: 62ch;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground: #0b1312;
+      --surface: #141f1d;
+      --surface-sunk: #101a19;
+      --ink: #e6edeb;
+      --ink-mid: #b9c8c4;
+      --ink-mute: #8b9d98;
+      --rule: #26332f;
+      --rule-strong: #35443f;
+      --accent: #43c1b1;
+      --accent-ink: #7fd8cb;
+      --accent-soft: #10302c;
+      --alarm: #f08a80;
+      --alarm-soft: #341917;
+      --warn: #e0ac5a;
+      --warn-soft: #2e2312;
+      --ok: #74c295;
+      --shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 10px 28px -16px rgba(0, 0, 0, .8);
+    }
+  }
+  :root[data-theme="dark"] {
+    --ground: #0b1312;
+    --surface: #141f1d;
+    --surface-sunk: #101a19;
+    --ink: #e6edeb;
+    --ink-mid: #b9c8c4;
+    --ink-mute: #8b9d98;
+    --rule: #26332f;
+    --rule-strong: #35443f;
+    --accent: #43c1b1;
+    --accent-ink: #7fd8cb;
+    --accent-soft: #10302c;
+    --alarm: #f08a80;
+    --alarm-soft: #341917;
+    --warn: #e0ac5a;
+    --warn-soft: #2e2312;
+    --ok: #74c295;
+    --shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 10px 28px -16px rgba(0, 0, 0, .8);
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    background: var(--ground);
+    color: var(--ink);
+    font-family: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+    font-size: 16px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  h1, h2, h3 {
+    font-family: "IBM Plex Sans Condensed", "IBM Plex Sans", system-ui, sans-serif;
+    font-weight: 600;
+    text-wrap: balance;
+    line-height: 1.15;
+    margin: 0;
+  }
+
+  code, .mono {
+    font-family: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+    font-variant-numeric: tabular-nums;
+  }
+
+  a { color: var(--accent-ink); }
+  a:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+
+  .page {
+    max-width: 1320px;
+    margin: 0 auto;
+    padding: 0 24px 96px;
+  }
+
+  /* ---------- header ---------- */
+  .masthead {
+    display: grid;
+    gap: 28px;
+    padding: 56px 0 36px;
+    border-bottom: 2px solid var(--ink);
+  }
+  .eyebrow {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 12px;
+    letter-spacing: .13em;
+    text-transform: uppercase;
+    color: var(--ink-mute);
+  }
+  .masthead h1 {
+    font-size: clamp(34px, 5.2vw, 58px);
+    letter-spacing: -.015em;
+    max-width: 18ch;
+  }
+  .lede {
+    max-width: var(--measure);
+    color: var(--ink-mid);
+    font-size: 17px;
+  }
+  .meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 28px;
+    font-size: 13px;
+    color: var(--ink-mute);
+  }
+  .meta .mono { color: var(--ink-mid); }
+
+  .keynote {
+    margin-top: 8px;
+    padding: 20px 22px;
+    background: var(--accent-soft);
+    border-left: 3px solid var(--accent);
+    max-width: 78ch;
+  }
+  .keynote p { margin: 0; color: var(--ink-mid); }
+  .keynote strong { color: var(--ink); }
+
+  /* ---------- layout ---------- */
+  .body-grid {
+    display: grid;
+    grid-template-columns: 208px minmax(0, 1fr);
+    gap: 56px;
+    align-items: start;
+    padding-top: 44px;
+  }
+  .rail { position: sticky; top: 24px; display: grid; gap: 18px; }
+  .rail h2 { font-size: 13px; letter-spacing: .12em; text-transform: uppercase; color: var(--ink-mute); font-weight: 600; }
+  .rail ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+  .rail a {
+    display: grid;
+    grid-template-columns: 34px 1fr;
+    gap: 6px;
+    padding: 5px 6px;
+    font-size: 13.5px;
+    line-height: 1.35;
+    color: var(--ink-mid);
+    text-decoration: none;
+    border-radius: 3px;
+  }
+  .rail a:hover { background: var(--surface-sunk); color: var(--ink); }
+  .rail a .n { font-family: "IBM Plex Mono", monospace; font-size: 12px; color: var(--ink-mute); padding-top: 1px; }
+  .rail .tier { font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-mute); font-family: "IBM Plex Mono", monospace; padding: 12px 6px 2px; border-top: 1px solid var(--rule); margin-top: 6px; }
+  .rail .tier:first-of-type { border-top: 0; margin-top: 0; padding-top: 0; }
+
+  .stack { display: grid; gap: 44px; }
+
+  /* ---------- record ---------- */
+  .rec {
+    background: var(--surface);
+    border: 1px solid var(--rule);
+    box-shadow: var(--shadow);
+    scroll-margin-top: 20px;
+  }
+  .rec > header {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 4px 18px;
+    align-items: baseline;
+    padding: 22px 26px 18px;
+    border-bottom: 1px solid var(--rule);
+  }
+  .rec .num {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--accent-ink);
+    letter-spacing: .04em;
+  }
+  .rec h3 { font-size: 25px; letter-spacing: -.01em; }
+  .chips { grid-column: 2; display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+  .chip {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 11px;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    padding: 3px 8px;
+    border: 1px solid var(--rule-strong);
+    color: var(--ink-mute);
+    border-radius: 2px;
+    white-space: nowrap;
+  }
+  .chip.cost { border-color: var(--accent); color: var(--accent-ink); }
+  .chip.blocked { border-color: var(--warn); color: var(--warn); background: var(--warn-soft); }
+
+  .rec-body {
+    display: grid;
+    grid-template-columns: minmax(0, 4fr) minmax(0, 6fr);
+  }
+  .prose { padding: 24px 26px 26px; display: grid; gap: 18px; align-content: start; }
+  .prose p { margin: 0; max-width: var(--measure); color: var(--ink-mid); }
+  .prose p.change { color: var(--ink); font-size: 16.5px; }
+
+  .today {
+    display: grid;
+    gap: 6px;
+    padding: 14px 16px;
+    background: var(--surface-sunk);
+    border-left: 3px solid var(--rule-strong);
+  }
+  .today.bad { border-left-color: var(--alarm); }
+  .today .label {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 11px;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--ink-mute);
+  }
+  .today p { font-size: 14.5px; margin: 0; }
+
+  .files { display: grid; gap: 5px; }
+  .files .label {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 11px;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--ink-mute);
+  }
+  .files ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 3px; }
+  .files li { font-family: "IBM Plex Mono", monospace; font-size: 13px; color: var(--ink); word-break: break-all; }
+  .files li span { color: var(--alarm); }
+
+  .evidence {
+    padding: 24px 26px 26px;
+    border-left: 1px solid var(--rule);
+    display: grid;
+    gap: 12px;
+    align-content: start;
+    background: var(--surface-sunk);
+  }
+  .evidence .label {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 11px;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--ink-mute);
+  }
+  .shot { display: grid; gap: 8px; }
+  .shot img {
+    display: block;
+    width: 100%;
+    height: auto;
+    border: 1px solid var(--rule-strong);
+    background: #fff;
+  }
+  .shot figcaption { font-size: 13.5px; color: var(--ink-mid); }
+  .shot .src { display: block; font-size: 12px; color: var(--ink-mute); margin-top: 4px; }
+  .shot .src a { color: inherit; }
+  .shot.anti figcaption strong { color: var(--alarm); }
+  .pair { display: grid; gap: 22px; }
+
+  /* ---------- footer ---------- */
+  .closing {
+    margin-top: 56px;
+    padding-top: 28px;
+    border-top: 2px solid var(--ink);
+    display: grid;
+    gap: 14px;
+    max-width: 78ch;
+  }
+  .closing h2 { font-size: 20px; }
+  .closing p { margin: 0; color: var(--ink-mid); }
+
+  @media (max-width: 1080px) {
+    .body-grid { grid-template-columns: minmax(0, 1fr); gap: 28px; }
+    .rail { position: static; }
+    .rail ol { grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); }
+  }
+  @media (max-width: 860px) {
+    .rec-body { grid-template-columns: minmax(0, 1fr); }
+    .evidence { border-left: 0; border-top: 1px solid var(--rule); }
+    .rec > header { grid-template-columns: minmax(0, 1fr); }
+    .chips { grid-column: 1; }
+  }
+</style>
+
+<div class="page">
+
+  <header class="masthead">
+    <div>
+      <p class="eyebrow">Analiza B-03 · rekomendacje dla frontendu</p>
+      <h1>Dwanaście zmian we froncie</h1>
+    </div>
+    <p class="lede">Wyciąg z analizy UX/UI konkurencji: dwanaście rekomendacji o najwyższym stosunku wartości do kosztu, każda z dowodem z rynku i wskazaniem miejsca w naszym kodzie. Kolejność jest kolejnością pracy.</p>
+    <div class="meta">
+      <span>Badanie: <span class="mono">2026-09-04</span></span>
+      <span>Produkty: <span class="mono">12</span> · zrzuty: <span class="mono">50</span></span>
+      <span>Pełna analiza: <span class="mono">docs/analysis/01_analiza_ux_konkurencji.md</span></span>
+    </div>
+    <div class="keynote">
+      <p><strong>Jedno zdanie, jeśli nie masz czasu na resztę:</strong> plan biznesowy stawia twardy niezmiennik — wartość pomiaru nigdy bez czasu i statusu jakości (§2.4.3) — i to jest jedyny wymiar, w którym mamy przewagę nad polskim konkurentem. Dziś łamiemy go w dwóch z trzech miejsc we własnym kodzie.</p>
+    </div>
+  </header>
+
+  <div class="body-grid">
+    <nav class="rail" aria-label="Spis rekomendacji">
+      <h2>Kolejność pracy</h2>
+      <p class="tier">Poziom 1 — tanie naprawy</p>
+      <ol>
+        <li><a href="#r01"><span class="n">R-01</span><span>Wartość z czasem i jakością</span></a></li>
+        <li><a href="#r02"><span class="n">R-02</span><span>Świeżość liczona do 60 s</span></a></li>
+        <li><a href="#r03"><span class="n">R-03</span><span>Przerwa w danych to przerwa</span></a></li>
+        <li><a href="#r04"><span class="n">R-04</span><span>Kształt, nie tylko kolor</span></a></li>
+      </ol>
+      <p class="tier">Poziom 2 — widok alarmów</p>
+      <ol>
+        <li><a href="#r05"><span class="n">R-05</span><span>Dwie osie stanu alarmu</span></a></li>
+        <li><a href="#r06"><span class="n">R-06</span><span>Jedno okno, wymuszony ślad</span></a></li>
+        <li><a href="#r07"><span class="n">R-07</span><span>Czy powiadomienie doszło</span></a></li>
+        <li><a href="#r08"><span class="n">R-08</span><span>Alarm ma właściciela</span></a></li>
+      </ol>
+      <p class="tier">Poziom 3 — odczyt i analiza</p>
+      <ol>
+        <li><a href="#r09"><span class="n">R-09</span><span>Kafle zbiorcze nad listą</span></a></li>
+        <li><a href="#r10"><span class="n">R-10</span><span>Filtr = roli operatora</span></a></li>
+        <li><a href="#r11"><span class="n">R-11</span><span>Zdarzenia i progi na wykresie</span></a></li>
+      </ol>
+      <p class="tier">Poziom 4 — faza 2</p>
+      <ol>
+        <li><a href="#r12"><span class="n">R-12</span><span>Próg bez pisania wyrażeń</span></a></li>
+      </ol>
+    </nav>
+
+    <main class="stack">
+
+      <!-- R-01 -->
+      <article class="rec" id="r01">
+        <header>
+          <span class="num">R-01</span>
+          <h3>Wartość pomiaru nigdy bez czasu i statusu jakości</h3>
+          <div class="chips">
+            <span class="chip cost">koszt S</span>
+            <span class="chip">wzorzec W-01</span>
+            <span class="chip">niezmiennik §2.4.3</span>
+          </div>
+        </header>
+        <div class="rec-body">
+          <div class="prose">
+            <p class="change">Wydzielić komponent <code>MeasurementValue</code>, który przyjmuje <code>{ value, unit, measuredAt, quality }</code> i fizycznie nie potrafi wyrenderować samej liczby. Przy jakości innej niż <code>good</code> wartość osłabiona kolorem — oznaczona, nie ukryta.</p>
+            <div class="today bad">
+              <span class="label">Co mamy dziś</span>
+              <p>Lista obiektów i kafelek pokazują <code>3,42 bar</code> i nic więcej. Kolumna „Świeżość” dotyczy ostatniego kontaktu z gatewayem, nie czasu tego konkretnego pomiaru — czujnik może być w stanie <code>sensor_error</code> od godziny przy gatewayu odzywającym się co minutę.</p>
+            </div>
+            <div class="files">
+              <span class="label">Pliki</span>
+              <ul>
+                <li>ObjectsTable.tsx <span>:82-102</span></li>
+                <li>ObjectCard.tsx <span>:122-129</span></li>
+                <li>CurrentValueCard.tsx :45-59 — jedyne zgodne miejsce, stąd wydzielamy</li>
+              </ul>
+            </div>
+          </div>
+          <div class="evidence">
+            <span class="label">Dowód z rynku</span>
+            <div class="pair">
+              <figure class="shot">
+                {{IMG:zabbix-latest-data}}
+                <figcaption>Zabbix — każdy wiersz ma <code>Last check</code> („7s”) i <code>Change</code> obok wartości. Wartość bez wieku tu nie występuje.
+                  <span class="src">zabbix.com/documentation · [dok] · 2026-09-04</span></figcaption>
+              </figure>
+              <figure class="shot anti">
+                {{IMG:inventia-synoptyka}}
+                <figcaption><strong>Antywzorzec.</strong> Inventia DataPortal: <code>LIQUID LEVEL 56.74</code> bez czasu i bez jakości. Tego właśnie nie chcemy powtórzyć.
+                  <span class="src">inventia.pl · [mkt] · 2026-09-04</span></figcaption>
+              </figure>
+            </div>
+          </div>
+        </div>
+      </article>
+
+      <!-- R-02 -->
+      <article class="rec" id="r02">
+        <header>
+          <span class="num">R-02</span>
+          <h3>Pasek świeżości liczony do 60 s, nie do 300 s</h3>
+          <div class="chips">
+            <span class="chip cost">koszt S</span>
+            <span class="chip">wzorzec W-01</span>
+            <span class="chip">błąd, nie ulepszenie</span>
+          </div>
+        </header>
+        <div class="rec-body">
+          <div class="prose">
+            <p class="change">Domyślny <code>expectedIntervalSeconds</code> na 60 s, docelowo z konfiguracji urządzenia. Kolory paska z tokenów <code>--color-status-*</code> zamiast wpisanych na sztywno klas Tailwinda.</p>
+            <div class="today bad">
+              <span class="label">Co mamy dziś</span>
+              <p>Gateway wysyła paczkę co ~60 s (<code>WINDOWS_PER_BATCH = 4</code> × <code>WINDOW_SECONDS = 15</code>). Pasek domyślnie skaluje się do 300 s, więc po <strong>czterech nieudanych transmisjach</strong> stoi wciąż na ~80 % i jest żółty. Żadne wywołanie nie podaje własnej wartości.</p>
+            </div>
+            <div class="files">
+              <span class="label">Pliki</span>
+              <ul>
+                <li>FreshnessBar.tsx <span>:26</span> — domyślne 300</li>
+                <li>FreshnessBar.tsx <span>:46-48</span> — bg-green-500 / yellow / red</li>
+                <li>TelemetryPayload.h :34-37 — źródło prawdy o kadencji</li>
+              </ul>
+            </div>
+          </div>
+          <div class="evidence">
+            <span class="label">Dowód z rynku</span>
+            <figure class="shot">
+              {{IMG:zabbix-konfiguracja-widgetu-wartosci}}
+              <figcaption>Zabbix traktuje <code>Time</code> jako osobny, równorzędny przełącznik kafla — obok <code>Value</code>, <code>Change indicator</code> i <code>Sparkline</code>. Czas nie jest dopiskiem.
+                <span class="src">zabbix.com/documentation · [dok] · 2026-09-04</span></figcaption>
+            </figure>
+          </div>
+        </div>
+      </article>
+
+      <!-- R-03 -->
+      <article class="rec" id="r03">
+        <header>
+          <span class="num">R-03</span>
+          <h3>Przerwa w danych ma wyglądać jak przerwa</h3>
+          <div class="chips">
+            <span class="chip cost">koszt S</span>
+            <span class="chip">wzorce W-11 / UC-04</span>
+          </div>
+        </header>
+        <div class="rec-body">
+          <div class="prose">
+            <p class="change">Wstawiać <code>null</code> w serii tam, gdzie odstęp między próbkami przekracza wielokrotność oczekiwanego interwału — recharts przerywa wtedy linię. Docelowo pasmo stanu łączności i jakości pod wykresem.</p>
+            <div class="today bad">
+              <span class="label">Co mamy dziś</span>
+              <p><code>&lt;Line type="monotone" dot={false}&gt;</code> łączy dwa punkty odległe o godziny gładką krzywą. Przy dwugodzinnej przerwie w transmisji rysujemy pomiary, których nie było — a UC-04 to właśnie „utrata komunikacji”.</p>
+            </div>
+            <div class="files">
+              <span class="label">Pliki</span>
+              <ul>
+                <li>ObjectMeasurementsChart.tsx <span>:174-188</span></li>
+                <li>ObjectMeasurementsChart.tsx :148-159 — kolory osi na sztywno</li>
+              </ul>
+            </div>
+          </div>
+          <div class="evidence">
+            <span class="label">Dowód z rynku</span>
+            <figure class="shot">
+              {{IMG:grafana-state-timeline}}
+              <figcaption>Grafana, state timeline — stan jako pasmo z czasem trwania w tooltipie. Jedyny czytelny sposób pokazania historii jakości danych (<code>good</code> / <code>stale</code> / <code>sensor_error</code>) obok szeregu wartości.
+                <span class="src">grafana.com/docs · [dok] · 2026-09-04</span></figcaption>
+            </figure>
+          </div>
+        </div>
+      </article>
+
+      <!-- R-04 -->
+      <article class="rec" id="r04">
+        <header>
+          <span class="num">R-04</span>
+          <h3>Status niesiony kształtem, nie samym kolorem</h3>
+          <div class="chips">
+            <span class="chip cost">koszt S</span>
+            <span class="chip">antywzorzec W-24</span>
+            <span class="chip">dostępność</span>
+          </div>
+        </header>
+        <div class="rec-body">
+          <div class="prose">
+            <p class="change">Osobny kształt znacznika per status (<code>●</code> ok, <code>▲</code> ostrzeżenie, <code>■</code> alarm, <code>○</code> brak danych, <code>⊘</code> brak komunikacji) albo ikony z <code>lucide-react</code>, które i tak mamy. Tekst zostaje.</p>
+            <div class="today">
+              <span class="label">Co mamy dziś</span>
+              <p><code>StatusPill</code> renderuje zawsze ten sam znak <code>●</code>, różniący się wyłącznie kolorem. Osobno: status <code>no_comm</code> mapuje się na semantyczne <code>danger</code>, które w tokenach jest… szare. Nazwa kłamie i ktoś to kiedyś naprawi w złą stronę.</p>
+            </div>
+            <div class="files">
+              <span class="label">Pliki</span>
+              <ul>
+                <li>StatusPill.tsx <span>:43</span></li>
+                <li>statusConfig.ts :15-21, :54 — <code>danger</code> → paleta szara</li>
+              </ul>
+            </div>
+          </div>
+          <div class="evidence">
+            <span class="label">Dowód z rynku</span>
+            <figure class="shot anti">
+              {{IMG:ignition-tabela-alarmow}}
+              <figcaption><strong>Antywzorzec.</strong> Ignition wypełnia całe wiersze nasyconym kolorem. Przy pięciu alarmach ekran jest ścianą koloru, z której nie da się odczytać ważności — bo kolor niesie stan, a nie priorytet.
+                <span class="src">docs.inductiveautomation.com · [dok] · 2026-09-04</span></figcaption>
+            </figure>
+          </div>
+        </div>
+      </article>
+
+      <!-- R-05 -->
+      <article class="rec" id="r05">
+        <header>
+          <span class="num">R-05</span>
+          <h3>Stan warunku i stan obsługi to dwie niezależne osie</h3>
+          <div class="chips">
+            <span class="chip cost">koszt XL</span>
+            <span class="chip">wzorzec W-02</span>
+            <span class="chip blocked">wymaga decyzji w backendzie</span>
+          </div>
+        </header>
+        <div class="rec-body">
+          <div class="prose">
+            <p class="change">Rekord alarmu potrzebuje osobno <code>condition_state</code> (aktywny / ustąpił) i <code>handling_state</code> (nowy / potwierdzony / zamknięty / odrzucony). Zmiana po fakcie kosztuje migrację danych, więc rozstrzygnąć przed implementacją modułu.</p>
+            <div class="today bad">
+              <span class="label">Co mamy dziś</span>
+              <p>Automat z §2.5 jest liniowy: <code>Nowy → Aktywny → Potwierdzony → Zamknięty</code>. Gubi przez to najczęstszy przypadek w monitoringu ciśnienia: <strong>warunek ustąpił sam w nocy i nikt tego nie zauważył</strong>. Trzy niezależne produkty modelują to dwuosiowo — to nie przypadek.</p>
+            </div>
+            <div class="files">
+              <span class="label">Gdzie</span>
+              <ul>
+                <li>moduł alarmów — nie istnieje ani we froncie, ani w backendzie</li>
+                <li>projekt ekranu: 01_analiza_ux_konkurencji.md §6.2</li>
+              </ul>
+            </div>
+          </div>
+          <div class="evidence">
+            <span class="label">Dowód z rynku</span>
+            <figure class="shot">
+              {{IMG:thingsboard-szczegoly-alarmu}}
+              <figcaption>ThingsBoard — status <code>Active Unacknowledged</code> jako złożenie dwóch osi, obok czasu utworzenia, czasu trwania i pola przypisania. Ignition używa tej samej pary: <code>Cleared, Unacknowledged</code>.
+                <span class="src">thingsboard.io/docs · [dok] · 2026-09-04</span></figcaption>
+            </figure>
+          </div>
+        </div>
+      </article>
+
+      <!-- R-06 -->
+      <article class="rec" id="r06">
+        <header>
+          <span class="num">R-06</span>
+          <h3>Jedno okno aktualizacji alarmu, z wymuszonym śladem</h3>
+          <div class="chips">
+            <span class="chip cost">koszt L</span>
+            <span class="chip">wzorzec W-03</span>
+            <span class="chip">§2.8.3</span>
+          </div>
+        </header>
+        <div class="rec-body">
+          <div class="prose">
+            <p class="change">Potwierdzenie, przypisanie, wyciszenie <em>z terminem</em>, zamknięcie z przyczyną ze słownika i zmiana ważności — w jednym dialogu, z warunkiem: nie da się zapisać pustej aktualizacji.</p>
+            <div class="today">
+              <span class="label">Dlaczego nie pięć przycisków</span>
+              <p>§2.8.3 wymienia pięć osobnych czynności. Pięć przycisków to pięć ścieżek do przetestowania i pięć miejsc, w których operator zamknie alarm bez śladu. Słownik przyczyn („potwierdzona awaria”, „błąd czujnika”, „fałszywy alarm — do przestrojenia progu”) po kwartale sam wskazuje progi do poprawy.</p>
+            </div>
+            <div class="files">
+              <span class="label">Gdzie</span>
+              <ul>
+                <li>projekt dialogu: 01_analiza_ux_konkurencji.md §6.4</li>
+                <li>Dialog.tsx, Drawer.tsx — komponenty już są</li>
+              </ul>
+            </div>
+          </div>
+          <div class="evidence">
+            <span class="label">Dowód z rynku</span>
+            <figure class="shot">
+              {{IMG:zabbix-aktualizacja-problemu}}
+              <figcaption>Zabbix „Update problem”: komentarz, historia reakcji, zakres, zmiana ważności, wyciszenie <code>Indefinitely | Until</code>, potwierdzenie, zamknięcie. Na dole warunek: <em>„At least one update operation or message must exist”</em>.
+                <span class="src">zabbix.com/documentation · [dok] · 2026-09-04</span></figcaption>
+            </figure>
+          </div>
+        </div>
+      </article>
+
+      <!-- R-07 -->
+      <article class="rec" id="r07">
+        <header>
+          <span class="num">R-07</span>
+          <h3>Pokazać, czy powiadomienie doszło — i ile razy to już było</h3>
+          <div class="chips">
+            <span class="chip cost">koszt M</span>
+            <span class="chip">wzorce W-05 / W-06</span>
+            <span class="chip blocked">wymaga danych z backendu</span>
+          </div>
+        </header>
+        <div class="rec-body">
+          <div class="prose">
+            <p class="change">W panelu szczegółów alarmu dwie sekcje: log powiadomień ze <strong>statusem dostarczenia</strong> oraz lista poprzednich wystąpień tej samej reguły z czasem trwania i przyczyną zamknięcia każdego.</p>
+            <div class="today">
+              <span class="label">Po co</span>
+              <p>§2.8.3 wymaga historii wysłanych powiadomień. Kluczowe jest jednak <em>czy doszło</em>: w gminie, gdzie kanałem jest SMS albo skrzynka, którą ktoś zmienił, to różnica między „system nie zadziałał” a „wiadomość nie doszła”. Lista poprzednich wystąpień to z kolei jedyne narzędzie do strojenia progów — 14 odpaleń tej samej reguły zawsze o 6:00 rano to problem progu, nie sieci.</p>
+            </div>
+            <div class="files">
+              <span class="label">Gdzie</span>
+              <ul>
+                <li>projekt panelu: 01_analiza_ux_konkurencji.md §6.3</li>
+                <li>kontrakt backendu: §6.6</li>
+              </ul>
+            </div>
+          </div>
+          <div class="evidence">
+            <span class="label">Dowód z rynku</span>
+            <figure class="shot">
+              {{IMG:zabbix-szczegoly-zdarzenia}}
+              <figcaption>Zabbix: po prawej u góry log akcji z kolumną <code>Status</code> i widocznym wpisem <code>Failed</code>; niżej „Event list [previous 20]” — dwadzieścia poprzednich wystąpień tej samej reguły z wiekiem i czasem trwania.
+                <span class="src">zabbix.com/documentation · [dok] · 2026-09-04</span></figcaption>
+            </figure>
+          </div>
+        </div>
+      </article>
+
+      <!-- R-08 -->
+      <article class="rec" id="r08">
+        <header>
+          <span class="num">R-08</span>
+          <h3>Alarm ma właściciela i oś czasu, a nie tylko stan</h3>
+          <div class="chips">
+            <span class="chip cost">koszt M</span>
+            <span class="chip">wzorce W-16 / W-17</span>
+          </div>
+        </header>
+        <div class="rec-body">
+          <div class="prose">
+            <p class="change">Pole „przypisany” z akcją <em>Przypisz do mnie</em> oraz historia reakcji jako czytelna narracja: kto potwierdził, kto przejął, czym zamknął.</p>
+            <div class="today">
+              <span class="label">Po co</span>
+              <p>W brygadzie trzyosobowej „kto to bierze” rozstrzyga się telefonicznie — do momentu, w którym dwie osoby jadą na ten sam obiekt albo żadna. Pole jest tanie, a zamienia listę alarmów w listę zadań. Rola „Użytkownik operacyjny” z §2.7.3 już istnieje, więc model uprawnień tego nie blokuje.</p>
+            </div>
+            <div class="files">
+              <span class="label">Gdzie</span>
+              <ul>
+                <li>useActivePermissions.ts — źródło prawdy o uprawnieniach</li>
+                <li>kontrakt backendu: <code>assigned_to</code>, <code>close_reason</code></li>
+              </ul>
+            </div>
+          </div>
+          <div class="evidence">
+            <span class="label">Dowód z rynku</span>
+            <figure class="shot">
+              {{IMG:pagerduty-os-czasu-incydentu}}
+              <figcaption>PagerDuty — oś czasu jako narracja: „Assigned to Casey Bennett and reopened”, „Resolved by Mark Phillips”, a przy zamknięciu pole własne <code>resolution_category</code>. Zakładka „Past Incidents” robi to samo co lista poprzednich wystąpień z R-07.
+                <span class="src">support.pagerduty.com · [dok] · 2026-09-04</span></figcaption>
+            </figure>
+          </div>
+        </div>
+      </article>
+
+      <!-- R-09 -->
+      <article class="rec" id="r09">
+        <header>
+          <span class="num">R-09</span>
+          <h3>Kafle zbiorcze nad listą — i niech będą filtrem</h3>
+          <div class="chips">
+            <span class="chip cost">koszt S</span>
+            <span class="chip">wzorzec W-13</span>
+            <span class="chip">§2.8.1</span>
+          </div>
+        </header>
+        <div class="rec-body">
+          <div class="prose">
+            <p class="change">Rząd kafli nad listą obiektów: krytyczne, ostrzeżenia, bez łączności, wyciszone. Kliknięcie kafla zawęża listę pod spodem — kafel jest jednocześnie odpowiedzią i filtrem, co zamienia dwa ekrany w jeden.</p>
+            <div class="today bad">
+              <span class="label">Co mamy dziś</span>
+              <p><code>DashboardPage</code> i <code>ObjectsStatusTable</code> (216 linii, własna paginacja i filtr) istnieją w kodzie, ale <code>/</code> i <code>/dashboard</code> przekierowują na <code>/objects</code>. Nikt ich nie widzi. To martwy kod udający działającą funkcję — albo go usuwamy, albo wskrzeszamy, ale nie zostawiamy tak.</p>
+            </div>
+            <div class="files">
+              <span class="label">Pliki</span>
+              <ul>
+                <li>App.tsx <span>:58-59</span></li>
+                <li>DashboardPage.tsx — nieimportowany poza własnym testem</li>
+                <li>ObjectsStatusTable.tsx — używany tylko przez powyższy</li>
+              </ul>
+            </div>
+          </div>
+          <div class="evidence">
+            <span class="label">Dowód z rynku</span>
+            <figure class="shot">
+              {{IMG:zabbix-dashboard}}
+              <figcaption>Zabbix prowadzi od kafli („Problems by severity”, „Host availability”) do tabeli bieżących problemów. Odpowiedź zbiorcza jest nad szczegółem, nie obok niego.
+                <span class="src">zabbix.com/documentation · [dok] · 2026-09-04</span></figcaption>
+            </figure>
+          </div>
+        </div>
+      </article>
+
+      <!-- R-10 -->
+      <article class="rec" id="r10">
+        <header>
+          <span class="num">R-10</span>
+          <h3>Filtr alarmów zamiast trzech ekranów dla trzech ról</h3>
+          <div class="chips">
+            <span class="chip cost">koszt M</span>
+            <span class="chip">wzorzec W-14</span>
+            <span class="chip">§2.7.2</span>
+          </div>
+        </header>
+        <div class="rec-body">
+          <div class="prose">
+            <p class="change">Jeden widok alarmów z zapisanymi presetami: pracownik terenowy → „niepotwierdzone, krytyczne, moje”; dyspozytor → „wszystkie aktywne”; zarząd → „zamknięte w tym miesiącu”.</p>
+            <div class="today">
+              <span class="label">Po co</span>
+              <p>Trzy role z §2.7.2 różnią się nie ekranem, tylko domyślnym filtrem. Osobne widoki dla każdej to trzykrotny koszt utrzymania tego samego. Wyciszone alarmy pokazujemy jako świadomie przełączany filtr, nigdy jako domyślnie ukryte — pusta lista i lista wyciszonych nie mogą wyglądać tak samo.</p>
+            </div>
+            <div class="files">
+              <span class="label">Gdzie</span>
+              <ul>
+                <li>OrgSidebar.tsx :29-43 — dodać „Alarmy” z licznikiem</li>
+                <li>projekt filtrów: 01_analiza_ux_konkurencji.md §6.1</li>
+              </ul>
+            </div>
+          </div>
+          <div class="evidence">
+            <span class="label">Dowód z rynku</span>
+            <figure class="shot">
+              {{IMG:zabbix-filtr-problemow}}
+              <figcaption>Zabbix: severity jako sześć niezależnych checkboxów, „Age less than”, „Show suppressed problems”, przełącznik <code>All / Unacknowledged / Acknowledged / By me</code> i <code>Save as</code> zapisujący filtr jako zakładkę.
+                <span class="src">zabbix.com/documentation · [dok] · 2026-09-04</span></figcaption>
+            </figure>
+          </div>
+        </div>
+      </article>
+
+      <!-- R-11 -->
+      <article class="rec" id="r11">
+        <header>
+          <span class="num">R-11</span>
+          <h3>Zdarzenia i progi naniesione na wykres</h3>
+          <div class="chips">
+            <span class="chip cost">koszt M</span>
+            <span class="chip">wzorce W-09 / W-10</span>
+            <span class="chip">§2.8.3</span>
+          </div>
+        </header>
+        <div class="rec-body">
+          <div class="prose">
+            <p class="change">Znacznik zdarzenia na osi czasu, linia progu reguły i lista zdarzeń pod wykresem. Do tego zakres czasu w adresie URL — bez tego nie da się podać linku „wykres 2 h przed i 30 min po awarii”.</p>
+            <div class="today">
+              <span class="label">Co mamy dziś</span>
+              <p>Cztery przyciski <code>2h / 24h / 7d / 30d</code>, stan w lokalnym <code>useState</code>, nieobecny w adresie. Żadnych progów ani znaczników zdarzeń. §2.8.3 wymaga „przejścia do wykresu obejmującego okres przed i po zdarzeniu” — bez znacznika operator nie wie, w które miejsce wykresu patrzeć.</p>
+            </div>
+            <div class="files">
+              <span class="label">Pliki</span>
+              <ul>
+                <li>ObjectDetailPage.tsx <span>:136-141</span></li>
+                <li>ObjectMeasurementsChart.tsx — <code>ReferenceLine</code> / <code>ReferenceArea</code></li>
+              </ul>
+            </div>
+          </div>
+          <div class="evidence">
+            <span class="label">Dowód z rynku</span>
+            <figure class="shot">
+              {{IMG:grafana-adnotacje-na-wykresie}}
+              <figcaption>Grafana — adnotacje jako pionowe znaczniki na wykresie i jednocześnie lista pod spodem z czasem i tagiem. Zakres czasu siedzi w adresie (<code>?from=now-24h&amp;to=now</code>), więc każdy wykres jest linkowalny.
+                <span class="src">play.grafana.org · [demo] · 2026-09-04</span></figcaption>
+            </figure>
+          </div>
+        </div>
+      </article>
+
+      <!-- R-12 -->
+      <article class="rec" id="r12">
+        <header>
+          <span class="num">R-12</span>
+          <h3>Próg alarmowy ustawiany bez pisania wyrażeń</h3>
+          <div class="chips">
+            <span class="chip cost">koszt L</span>
+            <span class="chip">wzorzec W-15</span>
+            <span class="chip">§2.8.4 · faza 2</span>
+          </div>
+        </header>
+        <div class="rec-body">
+          <div class="prose">
+            <p class="change">Kreator z trzech pól — punkt pomiarowy, operator, wartość — plus czas utrzymania i histereza. Nad przyciskiem zapisu podgląd reguły jako zdanie po polsku: <em>„ciśnienie na wlocie mniejsze niż 2,0 bar przez 120 s”</em>.</p>
+            <div class="today">
+              <span class="label">Po co podgląd zdaniem</span>
+              <p>Sam kreator to połowa sprawy. Podgląd pozwala operatorowi sprawdzić, czy system zrozumiał go tak, jak chciał — <em>zanim</em> zapisze regułę, która potem obudzi kogoś w nocy. Grafana jest tu antywzorcem: reguła to zapytanie w języku źródła danych, bariera nie do przejścia dla pracownika gminy.</p>
+            </div>
+            <div class="files">
+              <span class="label">Gdzie</span>
+              <ul>
+                <li>nowy ekran „Reguły alarmowe” w sekcji Konfiguracja</li>
+                <li>useCrudPageState.ts — wzorzec formularza już mamy</li>
+              </ul>
+            </div>
+          </div>
+          <div class="evidence">
+            <span class="label">Dowód z rynku</span>
+            <figure class="shot">
+              {{IMG:thingsboard-filtry-podglad}}
+              <figcaption>ThingsBoard — warunek budowany z pól klucz / operator / wartość, a gotowa reguła pokazana jako czytelne zdanie: <code>model equal 'DHT22' and batteryLevel less than 20</code>.
+                <span class="src">thingsboard.io/docs · [dok] · 2026-09-04</span></figcaption>
+            </figure>
+          </div>
+        </div>
+      </article>
+
+    </main>
+  </div>
+
+  <footer class="closing">
+    <h2>Czego tu nie ma</h2>
+    <p>To jest dwanaście rekomendacji o najwyższym stosunku wartości do kosztu. Pełny katalog ma <strong>27 wzorców</strong>, w tym cztery oznaczone „nie bierz” (synoptyka jako główny widok, alarmy wyłącznie na mapie, surowe kody sterownika w interfejsie, wypełnianie wierszy nasyconym kolorem) i trzy „rozważ” z warunkiem, przy którym zaczynają mieć sens.</p>
+    <p>Pełna analiza, tabela porównawcza dwunastu produktów w dziewięciu wymiarach, projekt widoku alarmów gotowy do implementacji i biblioteka 50 zrzutów ze źródłami: <span class="mono">docs/analysis/01_analiza_ux_konkurencji.md</span></p>
+    <p>Wszystkie zrzuty pochodzą z publicznych źródeł i zostały pobrane 2026-09-04. Etykiety: <span class="mono">[demo]</span> — zaobserwowane w działającej instancji, <span class="mono">[dok]</span> — dokumentacja producenta, <span class="mono">[mkt]</span> — materiał marketingowy.</p>
+  </footer>
+
+</div>
