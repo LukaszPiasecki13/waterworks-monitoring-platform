@@ -428,7 +428,9 @@ Autentykacja (login, JWT access/refresh) i autoryzacja (uprawnienia) dla całej 
 
 Przyjmuje pakiety pomiarowe z gatewayów terenowych (`POST /telemetry/ingest`) i wystawia zapytania szeregów czasowych dla dashboardu. Ingest commituje zawsze przez `transaction(skip_audit=True)` — dane z urządzenia IoT, nie zmiana wywołana przez użytkownika, więc nie generuje wpisu w audit logu.
 
-→ Pełny opis: [`04_telemetry_module.md`](./04_telemetry_module.md)
+Tu też mieszka **kanał odczytu stanu z urządzenia** (B-08) — urządzenie siedzi za NAT-em operatora, więc każdy odczyt jest odpowiedzią przy jego następnym kontakcie, dołączoną do pakietu telemetrycznego jako `state[]`. Endpointy odczytu są w `telemetry`, a nie w `core_data`, choć zasobem jest urządzenie: dane wpływają ścieżką ingestu, a `core_data` jest modułem bazowym — czytanie stanu stamtąd odwróciłoby kierunek zależności (sekcja 2.4).
+
+→ Pełny opis: [`04_telemetry_module.md`](./04_telemetry_module.md), kanał stanu przekrojowo: [`01_kanal_stanu_urzadzenia.md`](../01_kanal_stanu_urzadzenia.md)
 
 ## 6.4. `audit/`
 
@@ -440,7 +442,7 @@ Niezmienny, append-only log zmian biznesowych. Nie ma własnej warstwy `api/` �
 
 Asymetryczna autentykacja urządzeń IoT — każde urządzenie generuje na sobie parę kluczy EC P-256 i dowodzi jej posiadania podpisem (challenge/response), bez współdzielonego sekretu z backendem. Provisioning przez jednorazowe kody aktywacyjne (operator platformy) lub ścieżkę administracyjną (import fabryczny). Moduł operuje na poziomie urządzenia, bez powiązania z organizacjami; org-scoping (przypisanie do obiektu wodociągowego) to osobny krok, wykonywany po zakończeniu auth.
 
-**Nowe:** [`DeviceLifecycleService`](../../backend/app/modules/device_identity/services/device_lifecycle.py) — orchestrator kaskadowego usunięcia urządzenia z platformy: usuwa telemetrię, device record (cascaduje measurement_points), credential. Atomowy w jednej transakcji.
+**Nowe:** [`DeviceLifecycleService`](../../../backend/app/modules/core_data/services/device_lifecycle.py) — orchestrator kaskadowego usunięcia urządzenia z platformy: usuwa telemetrię, device record (cascaduje measurement_points), credential. Atomowy w jednej transakcji.
 
 → Pełny opis: [`06_device_identity_module.md`](./06_device_identity_module.md)
 

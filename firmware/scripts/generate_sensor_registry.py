@@ -52,15 +52,21 @@ def generate():
         return False
 
     # Extract and validate data
-    if "point_types" not in registry or "error_codes" not in registry:
-        print("❌ Registry missing required keys: point_types, error_codes", file=sys.stderr)
+    required_keys = ("point_types", "error_codes", "state_sections")
+    missing = [key for key in required_keys if key not in registry]
+    if missing:
+        print(f"❌ Registry missing required keys: {', '.join(missing)}", file=sys.stderr)
         return False
 
     try:
         schema_version = registry.get("schema_version", 1)
         point_types = [pt["id"] for pt in registry.get("point_types", [])]
         error_codes = [ec["code"] for ec in registry.get("error_codes", [])]
-    except (KeyError, TypeError) as e:
+        state_sections = {
+            ss["id"]: int(ss["schema_version"])
+            for ss in registry.get("state_sections", [])
+        }
+    except (KeyError, TypeError, ValueError) as e:
         print(f"❌ Invalid registry structure: {e}", file=sys.stderr)
         return False
 
@@ -70,6 +76,17 @@ def generate():
     if not error_codes:
         print("❌ Registry has no error_codes defined", file=sys.stderr)
         return False
+    if not state_sections:
+        print("❌ Registry has no state_sections defined", file=sys.stderr)
+        return False
+
+    invalid_ids = [sid for sid in state_sections if not sid.replace("_", "").isalnum()]
+    if invalid_ids:
+        print(
+            f"❌ state_section ids must be alphanumeric/underscore: {invalid_ids}",
+            file=sys.stderr,
+        )
+        return False
 
     # Build embedded JSON (compact)
     embedded_json = json.dumps(
@@ -77,8 +94,10 @@ def generate():
             "schema_version": schema_version,
             "point_types": point_types,
             "error_codes": error_codes,
+            "state_sections": state_sections,
         },
         separators=(",", ":"),  # Compact: no spaces
+        sort_keys=False,
     )
 
     # Generate OR chain for isValidPointType
@@ -91,6 +110,19 @@ def generate():
         f'stringEquals(code, "{code}")' for code in error_codes
     )
 
+    # Generate OR chain for isValidStateSection
+    state_sections_checks = " ||\n           ".join(
+        f'stringEquals(section, "{sid}")' for sid in state_sections
+    )
+
+    # One named constant per section, so firmware code stamps the section's
+    # schema_version from the registry instead of a hand-copied literal.
+    state_section_constants = "\n".join(
+        f"  static constexpr const char* STATE_SECTION_{sid.upper()} = \"{sid}\";\n"
+        f"  static constexpr int STATE_SECTION_{sid.upper()}_SCHEMA_VERSION = {version};"
+        for sid, version in state_sections.items()
+    )
+
     # Generate header file
     header_content = f'''#pragma once
 
@@ -98,7 +130,7 @@ def generate():
 
 // ⚠️ CRITICAL: This file is auto-generated from sensor_registry.yaml
 // DO NOT EDIT manually. Regenerate with: python3 firmware/scripts/generate_sensor_registry.py
-// Backend: docs/technical/telemetry/sensor_registry.yaml (schema_version: {schema_version})
+// Backend: sensor_registry.yaml at project root (schema_version: {schema_version})
 
 // Embedded sensor registry JSON (generated from sensor_registry.yaml)
 constexpr const char SENSOR_REGISTRY_JSON[] PROGMEM = R"({embedded_json})";
@@ -114,6 +146,14 @@ class SensorRegistry {{
 
   static constexpr bool isValidErrorCode(const char* code) {{
     return {error_codes_checks};
+  }}
+
+  // Device state sections (B-08): the catalogue of reads the device answers
+  // with inside the telemetry packet's `state[]` array.
+{state_section_constants}
+
+  static constexpr bool isValidStateSection(const char* section) {{
+    return {state_sections_checks};
   }}
 
  private:
@@ -132,7 +172,10 @@ static_assert(SensorRegistry::SCHEMA_VERSION == {schema_version},
         header_file.parent.mkdir(parents=True, exist_ok=True)
         with open(header_file, "w", encoding="utf-8") as f:
             f.write(header_content)
-        print(f"✅ Generated {header_file} ({len(point_types)} point_types, {len(error_codes)} error_codes)")
+        print(
+            f"✅ Generated {header_file} ({len(point_types)} point_types, "
+            f"{len(error_codes)} error_codes, {len(state_sections)} state_sections)"
+        )
         return True
     except IOError as e:
         print(f"❌ Failed to write {header_file}: {e}", file=sys.stderr)

@@ -63,7 +63,7 @@ def _seed_device_with_token(
 
 def _payload(seq: int = 1, device_id: str = "gw-2026-0001") -> dict:
     return {
-        "v": 1,
+        "v": 2,
         "device_id": device_id,
         "seq": seq,
         "sent_at": "2026-07-27T14:30:00Z",
@@ -277,7 +277,7 @@ def test_ingest_accepts_temperature_measurement(db_session: Session) -> None:
 
     # Payload with temperature data
     temp_payload = {
-        "v": 1,
+        "v": 2,
         "device_id": "gw-2026-0001",
         "seq": 1001,
         "sent_at": "2026-08-24T12:00:00Z",

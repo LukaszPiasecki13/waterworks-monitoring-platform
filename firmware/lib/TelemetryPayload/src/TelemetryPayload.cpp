@@ -2,6 +2,7 @@
 #include <time.h>
 #include "TelemetryPayload.h"
 #include "Config.h"
+#include <IStateSectionSource.h>
 #include <Logger.h>
 
 TelemetryPayload::TelemetryPayload(const String& deviceId, const std::vector<ISensor*>& sensors)
@@ -34,6 +35,7 @@ String TelemetryPayload::formatIso8601(uint64_t utcMs) {
 void TelemetryPayload::sample(uint64_t utcMs) {
   if (windows_buffer_.size() >= RETAIN_WINDOWS_MAX) {
     dropOldestWindow();
+    dropped_windows_total_++;
     addError("WINDOW_DROPPED_BUFFER_FULL", nullptr, "warning", "Buffer full");
   }
 
@@ -95,6 +97,16 @@ String TelemetryPayload::build(uint32_t seq) {
   }
   windows_sent_count_ = (WINDOWS_PER_BATCH < windows_buffer_.size()) ? WINDOWS_PER_BATCH : windows_buffer_.size();
 
+  state_sent_ = false;
+  if (state_source_) {
+    JsonArray stateArr = doc["state"].to<JsonArray>();
+    if (state_source_->appendSections(stateArr, sentAt.c_str()) > 0) {
+      state_sent_ = true;
+    } else {
+      doc.remove("state");
+    }
+  }
+
   if (!errors_buffer_.empty()) {
     JsonArray errorsArr = doc["errors"].to<JsonArray>();
     for (const auto& err : errors_buffer_) {
@@ -121,7 +133,14 @@ void TelemetryPayload::acknowledge() {
     windows_sent_count_ = 0;
   }
   errors_buffer_.clear();
+
+  if (state_source_ && state_sent_) {
+    state_source_->onAcknowledged();
+    state_sent_ = false;
+  }
 }
+
+void TelemetryPayload::setStateSource(IStateSectionSource* source) { state_source_ = source; }
 
 void TelemetryPayload::setGetUtcTime(std::function<uint64_t()> getUtcTime) { getUtcTime_ = getUtcTime; }
 

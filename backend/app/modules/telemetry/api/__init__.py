@@ -2,10 +2,19 @@
 
 from fastapi import APIRouter
 
+from app.modules.telemetry.api.device_state import (
+    platform_router as device_state_platform_router,
+)
+from app.modules.telemetry.api.device_state import router as device_state_router
 from app.modules.telemetry.api.ingest import router as ingest_router
 from app.modules.telemetry.api.query import router as query_router
 
 router = APIRouter()
 router.include_router(ingest_router)
 
-__all__ = ["query_router", "router"]
+__all__ = [
+    "device_state_platform_router",
+    "device_state_router",
+    "query_router",
+    "router",
+]

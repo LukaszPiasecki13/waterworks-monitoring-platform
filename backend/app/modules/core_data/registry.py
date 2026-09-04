@@ -43,6 +43,7 @@ class SensorRegistry:
     _lock = threading.Lock()
     _point_type_ids_cache: frozenset[str] | None = None
     _error_codes_cache: frozenset[str] | None = None
+    _state_sections_cache: dict[str, int] | None = None
 
     @classmethod
     def initialize(cls) -> None:
@@ -69,10 +70,12 @@ class SensorRegistry:
             cls._schema_version = cls._data.get("schema_version", 1)
 
             logger.info(
-                "Registry loaded: schema_version=%d, point_types=%d, error_codes=%d",
+                "Registry loaded: schema_version=%d, point_types=%d, "
+                "error_codes=%d, state_sections=%d",
                 cls._schema_version,
                 len(cls._data["point_types"]),
                 len(cls._data["error_codes"]),
+                len(cls._data["state_sections"]),
             )
 
     @classmethod
@@ -85,7 +88,7 @@ class SensorRegistry:
         if not isinstance(cls._data, dict):
             raise RegistryLoadError("Registry must be a YAML dict")
 
-        required_keys = {"point_types", "error_codes"}
+        required_keys = {"point_types", "error_codes", "state_sections"}
         if not required_keys.issubset(cls._data.keys()):
             missing = required_keys - cls._data.keys()
             raise RegistryLoadError(f"Registry missing required keys: {missing}")
@@ -100,6 +103,20 @@ class SensorRegistry:
         for ec in cls._data["error_codes"]:
             if not isinstance(ec, dict) or "code" not in ec:
                 msg = f"Invalid error_code entry (missing 'code'): {ec}"
+                raise RegistryLoadError(msg)
+
+        # Validate state_sections entries — each needs its own schema_version,
+        # because a section evolves independently of the registry as a whole.
+        for ss in cls._data["state_sections"]:
+            if not isinstance(ss, dict) or "id" not in ss:
+                msg = f"Invalid state_section entry (missing 'id'): {ss}"
+                raise RegistryLoadError(msg)
+            version = ss.get("schema_version")
+            if not isinstance(version, int) or isinstance(version, bool) or version < 1:
+                msg = (
+                    "Invalid state_section entry "
+                    f"('schema_version' must be an int >= 1): {ss}"
+                )
                 raise RegistryLoadError(msg)
 
     @classmethod
@@ -155,6 +172,21 @@ class SensorRegistry:
         return cls._error_codes_cache
 
     @classmethod
+    def state_sections(cls) -> dict[str, int]:
+        """Get the device state section catalogue as {section_id: schema_version}.
+
+        Returns:
+            Mapping of registered state section ids to the schema version the
+            backend currently understands for each.
+        """
+        if cls._state_sections_cache is None:
+            registry = cls.load()
+            cls._state_sections_cache = {
+                ss["id"]: ss["schema_version"] for ss in registry["state_sections"]
+            }
+        return cls._state_sections_cache
+
+    @classmethod
     def is_valid_point_type(cls, point_type_id: str) -> bool:
         """Check if point_type_id is registered."""
         return point_type_id in cls.point_type_ids()
@@ -163,3 +195,13 @@ class SensorRegistry:
     def is_valid_error_code(cls, code: str) -> bool:
         """Check if error code is registered."""
         return code in cls.error_codes()
+
+    @classmethod
+    def is_valid_state_section(cls, section: str) -> bool:
+        """Check if a device state section id is registered."""
+        return section in cls.state_sections()
+
+    @classmethod
+    def state_section_schema_version(cls, section: str) -> int | None:
+        """Schema version the backend expects for a section, None if unknown."""
+        return cls.state_sections().get(section)

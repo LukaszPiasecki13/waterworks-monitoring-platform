@@ -48,6 +48,7 @@ async def test_ingest_device_not_assigned_raises_409():
     service = TelemetryIngestService(
         packet_repository=packet_repo,
         point_service=point_service,
+        state_repository=MagicMock(),
     )
 
     # Create device with water_object_id = None (unassigned)
@@ -75,6 +76,7 @@ async def test_ingest_device_assigned_succeeds():
     service = TelemetryIngestService(
         packet_repository=packet_repo,
         point_service=point_service,
+        state_repository=MagicMock(),
     )
 
     # Create device WITH water_object_id (assigned)

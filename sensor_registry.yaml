@@ -1,9 +1,10 @@
 ---
-# Sensor Registry — Single source of truth for measurement types and error codes
+# Sensor Registry — Single source of truth for measurement types, error codes
+# and device state sections
 # Used by backend (runtime loading) and firmware (embedded JSON)
 # CRITICAL: schema_version must match firmware/include/SensorRegistry.h SCHEMA_VERSION
 
-schema_version: 1
+schema_version: 2
 
 point_types:
   - id: temperature
@@ -81,3 +82,28 @@ error_codes:
   - code: POINT_TYPE_MISMATCH
     severity: critical
     description: "point_id known but point_type/unit differs from registered MeasurementPoint; rejected this point"
+
+  - code: STATE_SECTION_UNKNOWN
+    severity: warning
+    description: "Device reported a state section id absent from state_sections; section dropped, measurements kept"
+
+  - code: STATE_SECTION_INVALID
+    severity: warning
+    description: "State section payload failed validation for its declared schema_version; stored raw, flagged"
+
+  - code: STATE_SCHEMA_VERSION_MISMATCH
+    severity: info
+    description: "State section schema_version differs from the registry; stored as sent, firmware/backend out of step"
+
+  - code: STATE_CLOCK_AHEAD
+    severity: warning
+    description: "Device clock ran ahead of the platform at capture; captured_at clamped to arrival, device NTP likely broken"
+
+# Device state sections — the catalogue of "reads" the device answers with on
+# its next contact (B-08). One section = one self-contained block of state,
+# carried in the telemetry packet's optional `state[]` array. Adding a read
+# means adding a section here, not a new endpoint.
+state_sections:
+  - id: device
+    schema_version: 1
+    description: "Device health and identity: firmware, uptime, restarts, RSSI, free heap, local buffer fill"

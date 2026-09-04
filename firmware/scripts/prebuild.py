@@ -141,6 +141,33 @@ def validate():
             print(f"   Removed from backend: {removed_from_backend}", file=sys.stderr)
         return False
 
+    # Validate state_sections match, ids and per-section schema_version alike:
+    # a section whose version drifted would let firmware stamp a shape the
+    # backend no longer expects.
+    fw_sections = fw_json.get("state_sections", {})
+    yaml_sections = {
+        ss["id"]: ss["schema_version"] for ss in yaml_data.get("state_sections", [])
+    }
+    if fw_sections != yaml_sections:
+        missing_in_fw = set(yaml_sections) - set(fw_sections)
+        removed_from_backend = set(fw_sections) - set(yaml_sections)
+        version_drift = {
+            sid: (fw_sections[sid], yaml_sections[sid])
+            for sid in set(fw_sections) & set(yaml_sections)
+            if fw_sections[sid] != yaml_sections[sid]
+        }
+        print("❌ State sections mismatch:", file=sys.stderr)
+        if missing_in_fw:
+            print(f"   Missing in firmware: {missing_in_fw}", file=sys.stderr)
+        if removed_from_backend:
+            print(f"   Removed from backend: {removed_from_backend}", file=sys.stderr)
+        if version_drift:
+            print(
+                f"   schema_version drift (firmware, backend): {version_drift}",
+                file=sys.stderr,
+            )
+        return False
+
     print("✅ Firmware registry JSON valid and synced with backend")
     return True
 

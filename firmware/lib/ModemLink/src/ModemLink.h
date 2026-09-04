@@ -10,6 +10,11 @@ class ModemLink {
   bool init(const char* apn, const char* gprsUser, const char* gprsPass, const char* simPin = "");
   bool ensureConnected();
   bool testAT();
+
+  // Raw AT+CSQ reading (0..31, 99 = not detectable). Returns 99 before the
+  // modem is up, so a caller cannot mistake "no modem yet" for "no signal".
+  int signalQuality();
+
   TinyGsm& modem() { return *modem_; }
 
  private:

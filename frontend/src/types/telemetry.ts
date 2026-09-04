@@ -57,3 +57,42 @@ export interface PaginatedResponse<T> {
   skip: number
   limit: number
 }
+
+/* Device state read channel (B-08) — one entry per reported section */
+export interface DeviceStateSection {
+  section: string
+  schema_version: number
+  captured_at: string
+  received_at: string
+  age_seconds: number
+  is_stale: boolean
+  data: Record<string, unknown>
+}
+
+export interface DeviceState {
+  device_id: string
+  external_id: string
+  last_seen_at: string | null
+  last_diagnostics_at: string | null
+  sections: DeviceStateSection[]
+}
+
+/* Fields of the `device` section. All optional: an older firmware reports a
+   subset, and a newer one may report more than this backend types.
+   `| null` is not decoration — the backend types every field as nullable, so a
+   device may send an explicit null where firmware today simply omits the key.
+   Readers must treat the two the same. */
+export interface DeviceStateDeviceSection {
+  serial_number?: string | null
+  firmware_version?: string | null
+  registry_schema_version?: number | null
+  uptime_seconds?: number | null
+  restart_count?: number | null
+  restart_reason?: string | null
+  rssi_dbm?: number | null
+  free_heap_bytes?: number | null
+  min_free_heap_bytes?: number | null
+  buffer_windows_used?: number | null
+  buffer_windows_capacity?: number | null
+  buffer_windows_dropped?: number | null
+}

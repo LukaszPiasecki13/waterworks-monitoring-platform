@@ -91,6 +91,8 @@ export const queryKeys = {
       ['telemetry', 'object', objectId, orgId] as const,
     measurements: (objectId: string, pointId: string | undefined, hoursBack: number, orgId: string | null) =>
       ['telemetry', 'measurements', objectId, pointId, hoursBack, orgId] as const,
+    deviceState: (deviceId: string, orgId: string | null) =>
+      ['telemetry', 'deviceState', deviceId, orgId] as const,
   },
 
   security: {

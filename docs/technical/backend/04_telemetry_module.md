@@ -6,7 +6,11 @@
 
 `telemetry` przyjmuje pakiety pomiarowe z gatewayów terenowych i wystawia zapytania szeregów czasowych dla dashboardu. Dwie wyraźnie oddzielone ścieżki: **ingest** (write, autoryzacja kluczem urządzenia, `/telemetry/ingest`) i **query** (read, autoryzacja JWT, `/api/v1/orgs/{org_id}/telemetry/...`).
 
+Ten sam ingest niesie też **kanał odczytu stanu z urządzenia** (B-08): opcjonalna tablica `state[]` w pakiecie i endpointy `.../telemetry/devices/{device_id}/state` po stronie odczytu. Ponieważ kanał obejmuje firmware, backend i frontend naraz, ma własny dokument przekrojowy: [`01_kanal_stanu_urzadzenia.md`](../01_kanal_stanu_urzadzenia.md).
+
 ## 2. Model domenowy
+
+`DeviceStateReport` — jeden wiersz na parę (pakiet, sekcja) dla kanału odczytu stanu z urządzenia. Kanał jest opisany osobno, przekrojowo przez wszystkie trzy warstwy: [`01_kanal_stanu_urzadzenia.md`](../01_kanal_stanu_urzadzenia.md).
 
 `TelemetryPacket` — jeden wiersz na paczkę danych wysłaną przez gateway: `device_id` (external_id urządzenia, nie FK), `seq` (numer sekwencyjny nadawany przez firmware), `sent_at`, `received_at`, `payload` (JSONB z `windows`: oknami pomiarowymi zawierającymi punkty). Powiązanie z `core_data.Device` / `WaterObject` / `Organization` odbywa się przez `device_id`/`external_id`, odczytywane w zapytaniach repozytorium query-side, nie przez ORM relationship.
 
@@ -24,11 +28,11 @@
 
 ## 4. Nieoczywiste decyzje projektowe
 
-**Per-device authentication przez bearer token** — zastąpiło wcześniejszy statyczny `X-Device-Key`/`Device.hashed_secret` (usunięty całkowicie). Ingest wymaga `Authorization: Bearer <device_token>`, zweryfikowanego przez zależność `get_current_device` z modułu [`device_identity`](./06_device_identity_module.md) — token wydawany po asymetrycznym challenge/response, nie po statycznym sekrecie. `get_current_device` zwraca `401` dla brakującego/nieprawidłowego tokenu i nieaktywnego urządzenia (`is_active=False`). Dodatkowo `TelemetryIngestService.ingest()` sprawdza `packet.device_id == device.external_id` ([`services/ingest.py:31-34`](../../backend/app/modules/telemetry/services/ingest.py#L31-L34)) → `403` przy niezgodności, żeby ważny token jednego urządzenia nie mógł podszyć się pod inny SN w treści pakietu. Pełny opis flow (provisioning → claim → challenge → verify) w [`06_device_identity_module.md`](./06_device_identity_module.md).
+**Per-device authentication przez bearer token** — zastąpiło wcześniejszy statyczny `X-Device-Key`/`Device.hashed_secret` (usunięty całkowicie). Ingest wymaga `Authorization: Bearer <device_token>`, zweryfikowanego przez zależność `get_current_device` z modułu [`device_identity`](./06_device_identity_module.md) — token wydawany po asymetrycznym challenge/response, nie po statycznym sekrecie. `get_current_device` zwraca `401` dla brakującego/nieprawidłowego tokenu i nieaktywnego urządzenia (`is_active=False`). Dodatkowo `TelemetryIngestService.ingest()` sprawdza `packet.device_id == device.external_id` ([`services/ingest.py:31-34`](../../../backend/app/modules/telemetry/services/ingest.py#L31-L34)) → `403` przy niezgodności, żeby ważny token jednego urządzenia nie mógł podszyć się pod inny SN w treści pakietu. Pełny opis flow (provisioning → claim → challenge → verify) w [`06_device_identity_module.md`](./06_device_identity_module.md).
 
 **`transaction(skip_audit=True)` na ingest** — pakiety telemetryczne to dane z urządzenia IoT, nie zmiana wywołana przez użytkownika, więc nie generują wpisu w audit logu (który śledzi "kto co zmienił", nie strumień pomiarowy).
 
-**Window function zamiast agregatu do wyznaczenia "najnowszego pakietu na obiekt"** ([`queries.py:20-48`](../../backend/app/modules/telemetry/repositories/queries.py#L20-L48)):
+**Window function zamiast agregatu do wyznaczenia "najnowszego pakietu na obiekt"** ([`queries.py:20-48`](../../../backend/app/modules/telemetry/repositories/queries.py#L20-L48)):
 
 ```python
 func.row_number().over(
@@ -99,15 +103,15 @@ Firmware v2 i dalej wysyła pakiety w formacie `/telemetry/ingest` (`POST`):
 
 **Auto-provisioning**: `TelemetryIngestService.ingest()` przy widoku nieznanego `(device_id, point_id)` — jeśli `type` jest w katalogu (`point_types.yaml`) — tworzy `MeasurementPoint` bez interakcji użytkownika. Mismatch `(type, unit)` dla istniejącego punktu zwraca `POINT_TYPE_MISMATCH` w `errors[]`, punkt jest odrzucany z tego pakietu, reszta przetwarzana normalnie. Typ spoza katalogu → `400` na cały pakiet (to błąd firmware/rejestru).
 
-**`Device.last_diagnostics_at`**: Zaktualizowany po każdym ingest'cie zawierającym `errors[]`, niezależnie od statusu — sygnał, że urządzenie jest żywe i raportuje problemy.
+**`Device.last_seen_at` vs `Device.last_diagnostics_at`**: `last_seen_at` ustawia **każdy** przyjęty pakiet (urządzenie żyje), `last_diagnostics_at` — tylko pakiet niosący sekcję stanu `device` (urządzenie odpowiedziało na odczyt). Do B-08 oba znaczenia dzieliły jedno pole `last_diagnostics_at`, przez co jego nazwa opisywała coś innego niż zawartość. Szczegóły: [`01_kanal_stanu_urzadzenia.md`](../01_kanal_stanu_urzadzenia.md).
 
 ## 6. Sensor Registry: Single Source of Truth
 
-Firmware i backend muszą znać identyczne listy `point_types` i `error_codes`. Rozwiązanie: plik [`sensor_registry.yaml`](../../sensor_registry.yaml) w project root — single source of truth dla obu systemów.
+Firmware i backend muszą znać identyczne listy `point_types` i `error_codes`. Rozwiązanie: plik [`sensor_registry.yaml`](../../../sensor_registry.yaml) w project root — single source of truth dla obu systemów.
 
 **Struktura** (`sensor_registry.yaml`):
 ```yaml
-schema_version: 1
+schema_version: 2
 
 point_types:
   - id: temperature
@@ -120,15 +124,21 @@ error_codes:
     severity: critical
   - code: SENSOR_READ_FAILED
     severity: warning
+
+state_sections:
+  - id: device
+    schema_version: 1
 ```
 
-**Backend** — runtime loading [`backend/app/modules/core_data/registry.py`](../../backend/app/modules/core_data/registry.py):
+`state_sections` to katalog sekcji kanału odczytu stanu (B-08). Każda sekcja ma **własną** `schema_version`, niezależną od wersji rejestru — sekcja ewoluuje osobno. Pre-build porównuje identyfikatory i wersje per sekcja, więc rozjazd jest błędem builda.
+
+**Backend** — runtime loading [`backend/app/modules/core_data/registry.py`](../../../backend/app/modules/core_data/registry.py):
 - App startup wołuje `SensorRegistry.initialize()` — ładuje, parsuje, waliduje YAML
 - Builds immutable `frozenset` cache dla O(1) lookups (`is_valid_point_type()`, `is_valid_error_code()`)
 - Thread-safe: lock synchronizuje inicjalizację
 
 **Firmware** — compile-time validation:
-- Pre-build script [`firmware/scripts/prebuild.py`](../../firmware/scripts/prebuild.py) generuje `firmware/include/SensorRegistry.h`
+- Pre-build script [`firmware/scripts/prebuild.py`](../../../firmware/scripts/prebuild.py) generuje `firmware/include/SensorRegistry.h`
 - Zawiera embedded JSON + `static constexpr` validatory
 - Schema version mismatch = build error (nie można zabootować buggy firmware)
 

@@ -7,6 +7,7 @@ from pydantic import ConfigDict, Field, field_validator, model_validator
 
 from app.core.schemas import BaseSchema
 from app.modules.core_data.registry import SensorRegistry
+from app.modules.telemetry.schemas.device_state import StateSectionEntry
 
 
 class MeasurementPoint(BaseSchema):
@@ -68,6 +69,11 @@ class MeasurementPacketRequest(BaseSchema):
     sent_at: datetime
     windows: list[MeasurementWindow] = Field(min_length=1)
     errors: list[ErrorEntry] = Field(default_factory=list)
+
+    # Device state read channel (B-08). Optional and usually absent: the
+    # device attaches sections on its own cadence, so a firmware that never
+    # reports state stays a valid v2 client.
+    state: list[StateSectionEntry] = Field(default_factory=list, max_length=16)
 
 
 class TelemetryIngestResponse(BaseSchema):

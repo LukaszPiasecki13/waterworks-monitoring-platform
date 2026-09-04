@@ -176,3 +176,10 @@ bool ModemLink::testAT() {
   }
   return modem_->testAT();
 }
+
+int ModemLink::signalQuality() {
+  if (!modem_) {
+    return 99;
+  }
+  return modem_->getSignalQuality();
+}

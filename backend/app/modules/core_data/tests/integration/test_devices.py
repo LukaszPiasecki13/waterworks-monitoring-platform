@@ -32,6 +32,9 @@ from app.modules.device_identity.repositories.device_credentials import (
 )
 from app.modules.security.access import OrganizationAccess
 from app.modules.telemetry.models.measurement_packet import TelemetryPacket
+from app.modules.telemetry.repositories.device_state import (
+    DeviceStateReportRepository,
+)
 from app.modules.telemetry.repositories.packets import TelemetryPacketRepository
 from app.modules.telemetry.services.ingest import TelemetryIngestService
 
@@ -229,7 +232,9 @@ def test_complete_device_deletion_with_lifecycle_service(
     point_repo = MeasurementPointRepository(db_session)
     device_service = DeviceService(device_repo, water_obj_repo, MagicMock())
     point_service = MeasurementPointService(point_repo, device_repo, MagicMock())
-    telemetry_service = TelemetryIngestService(telemetry_packet_repo, point_service)
+    telemetry_service = TelemetryIngestService(
+        telemetry_packet_repo, point_service, DeviceStateReportRepository(db_session)
+    )
     audit_mock = MagicMock(spec=AuditPort)
     lifecycle_service = DeviceLifecycleService(
         device_service, credential_repo, telemetry_service, audit_mock
@@ -276,7 +281,9 @@ def test_complete_deletion_raises_not_found_for_missing_device(
     point_repo = MeasurementPointRepository(db_session)
     device_service = DeviceService(device_repo, water_obj_repo, MagicMock())
     point_service = MeasurementPointService(point_repo, device_repo, MagicMock())
-    telemetry_service = TelemetryIngestService(telemetry_packet_repo, point_service)
+    telemetry_service = TelemetryIngestService(
+        telemetry_packet_repo, point_service, DeviceStateReportRepository(db_session)
+    )
     lifecycle_service = DeviceLifecycleService(
         device_service, credential_repo, telemetry_service, MagicMock()
     )

@@ -28,10 +28,16 @@ def mock_point_service():
 
 
 @pytest.fixture
-def service(mock_packet_repository, mock_point_service):
+def mock_state_repository():
+    return MagicMock()
+
+
+@pytest.fixture
+def service(mock_packet_repository, mock_point_service, mock_state_repository):
     return TelemetryIngestService(
         packet_repository=mock_packet_repository,
         point_service=mock_point_service,
+        state_repository=mock_state_repository,
     )
 
 

@@ -18,11 +18,17 @@ from app.modules.core_data.repositories.devices import DeviceRepository
 from app.modules.core_data.repositories.measurement_points import (
     MeasurementPointRepository,
 )
+from app.modules.core_data.repositories.water_objects import WaterObjectRepository
+from app.modules.core_data.services.devices import DeviceService
 from app.modules.core_data.services.measurement_points import (
     MeasurementPointService,
 )
+from app.modules.telemetry.repositories.device_state import (
+    DeviceStateReportRepository,
+)
 from app.modules.telemetry.repositories.packets import TelemetryPacketRepository
 from app.modules.telemetry.repositories.queries import TelemetryQueryRepository
+from app.modules.telemetry.services.device_state import DeviceStateQueryService
 from app.modules.telemetry.services.ingest import TelemetryIngestService
 from app.modules.telemetry.services.query import TelemetryQueryService
 
@@ -51,15 +57,50 @@ def _get_measurement_point_service(
     return MeasurementPointService(repo, device_repo, audit)
 
 
+def get_device_state_repository(
+    session: Session = Depends(get_db),
+) -> DeviceStateReportRepository:
+    return DeviceStateReportRepository(session=session)
+
+
 def get_telemetry_ingest_service(
     packet_repository: TelemetryPacketRepository = Depends(
         get_telemetry_packet_repository
     ),
     point_service: MeasurementPointService = Depends(_get_measurement_point_service),
+    state_repository: DeviceStateReportRepository = Depends(
+        get_device_state_repository
+    ),
 ) -> TelemetryIngestService:
     return TelemetryIngestService(
         packet_repository=packet_repository,
         point_service=point_service,
+        state_repository=state_repository,
+    )
+
+
+def _get_water_object_repo(
+    session: Session = Depends(get_db),
+) -> WaterObjectRepository:
+    return WaterObjectRepository(session=session)
+
+
+def _get_device_service(
+    repo: DeviceRepository = Depends(_get_device_repo),
+    water_object_repo: WaterObjectRepository = Depends(_get_water_object_repo),
+    audit: AuditPort = Depends(get_audit_service),
+) -> DeviceService:
+    return DeviceService(repo, water_object_repo, audit)
+
+
+def get_device_state_query_service(
+    repository: DeviceStateReportRepository = Depends(get_device_state_repository),
+    device_service: DeviceService = Depends(_get_device_service),
+) -> DeviceStateQueryService:
+    return DeviceStateQueryService(
+        repository=repository,
+        device_service=device_service,
+        settings=get_settings(),
     )
 
 
