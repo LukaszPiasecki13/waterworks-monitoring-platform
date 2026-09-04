@@ -1,198 +1,196 @@
+// Integracja PT100 -> payload: prawdziwy PT100Sensor podpięty pod prawdziwy
+// TelemetryPayload, ze sterownikiem MAX31865 zastąpionym atrapą nagłówka.
+//
+// Poprzednia wersja tego pliku miała własną kopię równania Callendara-Van Dusena
+// i ręcznie sklejany JSON — nie dotykała ani PT100Sensor, ani TelemetryPayload.
+// Sprawdzała też pola `avg`/`min`/`max` i `"v":1`, których firmware nie wysyła.
 #include <gtest/gtest.h>
-#include <cmath>
+
 #include <ArduinoJson.h>
+#include <Config.h>
+#include <PT100Sensor.h>
+#include <TelemetryPayload.h>
 
-// Define PT100 wiring mode before use
-#define MAX31865_3WIRE 1
+#include <string>
+#include <vector>
 
-// Mock the Adafruit_MAX31865 class for testing
-class Adafruit_MAX31865 {
- public:
-  Adafruit_MAX31865(uint8_t cs_pin) : cs_pin_(cs_pin), initialized_(false), rtd_value_(3200) {}
+namespace {
 
-  bool begin(uint8_t wires) {
-    initialized_ = true;
-    return true;
-  }
+constexpr uint64_t kBaseUtcMs = 1786419922000ULL;  // 2026-08-11T03:45:22.000Z
 
-  uint16_t readRTD() { return rtd_value_; }
-
-  void setRTDValue(uint16_t rtd) { rtd_value_ = rtd; }
-
- private:
-  uint8_t cs_pin_;
-  bool initialized_;
-  uint16_t rtd_value_;
-};
-
-// Simulate the PT100 temperature calculation logic using Callendar-Van Dusen equation
-class PT100TemperatureCalculator {
- public:
-  static float calculateTemperature(uint16_t rtd) {
-    // PT100 constants
-    const float RTDNOMINAL = 100.0;   // 100Ω at 0°C
-    const float REFRESISTOR = 430.0;  // 430Ω reference resistor
-
-    // Callendar-Van Dusen coefficients for PT100
-    const float a = 3.9083e-3;
-    const float b = -5.775e-7;
-    const float c = -4.183e-12;
-
-    // Convert RTD raw value to resistance in Ohms
-    float rtratio = rtd;
-    rtratio /= 32768.0;
-    float R = rtratio * REFRESISTOR;  // R in Ohms
-
-    // Calculate temperature using Callendar-Van Dusen equation
-    float Rpoly = b * b;
-    Rpoly -= (4.0 * c * (R - RTDNOMINAL));
-    Rpoly = sqrt(Rpoly);
-    Rpoly += b;
-    Rpoly /= 2.0;
-    Rpoly *= -1.0;
-
-    float temp = (R - RTDNOMINAL) / (a * RTDNOMINAL);
-    temp -= Rpoly / (a * RTDNOMINAL);
-
-    return temp;
-  }
-};
-
-// Test Suite for PT100 Sensor Integration
-class PT100SensorTest : public ::testing::Test {
+class Pt100PayloadTest : public ::testing::Test {
  protected:
   void SetUp() override {
-    sensor_.reset(new Adafruit_MAX31865(39));
-    EXPECT_TRUE(sensor_->begin(MAX31865_3WIRE));
+    NativeMax31865State::reset();
+    Serial.clearCaptured();
+
+    sensor = new PT100Sensor(PT100_SPI_CS);
+    sensors.push_back(sensor);
+    payload = new TelemetryPayload(String("WW-AABBCCDDEEFF"), sensors);
+    payload->setGetUtcTime([]() { return kBaseUtcMs + 60000ULL; });
   }
 
-  std::unique_ptr<Adafruit_MAX31865> sensor_;
+  void TearDown() override {
+    delete payload;
+    delete sensor;
+  }
+
+  NativeMax31865State& driver() { return NativeMax31865State::instance(); }
+
+  void sampleFullBatch() {
+    for (size_t i = 0; i < TelemetryPayload::WINDOWS_PER_BATCH; ++i) {
+      payload->sample(kBaseUtcMs + i * 15000ULL);
+    }
+  }
+
+  void buildInto(JsonDocument& doc) {
+    String json = payload->build(1);
+    ASSERT_FALSE(deserializeJson(doc, json)) << json.c_str();
+  }
+
+  // Wartość RTD odpowiadająca zadanej rezystancji przy Rref = 430 Ω.
+  static uint16_t rawForOhms(double ohms) { return static_cast<uint16_t>(ohms / 430.0 * 32768.0); }
+
+  PT100Sensor* sensor = nullptr;
+  std::vector<ISensor*> sensors;
+  TelemetryPayload* payload = nullptr;
 };
 
-// Test 1: MAX31865 Initialization
-TEST_F(PT100SensorTest, MAX31865Initialization) { EXPECT_TRUE(sensor_->begin(MAX31865_3WIRE)); }
+// --- odczyt trafia do pakietu ----------------------------------------------
 
-// Test 2: PT100 Temperature Calculation with Known RTD Values
-TEST_F(PT100SensorTest, CalculateTemperatureFromRTD) {
-  // Test case 1: RTD value corresponding to ~0°C
-  // For PT100: R(0°C) = 100Ω, ratio = 100/32768 ≈ 0.00305
-  float temp_0c = PT100TemperatureCalculator::calculateTemperature(100);
-  EXPECT_NEAR(temp_0c, 0.0, 2.0);  // Tolerance of ±2°C due to calibration
-
-  // Test case 2: RTD value for ~25°C (typical room temperature)
-  // Approximately 110Ω at 25°C
-  float temp_25c = PT100TemperatureCalculator::calculateTemperature(819);  // ~25°C
-  EXPECT_GE(temp_25c, 20.0);
-  EXPECT_LE(temp_25c, 30.0);
-
-  // Test case 3: RTD value for ~100°C
-  // Approximately 139Ω at 100°C
-  float temp_100c = PT100TemperatureCalculator::calculateTemperature(4554);  // ~100°C
-  EXPECT_GE(temp_100c, 95.0);
-  EXPECT_LE(temp_100c, 105.0);
+TEST_F(Pt100PayloadTest, KonstruktorPayloaduInicjalizujeCzujnik) {
+  // TelemetryPayload woła init() na każdym czujniku przy tworzeniu.
+  EXPECT_EQ(driver().begin_calls, 1);
 }
 
-// Test 3: Temperature Range Validation
-TEST_F(PT100SensorTest, TemperatureInValidRange) {
-  // Test that calculated temperature is within -10°C to +100°C range
-  for (uint16_t rtd = 400; rtd <= 4600; rtd += 200) {
-    float temperature = PT100TemperatureCalculator::calculateTemperature(rtd);
-    EXPECT_GE(temperature, -10.0);
-    EXPECT_LE(temperature, 100.0);
+TEST_F(Pt100PayloadTest, TemperaturaTrafiaDoPunktuPomiarowego) {
+  driver().rtd_raw = rawForOhms(110.0);  // ~25 °C
+  sampleFullBatch();
+
+  JsonDocument doc;
+  buildInto(doc);
+  JsonVariant point = doc["windows"][0]["points"][0];
+
+  EXPECT_STREQ(point["point_id"].as<const char*>(), "pt100_temperature");
+  EXPECT_STREQ(point["type"].as<const char*>(), "temperature");
+  EXPECT_STREQ(point["unit"].as<const char*>(), "\xC2\xB0" "C");
+  EXPECT_STREQ(point["quality"].as<const char*>(), "good");
+
+  float value = point["value"].as<float>();
+  EXPECT_GT(value, 20.0f);
+  EXPECT_LT(value, 30.0f);
+}
+
+TEST_F(Pt100PayloadTest, KazdeOknoNiesieOsobnyOdczyt) {
+  sampleFullBatch();
+
+  EXPECT_EQ(driver().read_rtd_calls, static_cast<int>(TelemetryPayload::WINDOWS_PER_BATCH));
+
+  JsonDocument doc;
+  buildInto(doc);
+  for (size_t i = 0; i < TelemetryPayload::WINDOWS_PER_BATCH; ++i) {
+    EXPECT_EQ(doc["windows"][i]["points"].size(), 1u) << "okno " << i;
   }
 }
 
-// Test 4: JSON Payload Structure with Temperature
-class TelemetryPayloadStructureTest : public ::testing::Test {
- protected:
-  JsonDocument createPayloadWithTemperature(float temperature) {
-    JsonDocument doc;
+TEST_F(Pt100PayloadTest, ZmianaTemperaturyMiedzyOknamiJestWidoczna) {
+  driver().rtd_raw = rawForOhms(100.0);  // ~0 °C
+  payload->sample(kBaseUtcMs);
+  driver().rtd_raw = rawForOhms(120.0);  // ~52 °C
+  payload->sample(kBaseUtcMs + 15000);
+  payload->sample(kBaseUtcMs + 30000);
+  payload->sample(kBaseUtcMs + 45000);
 
-    doc["v"] = 1;
-    doc["device_id"] = "test-device-001";
-    doc["seq"] = 1;
-    doc["sent_at"] = "2026-08-24T12:00:00.000Z";
+  JsonDocument doc;
+  buildInto(doc);
 
-    JsonArray windows = doc["windows"].to<JsonArray>();
-    JsonObject window = windows.add<JsonObject>();
+  float first = doc["windows"][0]["points"][0]["value"].as<float>();
+  float second = doc["windows"][1]["points"][0]["value"].as<float>();
+  EXPECT_GT(second, first + 10.0f) << "payload zamroziłby pierwszy odczyt";
+}
 
-    window["window_start"] = "2026-08-24T12:00:00.000Z";
-    window["window_seconds"] = 30;
+// --- awaria czujnika --------------------------------------------------------
 
-    JsonArray points = window["points"].to<JsonArray>();
-    JsonObject point = points.add<JsonObject>();
+TEST_F(Pt100PayloadTest, AwariaCzujnikaDajeBladZamiastPunktu) {
+  driver().fault = MAX31865_FAULT_RTDINLOW;  // przerwany przewód RTD
+  sampleFullBatch();
 
-    point["point_id"] = "pt100_temperature";
-    point["type"] = "temperature";
-    point["unit"] = "°C";
-    point["quality"] = "good";
-    point["avg"] = roundf(temperature * 100.0f) / 100.0f;
-    point["min"] = -10;
-    point["max"] = 100;
-    point["value"] = roundf(temperature * 100.0f) / 100.0f;
+  JsonDocument doc;
+  buildInto(doc);
 
-    return doc;
+  EXPECT_EQ(doc["windows"][0]["points"].size(), 0u) << "nie wolno wysyłać wartości z zepsutego czujnika";
+  ASSERT_GE(doc["errors"].size(), 1u);
+  EXPECT_STREQ(doc["errors"][0]["code"].as<const char*>(), "SENSOR_FAULT_HW");
+  EXPECT_STREQ(doc["errors"][0]["point_id"].as<const char*>(), "pt100_temperature");
+  EXPECT_STREQ(doc["errors"][0]["severity"].as<const char*>(), "critical");
+}
+
+TEST_F(Pt100PayloadTest, ChwilowaAwariaNieBlokujeKolejnychOdczytow) {
+  // clearFault() w PT100Sensor kasuje flagę, więc kolejne okno czyta normalnie.
+  driver().fault = MAX31865_FAULT_OVUV;
+  payload->sample(kBaseUtcMs);
+  payload->sample(kBaseUtcMs + 15000);
+  payload->sample(kBaseUtcMs + 30000);
+  payload->sample(kBaseUtcMs + 45000);
+
+  JsonDocument doc;
+  buildInto(doc);
+
+  EXPECT_EQ(doc["windows"][0]["points"].size(), 0u) << "pierwsze okno: awaria";
+  EXPECT_EQ(doc["windows"][1]["points"].size(), 1u) << "drugie okno: czujnik już czyta";
+}
+
+TEST_F(Pt100PayloadTest, TrwalaAwariaDajeJedenWpisBleduNaPakiet) {
+  driver().fault = MAX31865_FAULT_REFINLOW;
+  // Atrapa kasuje flagę po zgłoszeniu, więc ustawiamy ją przed każdym oknem.
+  for (size_t i = 0; i < TelemetryPayload::WINDOWS_PER_BATCH; ++i) {
+    driver().fault = MAX31865_FAULT_REFINLOW;
+    payload->sample(kBaseUtcMs + i * 15000ULL);
   }
-};
 
-TEST_F(TelemetryPayloadStructureTest, ContainsTemperatureType) {
-  float temp = 22.5;
-  JsonDocument doc = createPayloadWithTemperature(temp);
+  JsonDocument doc;
+  buildInto(doc);
 
-  EXPECT_STREQ(doc["windows"][0]["points"][0]["type"], "temperature");
+  EXPECT_EQ(doc["errors"].size(), 1u) << "cztery awarie tego samego punktu to jeden wpis, nie cztery";
 }
 
-TEST_F(TelemetryPayloadStructureTest, ContainsCorrectUnit) {
-  float temp = 22.5;
-  JsonDocument doc = createPayloadWithTemperature(temp);
+// --- kształt pakietu --------------------------------------------------------
 
-  EXPECT_STREQ(doc["windows"][0]["points"][0]["unit"], "°C");
+TEST_F(Pt100PayloadTest, PakietMaWersje2IIdentyfikatorUrzadzenia) {
+  sampleFullBatch();
+
+  JsonDocument doc;
+  buildInto(doc);
+
+  EXPECT_EQ(doc["v"].as<int>(), 2);
+  EXPECT_STREQ(doc["device_id"].as<const char*>(), "WW-AABBCCDDEEFF");
+  EXPECT_EQ(doc["windows"][0]["window_seconds"].as<int>(), static_cast<int>(TelemetryPayload::WINDOW_SECONDS));
 }
 
-TEST_F(TelemetryPayloadStructureTest, ContainsPointId) {
-  float temp = 22.5;
-  JsonDocument doc = createPayloadWithTemperature(temp);
+TEST_F(Pt100PayloadTest, PunktNieNiesieAgregatowKtorychFirmwareNieLiczy) {
+  // Firmware wysyła pojedynczą wartość na okno; avg/min/max są opcjonalne
+  // po stronie backendu i nie mogą pojawiać się puste.
+  sampleFullBatch();
 
-  EXPECT_STREQ(doc["windows"][0]["points"][0]["point_id"], "pt100_temperature");
+  JsonDocument doc;
+  buildInto(doc);
+  JsonVariant point = doc["windows"][0]["points"][0];
+
+  EXPECT_TRUE(point["avg"].isNull());
+  EXPECT_TRUE(point["min"].isNull());
+  EXPECT_TRUE(point["max"].isNull());
+  EXPECT_FALSE(point["value"].isNull());
 }
 
-TEST_F(TelemetryPayloadStructureTest, ContainsValidTemperatureValue) {
-  float temp = 22.5;
-  JsonDocument doc = createPayloadWithTemperature(temp);
+TEST_F(Pt100PayloadTest, PakietSerializujeSieDoPoprawnegoJson) {
+  sampleFullBatch();
 
-  float value = doc["windows"][0]["points"][0]["value"];
-  EXPECT_FLOAT_EQ(value, 22.5);
+  String json = payload->build(1);
+  ASSERT_FALSE(json.isEmpty());
+
+  JsonDocument doc;
+  EXPECT_FALSE(deserializeJson(doc, json)) << json.c_str();
+  EXPECT_NE(std::string(json.c_str()).find("\"type\":\"temperature\""), std::string::npos);
 }
 
-TEST_F(TelemetryPayloadStructureTest, ContainsQualityField) {
-  float temp = 22.5;
-  JsonDocument doc = createPayloadWithTemperature(temp);
-
-  EXPECT_STREQ(doc["windows"][0]["points"][0]["quality"], "good");
-}
-
-TEST_F(TelemetryPayloadStructureTest, MinMaxValuesCorrect) {
-  float temp = 22.5;
-  JsonDocument doc = createPayloadWithTemperature(temp);
-
-  int min_val = doc["windows"][0]["points"][0]["min"];
-  int max_val = doc["windows"][0]["points"][0]["max"];
-
-  EXPECT_EQ(min_val, -10);
-  EXPECT_EQ(max_val, 100);
-}
-
-// Test 5: Serialization to JSON String
-TEST_F(TelemetryPayloadStructureTest, SerializesToValidJSON) {
-  float temp = 22.5;
-  JsonDocument doc = createPayloadWithTemperature(temp);
-
-  String payload;
-  serializeJson(doc, payload);
-
-  EXPECT_FALSE(payload.isEmpty());
-  EXPECT_GT(payload.length(), 0);
-  EXPECT_THAT(std::string(payload.c_str()), ::testing::HasSubstr("\"type\":\"temperature\""));
-  EXPECT_THAT(std::string(payload.c_str()), ::testing::HasSubstr("\"unit\":\"°C\""));
-  EXPECT_THAT(std::string(payload.c_str()), ::testing::HasSubstr("\"point_id\":\"pt100_temperature\""));
-}
+}  // namespace

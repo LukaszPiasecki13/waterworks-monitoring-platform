@@ -29,8 +29,11 @@ def generate():
     Returns:
         bool: True if generation succeeded, False if errors occurred
     """
-    yaml_registry = Path("sensor_registry.yaml")
-    header_file = Path("firmware/include/SensorRegistry.h")
+    # Sciezki liczone od korzenia repo, nie od katalogu roboczego: PlatformIO
+    # uruchamia hooka z katalogu firmware/, a czlowiek zwykle z korzenia.
+    repo_root = Path(__file__).resolve().parents[2]
+    yaml_registry = repo_root / "sensor_registry.yaml"
+    header_file = repo_root / "firmware" / "include" / "SensorRegistry.h"
 
     # Load YAML
     try:
@@ -60,8 +63,24 @@ def generate():
         schema_version = registry.get("schema_version", 1)
         point_types = [pt["id"] for pt in registry.get("point_types", [])]
         error_codes = [ec["code"] for ec in registry.get("error_codes", [])]
+        error_severities = {ec["code"]: ec["severity"] for ec in registry.get("error_codes", [])}
     except (KeyError, TypeError) as e:
         print(f"❌ Invalid registry structure: {e}", file=sys.stderr)
+        return False
+
+    # Backend akceptuje wylacznie te trzy poziomy (ErrorEntry.severity: Literal).
+    allowed_severities = {"info", "warning", "critical"}
+    bad_severities = {
+        code: severity
+        for code, severity in error_severities.items()
+        if severity not in allowed_severities
+    }
+    if bad_severities:
+        print(
+            f"❌ Unsupported severities in registry: {bad_severities}. "
+            f"Allowed: {sorted(allowed_severities)}",
+            file=sys.stderr,
+        )
         return False
 
     if not point_types:
@@ -91,6 +110,13 @@ def generate():
         f'stringEquals(code, "{code}")' for code in error_codes
     )
 
+    # Kod bledu -> severity, zeby firmware nie trzymal wlasnej, rozjezdzajacej
+    # sie kopii poziomow (backend waliduje je jako Literal).
+    severity_branches = "\n".join(
+        f'    if (stringEquals(code, "{code}")) return "{error_severities[code]}";'
+        for code in error_codes
+    )
+
     # Generate header file
     header_content = f'''#pragma once
 
@@ -114,6 +140,13 @@ class SensorRegistry {{
 
   static constexpr bool isValidErrorCode(const char* code) {{
     return {error_codes_checks};
+  }}
+
+  // Severity przypisana kodowi w sensor_registry.yaml. Zwraca nullptr dla kodu
+  // spoza rejestru — wywolujacy musi to obsluzyc, inaczej backend odrzuci pakiet.
+  static constexpr const char* severityForErrorCode(const char* code) {{
+{severity_branches}
+    return nullptr;
   }}
 
  private:

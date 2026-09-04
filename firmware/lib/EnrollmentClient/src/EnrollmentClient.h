@@ -2,12 +2,12 @@
 
 #include <Arduino.h>
 
-class DeviceIdentity;
-class TelemetryHttpClient;
+class IDeviceIdentity;
+class IHttpClient;
 
 class EnrollmentClient {
  public:
-  EnrollmentClient(DeviceIdentity& identity, TelemetryHttpClient* http = nullptr);
+  EnrollmentClient(IDeviceIdentity& identity, IHttpClient* http = nullptr);
 
   // Reads Serial for "ACTIVATE <code>", and once the modem is up, attempts
   // the activation-code redeem. Call every loop() iteration; non-blocking.
@@ -19,11 +19,18 @@ class EnrollmentClient {
 
   // Call once main.cpp has finished bringing the modem/network up.
   void onModemReady();
-  void setHttpClient(TelemetryHttpClient* http);
+  void setHttpClient(IHttpClient* http);
+
+  // Wystawione do testów: kod aktywacyjny przyjęty z Serial, ale jeszcze
+  // niezrealizowany (czyszczony po sukcesie i po trwałym odrzuceniu).
+  bool hasPendingCode() const { return !pending_code_.isEmpty(); }
+
+  // Wystawione do testów: normalnie linia wchodzi z Serial przez readSerial().
+  void submitLine(const String& line) { processLine(line); }
 
  private:
-  DeviceIdentity& identity_;
-  TelemetryHttpClient* http_;
+  IDeviceIdentity& identity_;
+  IHttpClient* http_;
 
   String serial_buffer_;
   String pending_code_;

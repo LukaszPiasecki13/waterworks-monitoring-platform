@@ -1,8 +1,10 @@
 #include <ArduinoJson.h>
+#include <string.h>
 #include <time.h>
 #include "TelemetryPayload.h"
 #include "Config.h"
 #include <Logger.h>
+#include <SensorRegistry.h>
 
 TelemetryPayload::TelemetryPayload(const String& deviceId, const std::vector<ISensor*>& sensors)
     : device_id_(deviceId), sensors_(sensors), getUtcTime_(nullptr) {
@@ -34,7 +36,7 @@ String TelemetryPayload::formatIso8601(uint64_t utcMs) {
 void TelemetryPayload::sample(uint64_t utcMs) {
   if (windows_buffer_.size() >= RETAIN_WINDOWS_MAX) {
     dropOldestWindow();
-    addError("WINDOW_DROPPED_BUFFER_FULL", nullptr, "warning", "Buffer full");
+    addError("WINDOW_DROPPED_BUFFER_FULL", nullptr, "Buffer full");
   }
 
   MeasurementWindow window;
@@ -89,7 +91,10 @@ String TelemetryPayload::build(uint32_t seq) {
         pointObj["quality"] = "good";
         pointObj["value"] = reading.value;
       } else {
-        addError("SENSOR_FAULT", sensor->pointId(), "error", "Read failed");
+        // Kod z odczytu (np. SENSOR_FAULT_HW), a SENSOR_READ_FAILED gdy czujnik
+        // nie podał własnego. Oba są w rejestrze — kod spoza rejestru kazałby
+        // backendowi odrzucić cały pakiet, nie tylko ten punkt.
+        addError(reading.errorCode ? reading.errorCode : "SENSOR_READ_FAILED", sensor->pointId(), "Read failed");
       }
     }
   }
@@ -125,11 +130,32 @@ void TelemetryPayload::acknowledge() {
 
 void TelemetryPayload::setGetUtcTime(std::function<uint64_t()> getUtcTime) { getUtcTime_ = getUtcTime; }
 
-void TelemetryPayload::addError(const char* code, const char* pointId, const char* severity, const char* message) {
-  if (!code || !severity) {
-    LOG_ERROR("[PAYLOAD]", "addError: code and severity are required");
+void TelemetryPayload::addError(const char* code, const char* pointId, const char* message) {
+  if (!code) {
+    LOG_ERROR("[PAYLOAD]", "addError: code is required");
     return;
   }
+
+  const char* severity = SensorRegistry::severityForErrorCode(code);
+  if (!severity) {
+    // Kod spoza rejestru unieważniłby cały pakiet po stronie backendu
+    // (ErrorEntry.code jest walidowany rejestrem), więc go nie dokładamy.
+    LOG_ERROR("[PAYLOAD]", "addError: unknown error code %s", code);
+    return;
+  }
+
+  // Ten sam kod dla tego samego punktu nie powiela się w buforze — build() jest
+  // wołany ponownie przy każdej próbie wysyłki, a bez tego jeden trwały błąd
+  // czujnika wypełniłby bufor błędów w kilka minut.
+  for (const ErrorItem& existing : errors_buffer_) {
+    bool sameCode = strcmp(existing.code, code) == 0;
+    bool samePoint = (existing.point_id == nullptr && pointId == nullptr) ||
+                     (existing.point_id && pointId && strcmp(existing.point_id, pointId) == 0);
+    if (sameCode && samePoint) {
+      return;
+    }
+  }
+
   if (errors_buffer_.size() >= MAX_ERRORS) {
     errors_buffer_.erase(errors_buffer_.begin());
   }

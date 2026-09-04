@@ -20,6 +20,8 @@
 #include <Logger.h>
 #include <ISensor.h>
 #include <PT100Sensor.h>
+#include "RuntimeAdapters.h"
+
 
 #define SerialMon Serial
 HardwareSerial SerialAT(1);
@@ -36,6 +38,8 @@ StatusLed led(LED_PIN);
 DeviceIdentity deviceIdentity;
 ModemPower modemPower(MODEM_PWRKEY_PIN, MODEM_RESET_PIN, MODEM_POWER_ENABLE_PIN);
 ModemLink modemLink(SerialAT, MODEM_BAUD);
+SystemClock systemClock;
+EspSystemControl systemControl(rtcRestartCounter);
 std::vector<ISensor*> sensors;
 TelemetryPayload* telemetryPayload = nullptr;
 
@@ -111,10 +115,10 @@ void initializeTelemetry() {
 
   telemetryPayload = new TelemetryPayload(deviceIdentity.serialNumber(), sensors);
   telemetryPayload->setGetUtcTime([]() { return TimeSync::getUtcTimestamp(); });
-  deviceAuthClient = new DeviceAuthClient(deviceIdentity, *httpClient, CLAIM_POLL_INTERVAL_MS);
-  telemetrySender = new TelemetrySender(modemLink, *httpClient, *telemetryPayload, led, deviceIdentity,
+  deviceAuthClient = new DeviceAuthClient(deviceIdentity, *httpClient, systemClock, CLAIM_POLL_INTERVAL_MS);
+  telemetrySender = new TelemetrySender(modemLink, *httpClient, *telemetryPayload, led, deviceIdentity, systemClock,
                                         SAMPLE_INTERVAL_MS, ERROR_RETRY_MS);
-  watchdog->setTelemetrySender(telemetrySender);
+  watchdog->setTelemetryHealth(telemetrySender);
 
   rtcRestartCounter = 0;
   telemetrySender->update(millis());
@@ -172,7 +176,7 @@ void setup() {
   initializeDeviceIdentity();
   LOG_INFO("[BOOT]", "Restart counter (RTC): %lu", rtcRestartCounter);
 
-  watchdog = new Watchdog(modemLink, modemPower, WATCHDOG_STUCK_MS, MAX_RESTART_ATTEMPTS);
+  watchdog = new Watchdog(modemLink, modemPower, systemControl, WATCHDOG_STUCK_MS, MAX_RESTART_ATTEMPTS);
   esp_task_wdt_reset();
 
   if (!deviceIdentity.isProvisioningCompleted()) {

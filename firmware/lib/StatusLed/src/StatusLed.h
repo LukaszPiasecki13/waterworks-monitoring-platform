@@ -1,15 +1,17 @@
 #pragma once
 
+#include <IStatusLed.h>
+
 class Adafruit_NeoPixel;
 
-class StatusLed {
+class StatusLed : public IStatusLed {
  public:
   explicit StatusLed(int pin);
-  ~StatusLed();
+  ~StatusLed() override;
 
   void initializePixels();  // Call from setup() to defer NeoPixel init from global scope
-  void blinkSuccess();
-  void blinkError();
+  void blinkSuccess() override;
+  void blinkError() override;
   void blink(int count, int delayMs);
 
  private:

@@ -1,22 +1,17 @@
 #pragma once
 
 #include <Arduino.h>
+#include <IHttpClient.h>
 
 class ModemLink;
 class HttpClient;
 
-struct HttpResponse {
-  int statusCode;
-  unsigned long durationMs;
-  String body;
-};
-
-class TelemetryHttpClient {
+class TelemetryHttpClient : public IHttpClient {
  public:
   TelemetryHttpClient(ModemLink& modem, const char* server, int port, const char* deviceKey);
-  ~TelemetryHttpClient();
+  ~TelemetryHttpClient() override;
 
-  HttpResponse post(const char* resource, const String& payload, const String& bearerToken = "");
+  HttpResponse post(const char* resource, const String& payload, const String& bearerToken) override;
 
  private:
   ModemLink& modem_;

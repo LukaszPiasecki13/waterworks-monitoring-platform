@@ -13,3 +13,4 @@ CLAUDE.md
 
 # Generated files (auto-generated from source of truth, do not commit)
 firmware/include/SensorRegistry.h
+firmware/test/contract/PayloadContract.h

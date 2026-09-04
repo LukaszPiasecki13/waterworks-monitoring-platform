@@ -2,18 +2,18 @@
 #include <ArduinoJson.h>
 #include <cstring>
 #include "EnrollmentClient.h"
-#include <DeviceIdentity.h>
-#include <TelemetryHttpClient.h>
 #include <Config.h>
+#include <IDeviceIdentity.h>
+#include <IHttpClient.h>
 
-EnrollmentClient::EnrollmentClient(DeviceIdentity& identity, TelemetryHttpClient* http)
+EnrollmentClient::EnrollmentClient(IDeviceIdentity& identity, IHttpClient* http)
     : identity_(identity), http_(http) {}
 
 bool EnrollmentClient::needsModemBringUp() const { return !pending_code_.isEmpty() && !modem_ready_; }
 
 void EnrollmentClient::onModemReady() { modem_ready_ = true; }
 
-void EnrollmentClient::setHttpClient(TelemetryHttpClient* http) { http_ = http; }
+void EnrollmentClient::setHttpClient(IHttpClient* http) { http_ = http; }
 
 String EnrollmentClient::maskCode(const String& code) {
   int firstDash = code.indexOf('-');

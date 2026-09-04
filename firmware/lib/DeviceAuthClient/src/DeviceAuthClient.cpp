@@ -3,13 +3,14 @@
 #include <cstring>
 #include <time.h>
 #include "DeviceAuthClient.h"
-#include <DeviceIdentity.h>
-#include <TelemetryHttpClient.h>
-#include <TimeSync.h>
 #include <Config.h>
+#include <IClock.h>
+#include <IDeviceIdentity.h>
+#include <IHttpClient.h>
 
-DeviceAuthClient::DeviceAuthClient(DeviceIdentity& identity, TelemetryHttpClient& http, unsigned long pollIntervalMs)
-    : identity_(identity), http_(http), poll_interval_ms_(pollIntervalMs) {}
+DeviceAuthClient::DeviceAuthClient(IDeviceIdentity& identity, IHttpClient& http, IClock& clock,
+                                   unsigned long pollIntervalMs)
+    : identity_(identity), http_(http), clock_(clock), poll_interval_ms_(pollIntervalMs) {}
 
 uint32_t DeviceAuthClient::parseIso8601ToUnix(const String& iso8601) {
   // Parse "2026-08-22T14:30:45.123Z" -> unix timestamp (seconds since 1970-01-01 00:00:00 UTC)
@@ -18,6 +19,13 @@ uint32_t DeviceAuthClient::parseIso8601ToUnix(const String& iso8601) {
   int parsed = sscanf(iso8601.c_str(), "%d-%d-%dT%d:%d:%d.%d", &year, &month, &day, &hour, &minute, &second, &ms);
 
   if (parsed < 6) {
+    return 0;
+  }
+
+  // Odrzuć wartości spoza zakresu kalendarza — bez tego "2026-13-45T..." dałoby
+  // przypadkowy, ale niezerowy znacznik czasu i token uznany za ważny.
+  if (year < 1970 || month < 1 || month > 12 || day < 1 || day > 31 || hour < 0 || hour > 23 || minute < 0 ||
+      minute > 59 || second < 0 || second > 60) {
     return 0;
   }
 
@@ -85,15 +93,9 @@ bool DeviceAuthClient::attemptAuth() {
     return false;
   }
 
-  // Step 2: Decode base64url challenge to nonce bytes, then sign nonce
-  uint8_t challengeBytes[64];
-  size_t challengeBytesLen = 0;
-  if (!DeviceIdentity::decodeBase64Url(challenge.c_str(), challenge.length(), challengeBytes, sizeof(challengeBytes),
-                                       challengeBytesLen)) {
-    return false;
-  }
-
-  String signature = identity_.signBase64(challengeBytes, challengeBytesLen);
+  // Step 2: Podpisz nonce zakodowany w challenge (dekodowanie base64url +
+  // ECDSA leżą po stronie DeviceIdentity).
+  String signature = identity_.signChallengeBase64(challenge);
   if (signature.isEmpty()) {
     return false;
   }
@@ -140,7 +142,7 @@ bool DeviceAuthClient::attemptAuth() {
 
 void DeviceAuthClient::update(unsigned long nowMs) {
   // Guard: NTP must be synced for unix-time comparisons
-  if (!TimeSync::isSynced()) {
+  if (!clock_.isSynced()) {
     return;
   }
 
@@ -149,7 +151,7 @@ void DeviceAuthClient::update(unsigned long nowMs) {
     return;
   }
 
-  uint32_t nowUnix = (uint32_t)(TimeSync::getUtcTimestamp() / 1000);
+  uint32_t nowUnix = clock_.utcSeconds();
 
   // Check if session is still valid (with refresh margin)
   if (identity_.hasValidSession(nowUnix)) {
