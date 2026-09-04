@@ -40,6 +40,7 @@ Poniższe piny pochodzą z pierwotnej wersji tego dokumentu i **nie mają odpowi
 | GPIO | Funkcja | Podłączone do | Uwagi |
 |---|---|---|---|
 | 1 | ADC1_CH0 | PT-506 (4-20mA) | przez rezystor 250Ω |
+| 2 | ADC1_CH1 | dzielnik napięcia szyny 24 V | **propozycja** z [09_budzet_energetyczny.md §5.2](./09_budzet_energetyczny.md#52-dzielnik-napięcia--dwa-warianty) — wariant dla zestawu **bez** ADS1015. Dzielnik 100 kΩ / 8,2 kΩ + 100 nF, tłumienie `ADC_ATTEN_DB_12`. Wybrany, bo należy do ADC1, nie jest pinem strappingowym ESP32-S3 (GPIO0/3/45/46) i nie koliduje z SPI MAX31865 |
 
 **Uwaga**: Piny PT100/MAX31865 (od 2026-08-24) są jawnie zdefiniowane w `Config.h` i przekazywane do `SPI.begin()`: 11 (MOSI), 12 (SCK), 13 (MISO), 14 (CS). Wszystkie 4 piny SPI sąsiadują fizycznie, co ułatwia okablowanie. Zob. [sekcja 2](#2-piny--zweryfikowane-w-kodzie) i [05_pt100_temperature_sensor.md](./05_pt100_temperature_sensor.md).
 
@@ -55,6 +56,9 @@ Zapalanie LED: `pixels.setPixelColor(0, pixels.Color(R, G, B)); pixels.show();`
 
 - **PT-506 (czujnik ciśnienia) — draft.** Brak biblioteki odczytu ADC; telemetria PT-506 wciąż wysyła dane syntetyczne (sinus).
 - **PT100 (czujnik temperatury) — zweryfikowany.** Odczyt przez MAX31865 (SPI), biblioteka `adafruit/Adafruit MAX31865`. Zob. [05_pt100_temperature_sensor.md](./05_pt100_temperature_sensor.md) po szczegóły.
+- **Brak pomiaru napięcia zasilania i detekcji zaniku 230 V.** Kod błędu `POWER_LOW` istnieje w [`sensor_registry.yaml`](../../../sensor_registry.yaml), ale nic go nie ustawia. Projekt dzielnika, progów i ścieżki transmisji zdarzenia — [09_budzet_energetyczny.md §5](./09_budzet_energetyczny.md#5-detekcja-zaniku-zasilania-i-pomiar-napięcia).
+- **Brak kondensatora bulk na szynie 5 V przy złączu HAT-a.** Modem wymaga szczytowo 2 A, a przetwornica nie nadąża za impulsem nadawania GSM (577 µs). Obliczenie i wymagana wartość — [09_budzet_energetyczny.md §3.3](./09_budzet_energetyczny.md#33-pojemność-bulk-na-szynie-5-v--obliczenie).
+- **Wariant modułu ESP32-S3-WROOM-1 (z PSRAM czy bez) nie jest udokumentowany.** Rozstrzyga o górnym zakresie pracy: 65 °C (R8/R16V) albo 85 °C. Zob. [09_budzet_energetyczny.md §8](./09_budzet_energetyczny.md#8-temperatura-pracy).
 
 ## 6. Interfejsy
 
@@ -83,8 +87,14 @@ Konkretny moduł modemu użyty w projekcie to **KAmod LTE CAT1-GNSS z A7670E-FAS
 - **SIM**: gniazdo micro SIM, obsługuje karty 1.8V/3.0V.
 - **Diody LED na płytce HAT** (niezależne od `StatusLed`/GPIO48 na ESP32): PWR (D5, obecność zasilania), STA (D3, stan aktywności modemu), NET (D4, status sieci) — przydatne do diagnostyki wzrokowej niezależnie od logów.
 
-### Źródła (dokumentacja producenta, nie repo)
+### Źródła (dokumentacja producenta, nie repo — sekcja 7)
 
 - [Karta produktu KAmod na kamami.pl](https://kamami.pl/moduly-komunikacyjne/1200196-kamod-lte-cat1-gnss-hat-gsmgprsgnss-z-modulem-a7670e-fase-do-raspberry-pi-5902186333727.html)
 - [Instrukcja PL (PDF)](https://download.kamami.pl/p1200196-KAmod%20LTE%20CAT1-GNSS%20z%20modu%C5%82em%20A7670E-FASE%20%28PL%29-2364.pdf)
 - [Wiki KamamiLabs](https://wiki.kamamilabs.com/index.php?title=KAmod_LTE_CAT1-GNSS_z_modu%C5%82em_A7670E-FASE_(PL))
+
+## 8. Zasilanie
+
+Pełne drzewo zasilania (230 V AC → 24 V DC → 5 V → 3,3 V), bilans prądowy per faza pracy, dobór przetwornicy, wymagania dla przewodów i pojemności buforowej, podtrzymanie przy zaniku 230 V, projekt detekcji zaniku oraz zakresy temperatur komponentów: **[09_budzet_energetyczny.md](./09_budzet_energetyczny.md)**.
+
+Status: **draft**. Elementy toru zasilania (zasilacz DIN 24 V / 1 A, przetwornica XL4015 24 → 5 V, ADS1015) **nie są potwierdzone w repozytorium** — pochodzą z opisu zadania B-11, nie z kodu ani z oględzin płytki. Po weryfikacji na fizycznym zestawie ([09_budzet_energetyczny.md §12.4](./09_budzet_energetyczny.md#124-oględziny-zestawu--10-minut-zero-narzędzi)) ta sekcja powinna dostać własną tabelę komponentów, na wzór [sekcji 1](#1-komponenty).
