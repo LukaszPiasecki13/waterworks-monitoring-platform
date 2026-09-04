@@ -2,7 +2,7 @@
 
 > Stan: **do weryfikacji na sprzęcie** — testy `native` przechodzą, ale zmiany dotykają
 > warstwy komunikacyjnej, której `native` z definicji nie sprawdza. Lista rzeczy do
-> przejścia na płytce jest w [§7](#7-lista-zmian-do-weryfikacji-na-sprzęcie).
+> przejścia na płytce jest w [§8](#8-lista-zmian-do-weryfikacji-na-sprzęcie).
 
 Dokument opisuje: co faktycznie było pokryte testami przed zmianą, jak zaprojektowana
 jest warstwa testowalna, jak uruchomić testy i co pozostaje poza ich zasięgiem.
@@ -29,9 +29,15 @@ Do tego:
 
 - **`test_ignore_pattern` nie jest opcją PlatformIO.** Konfiguracja zawierała
   `test_ignore_pattern = *_disabled.cpp`; PlatformIO wypisywał
-  `Warning! Ignore unknown configuration option`. Właściwa nazwa to `test_ignore`.
-- **Brak `main()`.** Pakiet googletest w PlatformIO nie linkuje `gtest_main`, a żaden
-  plik go nie dostarczał → `undefined reference to 'main'`.
+  `Warning! Ignore unknown configuration option` i ignorował wpis. Opcja została
+  usunięta, a nie przemianowana: `test_ignore` filtruje **nazwy zestawów testów**
+  (katalogi `test_*`), a nie wzorce plików, więc pierwotnej intencji nie da się nim
+  wyrazić. Żaden plik `*_disabled.cpp` i tak w repozytorium nie istnieje.
+- **Brak `main()`.** Żaden plik nie dostarczał punktu wejścia →
+  `undefined reference to 'main'`. Dodany `test/test_main.cpp` zakłada, że pakiet
+  `google/googletest` **nie** linkuje `gtest_main` (tak jak w oficjalnym przykładzie
+  PlatformIO). Założenia nie dało się zweryfikować w środowisku bez dostępu do
+  rejestru — patrz §9, punkt 1.
 - **Testy sprawdzały kopie kodu, nie kod.** `test_timesync.cpp` i
   `test_timestamp_regression.cpp` miały własne, wklejone implementacje `formatIso8601`
   i asertowały na nich. `test_telemetry_pt100.cpp` budował JSON ręcznie zamiast wołać
@@ -77,10 +83,10 @@ Kolejność pisania testów wynikała z niej, nie z łatwości implementacji.
 | # | Biblioteka | Odpowiada za | Zależność sprzętowa | Ryzyko w terenie | Testy `native` |
 |---|---|---|---|---|---|
 | 1 | `TelemetryPayload` | bufor okien, budowa JSON, bufor błędów | brak | **Krytyczne** — ciche gubienie pomiarów, pakiety odrzucane przez backend | ✅ 30 (`test_telemetry_payload`, `test_timestamp_regression`) |
-| 2 | `TelemetrySender` | pętla wysyłki, retry, potwierdzanie | przez interfejsy | **Krytyczne** — brak danych albo duplikaty okien | ✅ 27 (`test_telemetry_sender`, + 3 parametryzowane, + `test_timesync`) |
-| 3 | `DeviceAuthClient` | challenge/verify, ważność tokenu | przez interfejsy | **Krytyczne** — urządzenie milknie bez żadnego sygnału | ✅ 24 (`test_device_auth_client`) |
-| 4 | `EnrollmentClient` | kod aktywacyjny, redeem | przez interfejsy | **Wysokie** — nie da się wdrożyć urządzenia; backoff chroni transfer SIM | ✅ 18 (`test_enrollment_client`, w tym 3 parametryzowane) |
-| 5 | `Watchdog` | eskalacja przy zawieszeniu | przez interfejsy | **Wysokie** — martwe urządzenie albo pętla restartów | ✅ 12 (`test_watchdog`) |
+| 2 | `TelemetrySender` | pętla wysyłki, retry, potwierdzanie | przez interfejsy | **Krytyczne** — brak danych albo duplikaty okien | ✅ 29 (`test_telemetry_sender` + 3 parametryzowane, `test_timesync`, `test_millis_rollover`) |
+| 3 | `DeviceAuthClient` | challenge/verify, ważność tokenu | przez interfejsy | **Krytyczne** — urządzenie milknie bez żadnego sygnału | ✅ 25 (`test_device_auth_client`, `test_millis_rollover`) |
+| 4 | `EnrollmentClient` | kod aktywacyjny, redeem | przez interfejsy | **Wysokie** — nie da się wdrożyć urządzenia; backoff chroni transfer SIM | ✅ 25 (`test_enrollment_client` + 3 parametryzowane, `test_millis_rollover`) |
+| 5 | `Watchdog` | eskalacja przy zawieszeniu | przez interfejsy | **Wysokie** — martwe urządzenie albo pętla restartów | ✅ 13 (`test_watchdog`, `test_millis_rollover`) |
 | 6 | `ModemLink` | podniesienie i utrzymanie LTE | TinyGSM + UART | **Wysokie** — brak łącza; pętle bez własnego limitu czasu | ✅ 15 (`test_modem_link`, atrapa nagłówka TinyGSM) |
 | 7 | `ModemPower` | PWRKEY/RESET modemu | GPIO | **Wysokie** — jedyna droga wyjścia z zawieszonego A7670E | ✅ 6 (`test_modem_power`, zapis zdarzeń GPIO) |
 | 8 | `Sensor` (`ISensor`, `PT100Sensor`) | odczyt MAX31865 → `SensorReading` | SPI + MAX31865 | **Średnie** — błędne wartości albo brak zgłoszenia awarii | ✅ 21 (`test_isensor_pt100`, `test_telemetry_pt100`) |
@@ -235,7 +241,7 @@ Sprawdzone przez celowe zepsucie schematu backendu:
 | `sent_at` → `transmitted_at` | 6 testów FAILED, komunikat: `$: brak wymaganego klucza 'transmitted_at'` |
 | `Literal["info","warning","critical"]` → `Literal["info","warning"]` | 2 testy FAILED, komunikat: `$.errors[0].severity: poziom 'critical' spoza Literal akceptowanego przez backend` |
 
-Po przywróceniu schematu: wszystkie 182 przypadki zielone.
+Po przywróceniu schematu: wszystkie 194 przypadki zielone.
 
 Sam walidator też jest sprawdzony — 14 przypadków w `PayloadContractDetectionTest` podaje
 mu celowo zepsute pakiety i wymaga, żeby je odrzucił. Bez tego „pakiet przeszedł walidację"
@@ -243,11 +249,70 @@ mogłoby znaczyć po prostu, że walidator niczego nie sprawdza.
 
 ---
 
-## 5. Uruchamianie
+## 5. Błędy produkcyjne znalezione przez testy
+
+Poza rozjazdem kontraktu z §4.2 praca testowa odsłoniła trzy defekty w kodzie, który
+jest dziś na urządzeniu. Wszystkie naprawione, każdy z testem, który pada na wersji
+sprzed poprawki (sprawdzone przez tymczasowe cofnięcie zmiany).
+
+### 5.1 Provisioning po Serial nie działał w ogóle
+
+`EnrollmentClient::readSerial()` był pustą funkcją z komentarzem
+`// Serial input disabled - migrated away from direct Serial usage`. Ponieważ jest to
+**jedyne** wywołanie `processLine()`, cały łańcuch aktywacji był martwy: świeżego
+urządzenia nie dało się zaprovisionować, mimo że reszta ścieżki (walidacja kodu,
+redeem, backoff) działała poprawnie.
+
+Regresja weszła w commicie `70fb9f3` („Implement ISensor interface and PT100 sensor
+class") — implementacja czytająca z `SerialMon` została usunięta razem z zależnością od
+makra `SerialMon`, najwyraźniej przy okazji, nie celowo. Poprzednia wersja (`219b608`)
+działała i jest opisana w
+[`04_device_provisioning_flow.md`](./04_device_provisioning_flow.md) jako
+**zweryfikowana na sprzęcie 2026-08-23**.
+
+Naprawa odtwarza odczyt linii z `Serial`, z trzema różnicami wobec wersji z `219b608`:
+logowanie idzie przez `Logger` zamiast surowego `SerialMon.print`, kod jest w logu
+**zamaskowany** (`maskCode`), a limit długości linii jest nazwaną stałą
+`SERIAL_LINE_MAX`. Sześć testów w `test_enrollment_client.cpp` chodzi pełną ścieżką
+bajty → `pending_code_`; pięć z nich pada na wypatroszonej wersji.
+
+### 5.2 Przewinięcie `millis()` po ~49,7 dnia pracy
+
+Trzy pętle porównywały czas w postaci, która przestaje działać po przekręceniu licznika
+32-bitowego. Gateway w hydroforni ma chodzić miesiącami, więc to nie jest przypadek
+teoretyczny.
+
+| Miejsce | Zapis przed | Skutek po przewinięciu |
+|---|---|---|
+| `TelemetrySender::update()` — próbkowanie | `now >= last_sample_ms_ + interval` | prawa strona przepełnia się; próbkowanie w **każdej** iteracji pętli (co ~10 ms) przez kilkanaście sekund → 12-minutowy bufor okien zapełnia się i zaczyna gubić dane |
+| `TelemetrySender::update()` — backoff wysyłki | `now < next_send_attempt_ms_` | termin ponowienia przewija się do małej liczby, `now` jeszcze nie → backoff przestaje obowiązywać, retry przy każdej iteracji |
+| `DeviceAuthClient::update()` — dławienie pollingu | `nowMs < next_allowed_poll_ms_` | jw. — wymiana challenge/verify w pętli zamiast co 15 s |
+| `EnrollmentClient::attemptRedeem()` — backoff aktywacji | `nowMs < next_allowed_retry_ms_` | jw. — redeem w pętli zamiast co 30 s |
+
+Naprawa: porównania przez różnicę bez znaku (`(now - last) >= interval`,
+`(long)(now - next) < 0`). Terminom towarzyszy flaga „termin w ogóle ustawiony", żeby
+wartość początkowa `0` nie została po ~24,8 dnia uznana za termin w przyszłości.
+
+`Watchdog::check()` używał już odpornej postaci (`now - lastSuccessMs`) — jest na to
+osobny test strażniczy, żeby ktoś tego nie „poprawił".
+
+Sprawdzone: 5 z 6 testów w `test_millis_rollover.cpp` pada po cofnięciu poprawki
+(szósty to właśnie strażnik watchdoga, który ma przechodzić w obu wersjach).
+
+### 5.3 `ensureConnected()` bez strażnika `nullptr`
+
+`ModemLink::testAT()` sprawdzał `if (!modem_)`, a `ensureConnected()` nie — mimo że oba
+działają na tym samym wskaźniku, tworzonym dopiero w `init()`. Dziś nieosiągalne
+(`TelemetrySender` powstaje po udanym `init()`), ale asymetria zapraszała do awarii przy
+pierwszej zmianie kolejności inicjalizacji. Dodany strażnik + test.
+
+---
+
+## 6. Uruchamianie
 
 ```bash
 cd firmware
-pio test -e native            # 182 przypadki
+pio test -e native            # 194 przypadki
 pio test -e native -v         # z pełnym wyjściem googletest
 
 FIRMWARE_TEST_ECHO_LOGS=1 pio test -e native -v   # + logi firmware na stdout
@@ -272,7 +337,7 @@ zwraca kod ≠ 0, gdy zapisany nagłówek rozjechał się ze schematem.
 
 ---
 
-## 6. Czego te testy nie sprawdzają
+## 7. Czego te testy nie sprawdzają
 
 Świadome ograniczenia — warto je znać, zanim ktoś potraktuje zielony suite jako gwarancję:
 
@@ -294,19 +359,19 @@ zwraca kod ≠ 0, gdy zapisany nagłówek rozjechał się ze schematem.
 
 ---
 
-## 7. Lista zmian do weryfikacji na sprzęcie
+## 8. Lista zmian do weryfikacji na sprzęcie
 
 Refaktor dotknął kodu, który rozmawia ze sprzętem i siecią. Testy `native` tej warstwy
 **nie sprawdzają** — one ją zastępują. Poniżej jest to, co trzeba przejść na płytce
 jednym uruchomieniem, z odczytem logów.
 
-### 7.1 Kolejność sprawdzania
+### 8.1 Kolejność sprawdzania
 
 | # | Co sprawdzić | Czego dotyczy zmiana | Oczekiwany log / objaw |
 |---|---|---|---|
 | 1 | **Rozruch i tożsamość** | `DeviceIdentity : IDeviceIdentity` — dodane `override`, nowa metoda `signChallengeBase64()` | `[BOOT] DeviceIdentity initialized`, numer seryjny `WW-…` niezmieniony po restarcie |
 | 2 | **Rejestracja w sieci LTE** | `ModemLink : IModemLink`; **nowy strażnik `nullptr` w `ensureConnected()`** | `[NET] Network connected`, `[DATA] GPRS/LTE connected`, `Local IP: …` |
-| 3 | **Aktywacja kodem** (urządzenie nieprovisionowane) | `EnrollmentClient` bierze `IDeviceIdentity&` i `IHttpClient*` | redeem kończy się 200/201, `[BOOT] Provisioning completed` |
+| 3 | **Aktywacja kodem** (urządzenie nieprovisionowane) | **przywrócony odczyt `ACTIVATE` z Serial** (§5.1) + `EnrollmentClient` na `IDeviceIdentity&`/`IHttpClient*` | wpisanie `ACTIVATE <kod>` w monitorze daje `[ENROLL] Odebrano linię: ABCD-****-****`, potem redeem 200/201 i `[BOOT] Provisioning completed`. **To jest najważniejszy punkt listy** — przed poprawką ta ścieżka była martwa |
 | 4 | **Challenge/response** | `DeviceAuthClient` bierze `IClock&`; podpis liczony przez `signChallengeBase64()` zamiast `decodeBase64Url()` + `signBase64()` w kliencie | dwa POST-y (`/devices/auth/challenge`, `/devices/auth/verify`), 200, token zapisany |
 | 5 | **Walidacja `expires_at`** | **nowa walidacja zakresów** w `parseIso8601ToUnix()` | token z backendu przyjęty; brak `No valid session` w pętli |
 | 6 | **Wysłanie pakietu** | `TelemetrySender` bierze `IClock&`, `IHttpClient&`, `IStatusLed&`, `IModemLink&` | `[LOOP] Send OK, seq=…`, backend przyjmuje **200/202, nie 422** |
@@ -314,28 +379,34 @@ jednym uruchomieniem, z odczytem logów.
 | 8 | **Restart po watchdogu** | `Watchdog` bierze `ISystemControl&` zamiast wołać `esp_restart()` i ruszać `rtcRestartCounter` wprost | wyjmij antenę na > 5 min → AT, twardy reset modemu, restart; `Restart counter (RTC)` rośnie i **zatrzymuje się na 2** |
 | 9 | **Licznik restartów przeżywa restart** | licznik idzie przez `EspSystemControl(rtcRestartCounter)` — referencja do pamięci RTC | po restarcie z pkt. 8 log pokazuje niezerowy licznik, a po udanej wysyłce wraca do 0 |
 | 10 | **Sygnalizacja LED** | `StatusLed : IStatusLed` | jedno mignięcie po sukcesie, trzy po błędzie |
+| 11 | **Rytm transmisji po dłuższej pracy** | porównania czasu przepisane na różnicę bez znaku (§5.2) | po kilku godzinach pracy odstęp między pakietami nadal ~60 s; brak serii pakietów jeden po drugim |
 
-### 7.2 Ryzyka, na które warto patrzeć
+### 8.2 Ryzyka, na które warto patrzeć
 
 - **Pkt 8 to jedyne miejsce, gdzie sprawdza się `EspSystemControl`.** `ISystemControl`
   jest z definicji nieuruchamialny w testach — restart w teście zabiłby test.
 - **Pkt 2 i 6** przechodzą przez atrapy TinyGSM w testach. Jeśli sekwencja AT rozjechała
   się z rzeczywistością, wyjdzie to dopiero tutaj.
-- **Pkt 7 jest najważniejszy z całej listy** — to jedyna zmiana funkcjonalna, która
-  zmienia treść wysyłanych danych.
+- **Pkt 3 i 7 to jedyne zmiany, które zmieniają zachowanie widoczne z zewnątrz** —
+  odblokowanie provisioningu i treść wysyłanych błędów. Reszta listy to weryfikacja,
+  że refaktor niczego nie zepsuł.
+- **Pkt 11 nie da się sprawdzić w rozsądnym czasie na płytce** — przewinięcie `millis()`
+  następuje po 49,7 dnia. Testy `native` pokrywają samą arytmetykę; na sprzęcie sprawdza
+  się tylko to, że zmiana nie zepsuła normalnego rytmu.
 
-### 7.3 Znalezione, nienaprawione — do decyzji
+### 8.3 Znalezione, nienaprawione — do decyzji
 
 | Obserwacja | Miejsce | Dlaczego zostawione |
 |---|---|---|
 | `waitForNetwork()` nie ma własnego opóźnienia w pętli; kończy się tylko dlatego, że TinyGSM blokuje na czas timeoutu. Gdyby kiedyś zaczął zwracać natychmiast, ESP32 kręciłby się w pętli — a `esp_task_wdt_reset()` w środku karmi watchdoga, więc **task WDT by tego nie przerwał** | `ModemLink::waitForNetwork()` | zmiana zachowania pętli sieciowej wykracza poza zakres B-06; test `BrakRejestracjiWSieciKonczyInicjalizacjeNiepowodzeniem` dokumentuje obecną zależność |
 | `extern const uint32_t TOKEN_REFRESH_MARGIN_SECONDS;` wewnątrz funkcji, przy już dołączonym `Config.h` | `DeviceIdentity::hasValidSession()` | działa (odwołuje się do tej samej stałej o wiązaniu wewnętrznym), ale jest mylące — kosmetyka |
 | `char buffer[30]` w `formatIso8601()` — GCC ostrzega o możliwym obcięciu dla nierealistycznych lat | `TelemetryPayload::formatIso8601()` | `snprintf` obcina bezpiecznie; dla lat 1000–9999 wynik ma 24 znaki |
+| **Watchdog nigdy nie eskaluje, dopóki modem odpowiada na AT.** Modem zarejestrowany, ale bez transmisji (np. brak APN, blokada operatora) w nieskończoność zostaje w kroku 0 — nie ma resetu ani restartu, mimo że dane nie wychodzą od godzin | `Watchdog::attemptRecovery()`, krok `recovery_attempts_ == 0` | zachowanie sprzed zmiany, świadomie zachowane; test `ModemOdpowiadaNaATWiecEskalacjaSieNieRozpoczyna` je dokumentuje. Zmiana wymaga decyzji: czy „AT odpowiada" ma wystarczać, żeby uznać łącze za sprawne |
 | `WINDOW_DROPPED_BUFFER_FULL` po deduplikacji nie niesie **liczby** porzuconych okien | `TelemetryPayload` | licznik porzuceń należy do diagnostyki urządzenia — zakres **B-08** |
 
 ---
 
-## 8. Pliki
+## 9. Pliki
 
 | Ścieżka | Rola |
 |---|---|
@@ -350,3 +421,117 @@ jednym uruchomieniem, z odczytem logów.
 Powiązane: [01_hardware.md](./01_hardware.md) (mapa pinów użyta w testach `ModemPower`
 i `PT100Sensor`), [02_modem_a7670e_communication.md](./02_modem_a7670e_communication.md)
 (sekwencja modemu), [06_adding_sensors.md](./06_adding_sensors.md) (rejestr czujników).
+
+
+---
+
+## 10. Czego nie udało się zweryfikować w tym środowisku
+
+Poniższe punkty wymagają maszyny z dostępem do rejestru PlatformIO albo do fizycznej
+płytki. Każdy ma podane: co uruchomić, czego szukać i co zrobić z wynikiem.
+
+### 10.1 Build ESP32 (`pio run -e esp32-s3`) — **priorytet 1**
+
+**Dlaczego nie zrobione:** platforma `espressif32`, TinyGSM, ArduinoHttpClient,
+Adafruit NeoPixel i MAX31865 ściągane są z `api.registry.platformio.org`, który w tym
+środowisku jest zablokowany przez politykę egress (odpowiedź 403 na CONNECT).
+
+**Co uruchomić:**
+
+```bash
+cd firmware
+pio run -e esp32-s3
+```
+
+**Czego szukać — trzy konkretne ryzyka, w kolejności prawdopodobieństwa:**
+
+1. **Podwójny `main()`.** Jeśli pakiet `google/googletest` jednak linkuje `gtest_main`,
+   `pio test -e native` zakończy się `multiple definition of 'main'`.
+   *Objaw:* błąd linkera wskazujący `gtest_main.cc` i `test/test_main.cpp`.
+   *Naprawa:* usuń `firmware/test/test_main.cpp` (nic poza `main()` w nim nie ma;
+   przełącznik `FIRMWARE_TEST_ECHO_LOGS` przenieś do `SetUp()` wybranego testu albo
+   porzuć). Dotyczy tylko `env:native`, nie buildu ESP32.
+2. **Rozdzielczość biblioteki `Interfaces` przez LDF.** Nowa biblioteka nagłówkowa
+   `firmware/lib/Interfaces` jest wciągana przez `#include <IHttpClient.h>` itd.
+   *Objaw:* `fatal error: IHttpClient.h: No such file or directory` przy kompilacji
+   `TelemetryHttpClient.cpp` lub `TelemetrySender.cpp`.
+   *Naprawa:* dodaj `-Ilib/Interfaces/src` do `build_flags` w `[env:esp32-s3]`
+   (LDF w trybie `chain` powinien poradzić sobie sam, ale to jest tani zapasowy plan).
+3. **`RuntimeAdapters.h` i `esp_restart()`.** `EspSystemControl::restart()` woła
+   `esp_restart()` przez `#include <Esp.h>`.
+   *Objaw:* `'esp_restart' was not declared in this scope`.
+   *Naprawa:* dopisz `#include <esp_system.h>` w `firmware/src/RuntimeAdapters.h`.
+   (`main.cpp` wołał `esp_restart()` z tym samym zestawem nagłówków przed zmianą, więc
+   to mało prawdopodobne.)
+
+**Co zrobić z wynikiem:** jeśli build przechodzi — dopisz to do nagłówka tego dokumentu
+i przejdź do §10.2. Jeśli nie — napraw według powyższego, uruchom `pio test -e native`
+(musi dalej dawać 194/194) i dopiero wtedy wgrywaj.
+
+### 10.2 `pio test -e native` na prawdziwych zależnościach — **priorytet 2**
+
+**Dlaczego nie zrobione:** `bblanchon/ArduinoJson` i `google/googletest` też pochodzą
+z zablokowanego rejestru. Testy uruchomiono na lokalnej namiastce ArduinoJson (nie jest
+częścią repozytorium) i na googletest z pakietu systemowego.
+
+**Co uruchomić:**
+
+```bash
+cd firmware
+pio test -e native            # oczekiwane: 194/194
+```
+
+**Czego szukać:** testy asertują na **sparsowanym** JSON-ie, nie na jego tekstowej
+postaci, więc różnice w formatowaniu liczb między wersjami ArduinoJson nie powinny nic
+zmienić. Jedyne miejsce dotykające tekstu to
+`Pt100PayloadTest.PakietSerializujeSieDoPoprawnegoJson`
+(szuka podłańcucha `"type":"temperature"`). Jeśli padnie, to znaczy, że prawdziwe
+ArduinoJson wstawia spacje — wtedy popraw asercję na porównanie sparsowanych wartości,
+nie zmieniaj firmware.
+
+Osobno sprawdź, czy w wyjściu nie ma ostrzeżenia
+`Warning! Ignore unknown configuration option` — po tej zmianie nie powinno go już być.
+
+### 10.3 Weryfikacja na płytce — **priorytet 3**
+
+Pełna lista jest w §8 (11 punktów z oczekiwanymi logami). Kolejność ma znaczenie:
+punkt 3 (aktywacja kodem `ACTIVATE`) wymaga **urządzenia bez zakończonego
+provisioningu**, więc albo weź świeży egzemplarz, albo najpierw wyczyść przestrzeń NVS
+`devid` (`nvs_flash_erase` albo `esptool.py erase_flash`).
+
+Punkt 7 (pakiet z błędem czujnika) wymaga fizycznego odłączenia PT100 — to jedyny
+sposób sprawdzenia, że naprawiony kontrakt błędów faktycznie przechodzi przez backend.
+Potwierdzeniem jest **200/202 w odpowiedzi, nie 422**.
+
+### 10.4 Test pydantic po stronie backendu — **do rozważenia**
+
+**Dlaczego nie zrobione:** backend wymaga Pythona ≥ 3.14 (używa PEP 695 `class Foo[T]`
+i odroczonych adnotacji z PEP 649). W tym środowisku dostępne były 3.10–3.13, więc
+`app.modules.telemetry.schemas` nie dało się zaimportować, a testów backendu nie
+uruchomiono.
+
+**Co można dołożyć** (nie jest to wymagane przez B-06, ale domyka pętlę): pytest, który
+bierze przykładowe pakiety firmware'owe i przepuszcza je przez **prawdziwy**
+`MeasurementPacketRequest`. Dziś kontrakt jest odtwarzany statycznie z pliku źródłowego
+(§4.3) — dobrze łapie zmiany kształtu, ale nie wykona walidatorów pydantica.
+
+**Jak to zrobić:**
+
+1. Uruchom `pio test -e native` z ustawionym `FIRMWARE_TEST_ECHO_LOGS=1` i wyłów
+   z logu linie `[DATA] Payload: {...}` — to są pakiety wyprodukowane przez firmware.
+2. Zapisz kilka z nich (typowy, z błędem czujnika, po przepełnieniu bufora) jako
+   `backend/tests/fixtures/firmware_payloads.json`.
+3. Dodaj `backend/tests/.../test_firmware_payload_contract.py`, który dla każdego
+   pakietu robi `MeasurementPacketRequest.model_validate(pakiet)` i wymaga braku
+   `ValidationError`.
+4. Uruchom `pytest` w `.venv` backendu (Python 3.14).
+
+Efekt: rozjazd łapany z obu stron — od firmware przez `PayloadContract.h`, od backendu
+przez prawdziwy schemat.
+
+### 10.5 Czego **nie** trzeba robić
+
+- Nie ma potrzeby uruchamiania Playwrighta ani żadnego narzędzia przeglądarkowego —
+  to zadanie nie dotyka frontendu.
+- Nie trzeba odtwarzać lokalnej namiastki ArduinoJson: na maszynie z dostępem do
+  rejestru `platformio.ini` zaciągnie prawdziwą bibliotekę.

@@ -181,6 +181,22 @@ def extract_contract() -> dict[str, object]:
             f"{ERROR_CLASS}.severity nie jest już Literal[...] — nie da się wygenerować listy poziomów"
         )
 
+    # Każde pole, z którego czytamy ograniczenie, musi istnieć. Bez tej pętli
+    # refaktor schematu kończyłby się KeyError-em i śladem stosu zamiast
+    # zdaniem mówiącym, co dokładnie przestało pasować.
+    for cls_name, fields, expected in (
+        (PACKET_CLASS, packet_fields, ("v", "device_id", "windows")),
+        (WINDOW_CLASS, window_fields, ("window_seconds", "points")),
+        (POINT_CLASS, point_fields, ("point_id", "type", "unit", "quality")),
+        (ERROR_CLASS, error_fields, ("code", "severity", "message")),
+    ):
+        missing = [name for name in expected if name not in fields]
+        if missing:
+            raise ContractError(
+                f"{cls_name} nie ma już pól {missing} — generator kontraktu czyta z nich "
+                f"ograniczenia i nie potrafi ich odtworzyć po zmianie schematu"
+            )
+
     if "v" not in packet_fields:
         raise ContractError(f"{PACKET_CLASS} nie ma pola v (wersja protokołu)")
     v_min = _field_kwarg(packet_fields["v"].value, "ge")

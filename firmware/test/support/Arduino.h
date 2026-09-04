@@ -233,9 +233,14 @@ class NativeSerial {
  public:
   void begin(unsigned long = 0) {}
   void end() {}
-  int available() { return 0; }
-  int read() { return -1; }
   void flush() {}
+
+  int available() { return static_cast<int>(rx_.size() - rx_pos_); }
+
+  int read() {
+    if (rx_pos_ >= rx_.size()) return -1;
+    return static_cast<unsigned char>(rx_[rx_pos_++]);
+  }
 
   int printf(const char* format, ...) {
     char scratch[1024];
@@ -262,8 +267,17 @@ class NativeSerial {
   void clearCaptured() { captured_.clear(); }
   void setEcho(bool enabled) { echo_ = enabled; }
 
+  // Wstawia dane tak, jakby przyszły z monitora szeregowego.
+  void feed(const std::string& data) { rx_ += data; }
+  void clearInput() {
+    rx_.clear();
+    rx_pos_ = 0;
+  }
+
  private:
   std::string captured_;
+  std::string rx_;
+  size_t rx_pos_ = 0;
   bool echo_ = false;
 };
 

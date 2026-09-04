@@ -29,6 +29,9 @@ class EnrollmentClient {
   void submitLine(const String& line) { processLine(line); }
 
  private:
+  // Ochrona przed zalaniem bufora śmieciami z monitora szeregowego.
+  static constexpr size_t SERIAL_LINE_MAX = 64;
+
   IDeviceIdentity& identity_;
   IHttpClient* http_;
 
@@ -36,6 +39,7 @@ class EnrollmentClient {
   String pending_code_;
   bool modem_ready_ = false;
   unsigned long next_allowed_retry_ms_ = 0;
+  bool retry_pending_ = false;
 
   void readSerial();
   void processLine(String line);

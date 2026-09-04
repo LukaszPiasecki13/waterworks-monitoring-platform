@@ -146,8 +146,8 @@ void DeviceAuthClient::update(unsigned long nowMs) {
     return;
   }
 
-  // Throttle polling
-  if (nowMs < next_allowed_poll_ms_) {
+  // Throttle polling — różnica bez znaku przetrwa przewinięcie millis().
+  if (poll_scheduled_ && (long)(nowMs - next_allowed_poll_ms_) < 0) {
     return;
   }
 
@@ -156,9 +156,11 @@ void DeviceAuthClient::update(unsigned long nowMs) {
   // Check if session is still valid (with refresh margin)
   if (identity_.hasValidSession(nowUnix)) {
     next_allowed_poll_ms_ = nowMs + poll_interval_ms_;
+    poll_scheduled_ = true;
     return;
   }
 
   attemptAuth();
   next_allowed_poll_ms_ = nowMs + poll_interval_ms_;
+  poll_scheduled_ = true;
 }

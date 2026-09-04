@@ -22,6 +22,7 @@ class DeviceAuthClient {
   IClock& clock_;
   unsigned long poll_interval_ms_;
   unsigned long next_allowed_poll_ms_ = 0;
+  bool poll_scheduled_ = false;
 
   bool attemptAuth();
 };

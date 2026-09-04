@@ -17,6 +17,8 @@ constexpr const char* kValidCode = "ABCD-EFGH-JKLM";
 class EnrollmentClientTest : public ::testing::Test {
  protected:
   void SetUp() override {
+    Serial.clearInput();
+    Serial.clearCaptured();
     identity.provisioning_completed = false;
     client = new EnrollmentClient(identity, &http);
   }
@@ -29,6 +31,74 @@ class EnrollmentClientTest : public ::testing::Test {
   FakeDeviceIdentity identity;
   EnrollmentClient* client = nullptr;
 };
+
+// --- odczyt z monitora szeregowego -----------------------------------------
+//
+// To jedyna droga wprowadzenia kodu do urządzenia. Między commitami 219b608
+// a 70fb9f3 `readSerial()` został wypatroszony do pustej funkcji z komentarzem
+// „Serial input disabled" — czyli świeżego urządzenia nie dało się w ogóle
+// zaprovisionować, mimo że reszta łańcucha (processLine → redeem) działała.
+// Te testy chodzą pełną ścieżką: bajty na Serial → pending_code_.
+
+TEST_F(EnrollmentClientTest, KodWpisanyNaSerialJestPrzyjmowany) {
+  Serial.feed("ACTIVATE ABCD-EFGH-JKLM\n");
+
+  client->update(0);
+
+  EXPECT_TRUE(client->hasPendingCode()) << "readSerial() nie czyta z monitora szeregowego";
+  EXPECT_TRUE(client->needsModemBringUp());
+}
+
+TEST_F(EnrollmentClientTest, LiniaZakonczonaCrJestPrzyjmowana) {
+  // Terminale na Windows wysyłają CRLF, na Linuksie LF — oba muszą działać.
+  Serial.feed("ACTIVATE ABCD-EFGH-JKLM\r\n");
+
+  client->update(0);
+
+  EXPECT_TRUE(client->hasPendingCode());
+}
+
+TEST_F(EnrollmentClientTest, LiniaPrzychodzacaWKawalkachJestSklejana) {
+  // Monitor szeregowy dostarcza bajty porcjami; kod nie może zależeć od tego,
+  // że cała linia pojawi się w jednym wywołaniu update().
+  Serial.feed("ACTIVATE ABC");
+  client->update(0);
+  EXPECT_FALSE(client->hasPendingCode()) << "linia bez znaku końca nie może być przetwarzana";
+
+  Serial.feed("D-EFGH-JKLM\n");
+  client->update(10);
+
+  EXPECT_TRUE(client->hasPendingCode());
+}
+
+TEST_F(EnrollmentClientTest, PelnyKodNieTrafiaDoLogu) {
+  Serial.feed("ACTIVATE ABCD-EFGH-JKLM\n");
+
+  client->update(0);
+
+  EXPECT_EQ(Serial.captured().find("ABCD-EFGH-JKLM"), std::string::npos)
+      << "kod aktywacyjny w logu to wyciek danych uwierzytelniających";
+  EXPECT_NE(Serial.captured().find("ABCD"), std::string::npos) << "zamaskowany prefiks pomaga w diagnostyce";
+}
+
+TEST_F(EnrollmentClientTest, ZalanieSmieciamiNieBlokujePrzyjeciaKodu) {
+  // Bufor ma twardy limit; po jego przekroczeniu linia jest odrzucana,
+  // ale klient musi dalej działać.
+  Serial.feed(std::string(500, 'X'));
+  client->update(0);
+  EXPECT_FALSE(client->hasPendingCode());
+
+  Serial.feed("\nACTIVATE ABCD-EFGH-JKLM\n");
+  client->update(10);
+
+  EXPECT_TRUE(client->hasPendingCode());
+}
+
+TEST_F(EnrollmentClientTest, PusteLinieSaIgnorowane) {
+  Serial.feed("\n\r\n\n");
+  client->update(0);
+  EXPECT_FALSE(client->hasPendingCode());
+}
 
 // --- walidacja kodu --------------------------------------------------------
 

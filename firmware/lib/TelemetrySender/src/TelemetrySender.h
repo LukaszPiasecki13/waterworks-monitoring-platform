@@ -33,8 +33,14 @@ class TelemetrySender : public ITelemetryHealth {
   unsigned long sample_interval_ms_;
   unsigned long error_retry_ms_;
 
+  void scheduleNextAttempt(unsigned long atMs) {
+    next_send_attempt_ms_ = atMs;
+    send_attempt_scheduled_ = true;
+  }
+
   unsigned long last_sample_ms_ = 0;
   unsigned long next_send_attempt_ms_ = 0;
+  bool send_attempt_scheduled_ = false;
   unsigned long last_success_ms_ = 0;
   bool last_error_was_permanent_ = false;
   uint32_t send_seq_ = 0;

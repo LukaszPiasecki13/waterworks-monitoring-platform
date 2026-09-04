@@ -27,12 +27,16 @@ void TelemetrySender::update(unsigned long now) {
     return;
   }
 
-  if (now >= last_sample_ms_ + sample_interval_ms_) {
+  // Porównania przez różnicę bez znaku są poprawne także po przewinięciu
+  // millis() (co ~49,7 dnia). Zapis `now >= last + interval` przepełniałby się
+  // po prawej stronie i przez kilkanaście sekund próbkował w każdej iteracji
+  // pętli, zasypując bufor okien.
+  if ((now - last_sample_ms_) >= sample_interval_ms_) {
     last_sample_ms_ = now;
     payload_.sample(clock_.utcMs());
   }
 
-  if (now < next_send_attempt_ms_) {
+  if (send_attempt_scheduled_ && (long)(now - next_send_attempt_ms_) < 0) {
     return;
   }
 
@@ -43,7 +47,7 @@ void TelemetrySender::update(unsigned long now) {
   if (!modem_.ensureConnected()) {
     LOG_WARN("[LOOP]", "Connection not ready");
     led_.blinkError();
-    next_send_attempt_ms_ = now + error_retry_ms_;
+    scheduleNextAttempt(now + error_retry_ms_);
     return;
   }
 
@@ -52,7 +56,7 @@ void TelemetrySender::update(unsigned long now) {
 
   if (!identity_.hasValidSession(nowUnix)) {
     LOG_WARN("[LOOP]", "No valid session, skipping telemetry");
-    next_send_attempt_ms_ = now + error_retry_ms_;
+    scheduleNextAttempt(now + error_retry_ms_);
     return;
   }
 
@@ -69,11 +73,11 @@ void TelemetrySender::update(unsigned long now) {
     led_.blinkSuccess();
     last_success_ms_ = now;
     last_error_was_permanent_ = false;
-    next_send_attempt_ms_ = now + sample_interval_ms_;
+    scheduleNextAttempt(now + sample_interval_ms_);
   } else {
     LOG_ERROR("[LOOP]", "Send failed, seq=%lu", (unsigned long)send_seq_);
     led_.blinkError();
-    next_send_attempt_ms_ = now + error_retry_ms_;
+    scheduleNextAttempt(now + error_retry_ms_);
 
     if (resp.statusCode == 401) {
       JsonDocument doc;
