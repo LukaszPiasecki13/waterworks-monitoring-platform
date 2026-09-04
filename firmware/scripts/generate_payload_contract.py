@@ -62,6 +62,11 @@ def _field_call(value: ast.expr | None) -> ast.Call | None:
     return None
 
 
+def _is_ellipsis(node: ast.expr) -> bool:
+    """`Field(...)` — wielokropek oznacza w pydantic pole WYMAGANE, nie domyślne."""
+    return isinstance(node, ast.Constant) and node.value is Ellipsis
+
+
 def _is_required(value: ast.expr | None) -> bool:
     """A pydantic field is required unless it carries a default."""
     if value is None:
@@ -72,8 +77,15 @@ def _is_required(value: ast.expr | None) -> bool:
         return False  # plain `= None` / `= 5` -> optional
 
     if call.args:
-        return False  # Field(None, ...) -> first positional is the default
-    return not any(kw.arg in ("default", "default_factory") for kw in call.keywords)
+        # Field(..., max_length=128) jest wymagane; Field(None, ...) — opcjonalne.
+        return _is_ellipsis(call.args[0])
+
+    for kw in call.keywords:
+        if kw.arg == "default_factory":
+            return False
+        if kw.arg == "default":
+            return _is_ellipsis(kw.value)
+    return True
 
 
 def _field_kwarg(value: ast.expr | None, name: str) -> object | None:

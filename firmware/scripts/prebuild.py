@@ -215,11 +215,20 @@ if __name__ == "__main__":
 # ładowaniu środowiska — zanim ruszy kompilacja czegokolwiek. Poprzednia wersja
 # wieszała się na `AddPreAction("$BUILD_DIR/firmware.elf")`, przez co w ogóle
 # nie działała dla `env:native` (tam celem jest `program`, nie `firmware.elf`).
+#
+# `except NameError` obejmuje WYŁĄCZNIE import środowiska SCons. Gdyby objąć nim
+# całe ciało hooka, literówka w kodzie generacji zamieniałaby pre-build w cichy
+# no-op, a build szedłby dalej na nieaktualnym albo brakującym nagłówku.
+_scons_env = None
 try:
     Import("env")  # noqa: F821 - wstrzykiwane przez SCons
+    _scons_env = env  # noqa: F821
+except NameError:
+    pass
 
-    _env_name = env["PIOENV"]  # noqa: F821
-    _is_native = env.get("PIOPLATFORM") == "native"  # noqa: F821
+if _scons_env is not None:
+    _env_name = _scons_env["PIOENV"]
+    _is_native = _scons_env.get("PIOPLATFORM") == "native"
 
     print("\n" + "=" * 70)
     print(f"PRE-BUILD [{_env_name}]: sensor registry" + (" + payload contract" if _is_native else ""))
@@ -229,10 +238,8 @@ try:
         print("\n" + "=" * 70)
         print("❌ BUILD FAILED: pre-build generation/validation failed")
         print("=" * 70)
-        env.Exit(1)  # noqa: F821
+        _scons_env.Exit(1)
 
     print("=" * 70)
     print("✅ Pre-build OK")
     print("=" * 70 + "\n")
-except NameError:
-    pass

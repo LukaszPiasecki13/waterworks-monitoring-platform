@@ -37,7 +37,7 @@ Do tego:
   `undefined reference to 'main'`. Dodany `test/test_main.cpp` zakłada, że pakiet
   `google/googletest` **nie** linkuje `gtest_main` (tak jak w oficjalnym przykładzie
   PlatformIO). Założenia nie dało się zweryfikować w środowisku bez dostępu do
-  rejestru — patrz §9, punkt 1.
+  rejestru — patrz §10.1.
 - **Testy sprawdzały kopie kodu, nie kod.** `test_timesync.cpp` i
   `test_timestamp_regression.cpp` miały własne, wklejone implementacje `formatIso8601`
   i asertowały na nich. `test_telemetry_pt100.cpp` budował JSON ręcznie zamiast wołać
@@ -83,8 +83,8 @@ Kolejność pisania testów wynikała z niej, nie z łatwości implementacji.
 | # | Biblioteka | Odpowiada za | Zależność sprzętowa | Ryzyko w terenie | Testy `native` |
 |---|---|---|---|---|---|
 | 1 | `TelemetryPayload` | bufor okien, budowa JSON, bufor błędów | brak | **Krytyczne** — ciche gubienie pomiarów, pakiety odrzucane przez backend | ✅ 30 (`test_telemetry_payload`, `test_timestamp_regression`) |
-| 2 | `TelemetrySender` | pętla wysyłki, retry, potwierdzanie | przez interfejsy | **Krytyczne** — brak danych albo duplikaty okien | ✅ 29 (`test_telemetry_sender` + 3 parametryzowane, `test_timesync`, `test_millis_rollover`) |
-| 3 | `DeviceAuthClient` | challenge/verify, ważność tokenu | przez interfejsy | **Krytyczne** — urządzenie milknie bez żadnego sygnału | ✅ 25 (`test_device_auth_client`, `test_millis_rollover`) |
+| 2 | `TelemetrySender` | pętla wysyłki, retry, potwierdzanie | przez interfejsy | **Krytyczne** — brak danych albo duplikaty okien | ✅ 31 (`test_telemetry_sender` + 3 parametryzowane, `test_timesync`, `test_millis_rollover`) |
+| 3 | `DeviceAuthClient` | challenge/verify, ważność tokenu | przez interfejsy | **Krytyczne** — urządzenie milknie bez żadnego sygnału | ✅ 26 (`test_device_auth_client`, `test_millis_rollover`) |
 | 4 | `EnrollmentClient` | kod aktywacyjny, redeem | przez interfejsy | **Wysokie** — nie da się wdrożyć urządzenia; backoff chroni transfer SIM | ✅ 25 (`test_enrollment_client` + 3 parametryzowane, `test_millis_rollover`) |
 | 5 | `Watchdog` | eskalacja przy zawieszeniu | przez interfejsy | **Wysokie** — martwe urządzenie albo pętla restartów | ✅ 13 (`test_watchdog`, `test_millis_rollover`) |
 | 6 | `ModemLink` | podniesienie i utrzymanie LTE | TinyGSM + UART | **Wysokie** — brak łącza; pętle bez własnego limitu czasu | ✅ 15 (`test_modem_link`, atrapa nagłówka TinyGSM) |
@@ -150,7 +150,7 @@ powstają wewnątrz testowanej klasy i nie da się ich przekazać konstruktorem:
 
 Zysk: `ModemLink.cpp` i `PT100Sensor.cpp` są testowane **w oryginalnej postaci**, bez
 refaktoru pod testy. Koszt: atrapa może rozjechać się z prawdziwą biblioteką — dlatego
-sekwencja modemu jest na liście weryfikacji sprzętowej (§7).
+sekwencja modemu jest na liście weryfikacji sprzętowej (§8).
 
 ### 3.4 Warstwa zgodności `native` (`firmware/test/support/`)
 
@@ -241,7 +241,7 @@ Sprawdzone przez celowe zepsucie schematu backendu:
 | `sent_at` → `transmitted_at` | 6 testów FAILED, komunikat: `$: brak wymaganego klucza 'transmitted_at'` |
 | `Literal["info","warning","critical"]` → `Literal["info","warning"]` | 2 testy FAILED, komunikat: `$.errors[0].severity: poziom 'critical' spoza Literal akceptowanego przez backend` |
 
-Po przywróceniu schematu: wszystkie 194 przypadki zielone.
+Po przywróceniu schematu: wszystkie 197 przypadków zielone.
 
 Sam walidator też jest sprawdzony — 14 przypadków w `PayloadContractDetectionTest` podaje
 mu celowo zepsute pakiety i wymaga, żeby je odrzucił. Bez tego „pakiet przeszedł walidację"
@@ -251,9 +251,11 @@ mogłoby znaczyć po prostu, że walidator niczego nie sprawdza.
 
 ## 5. Błędy produkcyjne znalezione przez testy
 
-Poza rozjazdem kontraktu z §4.2 praca testowa odsłoniła trzy defekty w kodzie, który
-jest dziś na urządzeniu. Wszystkie naprawione, każdy z testem, który pada na wersji
-sprzed poprawki (sprawdzone przez tymczasowe cofnięcie zmiany).
+Poza rozjazdem kontraktu z §4.2 praca testowa i przegląd odsłoniły pięć defektów
+w kodzie, który jest dziś na urządzeniu, oraz dwa w samym oprzyrządowaniu.
+Wszystkie naprawione. Każdy defekt w firmware ma test, który **pada na wersji sprzed
+poprawki** — sprawdzone przez tymczasowe cofnięcie zmiany, nie przez samo napisanie
+asercji.
 
 ### 5.1 Provisioning po Serial nie działał w ogóle
 
@@ -299,12 +301,41 @@ osobny test strażniczy, żeby ktoś tego nie „poprawił".
 Sprawdzone: 5 z 6 testów w `test_millis_rollover.cpp` pada po cofnięciu poprawki
 (szósty to właśnie strażnik watchdoga, który ma przechodzić w obu wersjach).
 
-### 5.3 `ensureConnected()` bez strażnika `nullptr`
+### 5.3 Flaga błędu trwałego blokowała watchdoga na zawsze
+
+`TelemetrySender::update()` ustawiał `last_error_was_permanent_` przy 403/409/410, ale
+**nie zerował go** na ścieżkach wcześniejszego wyjścia: brak łącza (`ensureConnected()`
+false) i brak ważnej sesji. `Watchdog::check()` pomija odzyskiwanie, gdy flaga jest
+ustawiona — więc po jednym 409, jeśli potem padło łącze, watchdog przestawał działać
+**na stałe**: żadnego resetu modemu, żadnego restartu, urządzenie martwe aż do ręcznego
+wyłączenia zasilania.
+
+Naprawa: obie ścieżki zerują flagę, bo brak łącza i odnawianie tokenu to stany
+przejściowe, a nie odmowa backendu. Dwa testy, oba padają bez poprawki.
+
+### 5.4 Parser ISO8601 przyjmował daty nieistniejące
+
+Walidacja zakresu dopuszczała `day` do 31 w każdym miesiącu, więc `2026-02-30`
+przechodziło i dawało znacznik przesunięty o dwa dni. Skutek: urządzenie uznawałoby
+wygasły token za ważny i dostawało 401 przy każdej wysyłce, dopóki różnica sama się nie
+wyrówna. Naprawa: dzień sprawdzany względem faktycznej długości miesiąca (z rokiem
+przestępnym). `2026-02-29` też jest teraz odrzucane — 2026 nie jest przestępny.
+
+### 5.5 `ensureConnected()` bez strażnika `nullptr`
 
 `ModemLink::testAT()` sprawdzał `if (!modem_)`, a `ensureConnected()` nie — mimo że oba
 działają na tym samym wskaźniku, tworzonym dopiero w `init()`. Dziś nieosiągalne
 (`TelemetrySender` powstaje po udanym `init()`), ale asymetria zapraszała do awarii przy
 pierwszej zmianie kolejności inicjalizacji. Dodany strażnik + test.
+
+### 5.6 Defekty w samym oprzyrządowaniu
+
+Dwa błędy w kodzie, który ma pilnować pozostałych — oba znalezione w przeglądzie:
+
+| Defekt | Skutek | Naprawa |
+|---|---|---|
+| `generate_payload_contract.py` czytał `Field(..., max_length=128)` jako pole **opcjonalne** (traktował każdy argument pozycyjny jak wartość domyślną; w pydantic `...` oznacza „wymagane") | przepisanie schematu backendu bez zmiany znaczenia przenosiłoby klucze wymagane do `PACKET_OPTIONAL` i test kontraktowy **cicho** przestawałby wykrywać brakujące pole | rozpoznawanie `Ellipsis`; sprawdzone przepisaniem `device_id` na `Field(..., …)` — `PACKET_REQUIRED` pozostaje bez zmian |
+| `except NameError: pass` w `prebuild.py` obejmowało całe ciało hooka, nie sam `Import("env")` | literówka w kodzie generacji zamieniała pre-build w cichy no-op, a build szedł dalej na nieaktualnym nagłówku | `except` zawężony do importu; sprawdzone wstrzyknięciem `NameError` — build teraz przerywa |
 
 ---
 
@@ -312,7 +343,7 @@ pierwszej zmianie kolejności inicjalizacji. Dodany strażnik + test.
 
 ```bash
 cd firmware
-pio test -e native            # 194 przypadki
+pio test -e native            # 197 przypadków
 pio test -e native -v         # z pełnym wyjściem googletest
 
 FIRMWARE_TEST_ECHO_LOGS=1 pio test -e native -v   # + logi firmware na stdout
@@ -466,7 +497,7 @@ pio run -e esp32-s3
 
 **Co zrobić z wynikiem:** jeśli build przechodzi — dopisz to do nagłówka tego dokumentu
 i przejdź do §10.2. Jeśli nie — napraw według powyższego, uruchom `pio test -e native`
-(musi dalej dawać 194/194) i dopiero wtedy wgrywaj.
+(musi dalej dawać 197/197) i dopiero wtedy wgrywaj.
 
 ### 10.2 `pio test -e native` na prawdziwych zależnościach — **priorytet 2**
 
@@ -478,7 +509,7 @@ częścią repozytorium) i na googletest z pakietu systemowego.
 
 ```bash
 cd firmware
-pio test -e native            # oczekiwane: 194/194
+pio test -e native            # oczekiwane: 197/197
 ```
 
 **Czego szukać:** testy asertują na **sparsowanym** JSON-ie, nie na jego tekstowej

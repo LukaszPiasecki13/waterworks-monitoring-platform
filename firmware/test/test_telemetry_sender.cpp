@@ -267,6 +267,38 @@ TEST_F(TelemetrySenderTest, Status500NieJestBledemTrwalym) {
   EXPECT_FALSE(sender->lastErrorWasPermanent());
 }
 
+TEST_F(TelemetrySenderTest, UtrataLaczaKasujeFlageBleduTrwalego) {
+  // Bez tego jedno 409 blokowałoby watchdoga na zawsze: przy kolejnym braku
+  // łącza flaga zostawałaby ustawiona, Watchdog::check() pomijałby odzyskiwanie
+  // i urządzenie zostałoby martwe aż do ręcznego wyłączenia zasilania.
+  unsigned long now = 0;
+  fillBatch();
+  http.queueResponse(409, "");
+  now += kSampleIntervalMs;
+  sender->update(now);
+  ASSERT_TRUE(sender->lastErrorWasPermanent());
+
+  modem.connected = false;
+  sender->update(now + kErrorRetryMs);
+
+  EXPECT_FALSE(sender->lastErrorWasPermanent())
+      << "brak łącza to problem przejściowy, nie odmowa backendu";
+}
+
+TEST_F(TelemetrySenderTest, BrakWaznejSesjiKasujeFlageBleduTrwalego) {
+  unsigned long now = 0;
+  fillBatch();
+  http.queueResponse(403, "");
+  now += kSampleIntervalMs;
+  sender->update(now);
+  ASSERT_TRUE(sender->lastErrorWasPermanent());
+
+  identity.token_expires_at = 0;  // DeviceAuthClient właśnie odnawia token
+  sender->update(now + kErrorRetryMs);
+
+  EXPECT_FALSE(sender->lastErrorWasPermanent());
+}
+
 TEST_F(TelemetrySenderTest, SukcesKasujeFlageBleduTrwalego) {
   unsigned long now = 0;
   fillBatch();

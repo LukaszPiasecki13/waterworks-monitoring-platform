@@ -22,15 +22,25 @@ uint32_t DeviceAuthClient::parseIso8601ToUnix(const String& iso8601) {
     return 0;
   }
 
+  // Days per month (non-leap year)
+  static const int daysPerMonth[] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
+
   // Odrzuć wartości spoza zakresu kalendarza — bez tego "2026-13-45T..." dałoby
   // przypadkowy, ale niezerowy znacznik czasu i token uznany za ważny.
-  if (year < 1970 || month < 1 || month > 12 || day < 1 || day > 31 || hour < 0 || hour > 23 || minute < 0 ||
-      minute > 59 || second < 0 || second > 60) {
+  if (year < 1970 || month < 1 || month > 12 || hour < 0 || hour > 23 || minute < 0 || minute > 59 || second < 0 ||
+      second > 60) {
     return 0;
   }
 
-  // Days per month (non-leap year)
-  static const int daysPerMonth[] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
+  // Dzień musi mieścić się w faktycznej długości miesiąca. Sam limit 31 dni
+  // przepuszczałby "2026-02-30", co dałoby znacznik przesunięty o dwa dni —
+  // urządzenie uznawałoby sesję za ważną po wygaśnięciu tokenu i dostawałoby
+  // 401 przy każdej wysyłce.
+  const bool isLeapYear = (year % 4 == 0 && (year % 100 != 0 || year % 400 == 0));
+  const int daysInMonth = daysPerMonth[month - 1] + ((month == 2 && isLeapYear) ? 1 : 0);
+  if (day < 1 || day > daysInMonth) {
+    return 0;
+  }
 
   // Count days from 1970-01-01 to target date
   uint32_t totalDays = 0;

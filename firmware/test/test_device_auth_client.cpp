@@ -70,6 +70,22 @@ TEST(DeviceAuthClientIso8601, OdrzucaSmieciowyZnacznik) {
   EXPECT_EQ(DeviceAuthClient::parseIso8601ToUnix(String("")), 0u);
 }
 
+TEST(DeviceAuthClientIso8601, OdrzucaDzienPozaDlugosciaMiesiaca) {
+  // Sam limit 31 dni przepuszczał "2026-02-30" i dawał znacznik przesunięty
+  // o dwa dni — urządzenie uznawałoby wygasły token za ważny i dostawało 401
+  // przy każdej wysyłce, aż do naturalnego dogonienia różnicy.
+  EXPECT_EQ(DeviceAuthClient::parseIso8601ToUnix(String("2026-02-30T00:00:00.000Z")), 0u);
+  EXPECT_EQ(DeviceAuthClient::parseIso8601ToUnix(String("2026-04-31T00:00:00.000Z")), 0u);
+  EXPECT_EQ(DeviceAuthClient::parseIso8601ToUnix(String("2026-02-29T00:00:00.000Z")), 0u)
+      << "2026 nie jest rokiem przestępnym";
+
+  // Daty istniejące muszą przechodzić.
+  EXPECT_NE(DeviceAuthClient::parseIso8601ToUnix(String("2026-02-28T00:00:00.000Z")), 0u);
+  EXPECT_NE(DeviceAuthClient::parseIso8601ToUnix(String("2024-02-29T00:00:00.000Z")), 0u)
+      << "2024 jest przestępny";
+  EXPECT_NE(DeviceAuthClient::parseIso8601ToUnix(String("2026-01-31T00:00:00.000Z")), 0u);
+}
+
 TEST(DeviceAuthClientIso8601, OdrzucaDateSpozaKalendarza) {
   // Bez walidacji zakresów "13. miesiąc" dałby przypadkowy, ale niezerowy
   // znacznik — i token uznany za ważny przez lata.

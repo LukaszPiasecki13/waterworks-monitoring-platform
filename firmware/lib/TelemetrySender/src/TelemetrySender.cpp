@@ -47,6 +47,10 @@ void TelemetrySender::update(unsigned long now) {
   if (!modem_.ensureConnected()) {
     LOG_WARN("[LOOP]", "Connection not ready");
     led_.blinkError();
+    // Brak łącza to problem przejściowy, nie odmowa backendu. Bez wyzerowania
+    // flagi jedno wcześniejsze 403/409/410 blokowałoby watchdoga na zawsze
+    // i urządzenie zostałoby martwe aż do ręcznego wyłączenia zasilania.
+    last_error_was_permanent_ = false;
     scheduleNextAttempt(now + error_retry_ms_);
     return;
   }
@@ -56,6 +60,9 @@ void TelemetrySender::update(unsigned long now) {
 
   if (!identity_.hasValidSession(nowUnix)) {
     LOG_WARN("[LOOP]", "No valid session, skipping telemetry");
+    // Jak wyżej: brak ważnego tokenu to stan przejściowy (DeviceAuthClient
+    // właśnie go odnawia), a nie trwała odmowa ze strony backendu.
+    last_error_was_permanent_ = false;
     scheduleNextAttempt(now + error_retry_ms_);
     return;
   }
