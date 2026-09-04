@@ -512,7 +512,13 @@ Wobec tego **minimalny sposób transmisji to nie nowy kanał, tylko trzy drobne 
 3. **Ścieżka `TelemetrySender::flushNow()`** — ~15 linii omijających `isReadyToSend()`. `TelemetryPayload::build()` już radzi sobie z niepełnym buforem (`i < WINDOWS_PER_BATCH && i < windows_buffer_.size()`), a schemat backendu dopuszcza okno bez punktów (`points: min_length=0`), wymagając tylko co najmniej jednego okna (`windows: min_length=1`). Jedyne, czego brakuje, to obejście warunku gotowości.
 
 > ⚠ **Pułapka do obejścia przy implementacji: kolizja `seq`.**
-> `seq` jest ustawiane jako uniksowa **sekunda** ([`TelemetrySender.cpp:51,59`](../../../firmware/lib/TelemetrySender/src/TelemetrySender.cpp#L51)), a backend odrzuca pakiet o powtórzonej parze `(device_id, seq)` jako `duplicate` — **cicho, ze statusem 200** ([`ingest.py:170-178`](../../../backend/app/modules/telemetry/services/ingest.py#L170-L178)). Jeśli awaryjny `flushNow()` wypadnie w tej samej sekundzie co planowa wysyłka, **alarm zostanie po cichu porzucony**. Obejście minimalne: przed awaryjną wysyłką odczekać do następnej sekundy. Obejście właściwe: zamienić `seq` na monotoniczny licznik trzymany w pamięci RTC (`RTC_DATA_ATTR`, tak jak `rtcRestartCounter` w [`RtcState.h`](../../../firmware/include/RtcState.h)). To dotyczy nie tylko alarmu zasilania — to istniejąca podatność każdej ścieżki, która wysyła dwa pakiety w tej samej sekundzie.
+> `seq` jest ustawiane jako uniksowa **sekunda** ([`TelemetrySender.cpp:51,59`](../../../firmware/lib/TelemetrySender/src/TelemetrySender.cpp#L51)), a backend odrzuca pakiet o powtórzonej parze `(device_id, seq)` jako `duplicate` — **cicho, ze statusem 200** ([`ingest.py:170-178`](../../../backend/app/modules/telemetry/services/ingest.py#L170-L178)). Jeśli awaryjny `flushNow()` wypadnie w tej samej sekundzie co planowa wysyłka, **alarm zostanie po cichu porzucony**. Obejście minimalne: przed awaryjną wysyłką odczekać do następnej sekundy.
+>
+> Obejście właściwe: **`seq = sekunda_uniksowa × 16 + licznik_w_sekundzie`** (typ `uint64_t`). Zachowuje dotychczasową własność zakotwiczenia w czasie ściennym, dopuszcza 16 pakietów na sekundę i **pozostaje rosnące także po zaniku zasilania**, bo nie wymaga żadnego stanu trwałego. Mieści się w kolumnie bazy — `seq` jest tam `BigInteger` na PostgreSQL ([migracja init](../../../backend/alembic/versions/20260811_124646_b43707249ea3_init_migration.py)), a wartość dla 2026 r. to ~2,9·10¹⁰. Po stronie firmware wymaga podniesienia `send_seq_` i argumentu `TelemetryPayload::build()` z `uint32_t` na `uint64_t`.
+>
+> **Czego nie robić:** licznika w pamięci RTC (`RTC_DATA_ATTR`). Pamięć RTC **nie przeżywa zaniku zasilania** — patrz [§5.4a](#54a-wykrycie-zaniku-po-fakcie--bez-żadnego-sprzętu), gdzie ta właściwość jest wykorzystana jako sygnał diagnostyczny. Licznik wyzerowałby się przy każdym zaniku zasilania i backend odrzuciłby jako duplikaty wszystkie pakiety aż do przekroczenia poprzedniego maksimum — czyli dokładnie po awarii zasilania, kiedy dane są najbardziej potrzebne.
+>
+> To dotyczy nie tylko alarmu zasilania — to istniejąca podatność każdej ścieżki, która wysyła dwa pakiety w tej samej sekundzie.
 
 **Dlaczego nie osobny endpoint diagnostyczny:** `MeasurementPacketRequest` ma `model_config = ConfigDict(extra="forbid")` ([`measurement_packet.py:63`](../../../backend/app/modules/telemetry/schemas/measurement_packet.py#L63)), więc nowego pola najwyższego poziomu i tak nie dałoby się dodać bez zmiany backendu. Ale nie trzeba — `errors[]` i `windows[].points[]` niosą wszystko, czego potrzeba. Gdyby w przyszłości powstał ogólny interfejs diagnostyczny (pełny kanał z RSSI, uptime, stanem bufora — niezrealizowana specyfikacja z [§3.7 planu](../../business/01_plan_biznesowy.md)), przeniesienie jest trywialne: `SupplyVoltageSensor` zostaje tam, gdzie jest, a dwa kody błędu zmieniają tylko adresata.
 
@@ -558,7 +564,7 @@ Rozmiary policzone na rzeczywistej strukturze pakietu v2:
 | JSON, 3 czujniki, 20 okien (interwał 5 min) | **7 263 B** |
 | Nagłówki HTTP żądania (z tokenem Bearer) | ~510 B |
 | Odpowiedź HTTP | ~400 B |
-| **Pełny handshake TLS z łańcuchem certyfikatów** | **4 000–6 000 B** |
+| **Uzgadnianie TLS — przypadek pesymistyczny** (pełny handshake z łańcuchem certyfikatów; przy wznawianiu sesji byłoby 300–800 B — patrz zastrzeżenie wyżej) | **4 000–6 000 B** |
 | Narzut TCP/IP + rekordy TLS | ~5% |
 
 | Scenariusz | Na transmisję | Na dobę | **Na miesiąc** |
@@ -570,12 +576,12 @@ Rozmiary policzone na rzeczywistej strukturze pakietu v2:
 | C) 5 min + działający keep-alive | ~8,6 kB | 2,5 MB | **74 MB** |
 | **Założenie planu biznesowego** ([§3.8.2](../../business/01_plan_biznesowy.md)) | — | ~1,05 MB | **~31,5 MB** |
 
-**Obecne firmware zużywa 8–12× więcej transferu, niż zakłada plan biznesowy, i przekracza rekomendowany plan 200 MB/miesiąc ([§3.8.5](../../business/01_plan_biznesowy.md)) 1,4–1,8×.** Najtańszy plan M2M (50 MB) jest przekroczony 6–7×.
+**Obecne firmware (wiersz „stan dzisiejszy") zużywa 8–11× więcej transferu, niż zakłada plan biznesowy, i przekracza rekomendowany plan 200 MB/miesiąc ([§3.8.5](../../business/01_plan_biznesowy.md)) 1,2–1,7×.** Najtańszy plan M2M (50 MB) jest przekroczony 5–7×. Po dodaniu PT-506 i pomiaru napięcia ([§5.5](#55-kanał-transmisji--co-już-jest-w-repo)) rośnie to do 9–12× / 1,4–1,8× / 6–7×.
 
 Rekomendacje w kolejności zwrotu z nakładu:
 
-1. **Naprawić keep-alive** — usunąć `http_->stop()` poprzedzające żądanie i utrzymywać gniazdo między pakietami. **−60% transferu, ~2 linie kodu.** Zastrzeżenie: bezczynne gniazdo TCP za NAT-em operatora jest wycinane po 30–300 s, więc keep-alive działa dobrze przy 60 s, a słabo przy 5 min. To jedyny argument **za** utrzymaniem obecnego rytmu.
-2. **Podnieść `WINDOWS_PER_BATCH` z 4 na 20** (transmisja co 5 min, zgodnie z założeniem planu biznesowego). Efekt uboczny, korzystny: `RETAIN_WINDOWS_MAX` rośnie z 48 do 240 okien, czyli bufor RAM z 12 min do **60 min** — a to zbliża się do wymagania 24 h buforowania z [§3.8.4 planu](../../business/01_plan_biznesowy.md). Koszt pamięci przy 3 czujnikach: ~30 kB SRAM z 512 kB — pomijalny.
+1. **Naprawić keep-alive** — usunąć **końcowe** `http_->stop()` (to ono zamyka gniazdo; wywołanie poprzedzające żądanie jest nieszkodliwe) i utrzymywać połączenie między pakietami, z ponownym otwarciem po stronie obsługi błędu. **−60% transferu.** Zastrzeżenie: bezczynne gniazdo TCP za NAT-em operatora jest wycinane po 30–300 s, więc keep-alive działa dobrze przy 60 s, a słabo przy 5 min. To jedyny argument **za** utrzymaniem obecnego rytmu.
+2. **Podnieść `WINDOWS_PER_BATCH` z 4 na 20** (transmisja co 5 min, zgodnie z założeniem planu biznesowego). Efekt uboczny, korzystny: `RETAIN_WINDOWS_MAX` rośnie z 48 do 240 okien, czyli bufor RAM z 12 min do **60 min** — pięciokrotnie dłuższa odporność na przerwę w łączności. Do wymagania 24 h buforowania z [§3.8.4 planu](../../business/01_plan_biznesowy.md) wciąż bardzo daleko (60 min to 1/24 celu) i samo zwiększenie bufora RAM tam nie doprowadzi — to wymaga zapisu na flash lub kartę SD, czyli osobnego zadania. Koszt pamięci przy 3 czujnikach: ~30 kB SRAM z 512 kB — pomijalny.
 3. Warianty A i B dają praktycznie ten sam transfer (111 vs 117 MB). **Wybór między nimi nie jest kwestią transferu, tylko opóźnienia alarmu:** przy 60 s dane trafiają do reguł alarmowych w ≤1 min, przy 5 min — w ≤5 min. Ścieżka `flushNow()` z [§5.5](#55-kanał-transmisji--co-już-jest-w-repo) wysyła alarmy natychmiast niezależnie od rytmu, więc dotyczy to tylko alarmów liczonych przez backend z przebiegu (np. „nagły spadek ciśnienia").
 4. **Poza zakresem tego zlecenia, ale warte zgłoszenia:** plan biznesowy zakłada wysyłanie **agregatów** (avg/min/max na okno), a firmware wysyła **surowe wartości** co 15 s. Schemat backendu obsługuje oba (`avg`/`min`/`max` obok `value` w [`measurement_packet.py:18-21`](../../../backend/app/modules/telemetry/schemas/measurement_packet.py#L18-L21)). Przejście na agregaty zmniejszyłoby liczbę rekordów w bazie ~4× i transfer o kolejne ~30%. To decyzja produktowa (utrata rozdzielczości 15 s), nie energetyczna.
 
@@ -594,7 +600,7 @@ Zauważ, jak słaba jest ta oszczędność: **rozruch modemu sam zjada większo�
 
 **Werdykt: nie. Przy zasilaniu sieciowym modem zostaje włączony na stałe.**
 
-Jedna rzecz z tego obszaru **jest** warta zrobienia i jest tania: włączyć **sleep modemu** (`AT+CSCLK` / `TinyGsm::sleepEnable()`) **bez wyłączania rejestracji**. Modem zostaje w sieci (alarm da się wysłać natychmiast), a pobór w bezczynności spada z 20–60 mA do 1–5 mA — czyli ~0,1 W. To nie zmienia rachunku za prąd, ale **wydłuża podtrzymanie akumulatorowe o ~20%** i obniża temperaturę modemu w szafie. Warunek: linia DTR musi być wyprowadzona i sterowana, czego obecna mapa pinów ([`01_hardware.md` §2](./01_hardware.md#2-piny--zweryfikowane-w-kodzie)) nie przewiduje. **Zgłoszone jako opcja, nie jako rekomendacja — wymaga zmiany okablowania i osobnej weryfikacji.**
+Jedna rzecz z tego obszaru **jest** warta zrobienia i jest tania: włączyć **sleep modemu** (`AT+CSCLK` / `TinyGsm::sleepEnable()`) **bez wyłączania rejestracji**. Modem zostaje w sieci (alarm da się wysłać natychmiast), a pobór w bezczynności spada z 20–60 mA do 1–5 mA — czyli ~0,1 W. To nie zmienia rachunku za prąd, ale **wydłuża podtrzymanie akumulatorowe o ~20%** i obniża temperaturę modemu w szafie. (Sama oszczędność w bezczynności to 22–31% poboru urządzenia, ale przyrost czasu podtrzymania jest mniejszy, bo bieg jałowy zasilacza buforowego — ~0,4 W — nie maleje.) Warunek: linia DTR musi być wyprowadzona i sterowana, czego obecna mapa pinów ([`01_hardware.md` §2](./01_hardware.md#2-piny--zweryfikowane-w-kodzie)) nie przewiduje. **Zgłoszone jako opcja, nie jako rekomendacja — wymaga zmiany okablowania i osobnej weryfikacji.**
 
 ---
 
@@ -690,7 +696,7 @@ Mitygacje, od najtańszej:
 
 | # | Działanie | Koszt | Skuteczność |
 |---|---|---|---|
-| 1 | **Zmierzyć, zamiast zgadywać** — dodać pomiar temperatury wewnątrz szafy jako punkt pomiarowy (drugi PT100 na wolnym kanale albo tani czujnik I²C) | ~30–60 zł | zamienia to ryzyko w dane; **rób to niezależnie od pozostałych** |
+| 1 | **Zmierzyć, zamiast zgadywać** — dodać pomiar temperatury wewnątrz szafy jako punkt pomiarowy (drugi MAX31865 na istniejącej magistrali SPI z osobnym pinem CS — jeden układ obsługuje jeden RTD — albo tańszy czujnik I²C) | ~30–60 zł | zamienia to ryzyko w dane; **rób to niezależnie od pozostałych** |
 | 2 | Montaż w cieniu / wewnątrz budynku hydroforni, nie na zewnętrznej ścianie południowej | 0 zł | 10–20 K |
 | 3 | Daszek przeciwsłoneczny nad szafą | 50–150 zł | 10–15 K |
 | 4 | Wariant modułu **bez PSRAM** (zakres −40…+85 °C) | 0 zł przy zakupie | podnosi margines z 5 K do 25 K — **argument wprost dla analizy portu na ESP32-WROOM (B-10)** |
@@ -817,7 +823,7 @@ Do zlecenia osobno, **w tej kolejności** — pierwsze dwa nie wymagają żadnyc
 | Kolejność | Zadanie | Zakres | Zależy od |
 |---|---|---|---|
 | 1 | **Wykrywanie zaniku po fakcie** ([§5.4a](#54a-wykrycie-zaniku-po-fakcie--bez-żadnego-sprzętu)) | `esp_reset_reason()` + pamięć RTC + znacznik w NVS → `POWER_MAINS_RESTORED` przy starcie. Kilkanaście linii, zero sprzętu | nic |
-| 2 | **Naprawa `seq`** (rozbieżność 6 w [§10](#10-rozbieżności-do-rozstrzygnięcia)) | monotoniczny licznik w `RTC_DATA_ATTR` zamiast uniksowej sekundy | nic — **blokuje zadanie 4**, a niezależnie jest istniejącą podatnością |
+| 2 | **Naprawa `seq`** (rozbieżność 6 w [§10](#10-rozbieżności-do-rozstrzygnięcia)) | `seq = sekunda × 16 + licznik_w_sekundzie` jako `uint64_t` — **nie** licznik w pamięci RTC, patrz uzasadnienie w [§5.5](#55-kanał-transmisji--co-już-jest-w-repo) | nic — **blokuje zadanie 4**, a niezależnie jest istniejącą podatnością |
 | 3 | **Naprawa keep-alive** ([§6.2](#62-prawdziwy-koszt-obecnego-rytmu--transfer-sim)) | usunąć końcowe `http_->stop()`, obsłużyć wygaśnięcie gniazda | warto najpierw wykonać pomiar poz. 5 |
 | 4 | **Pomiar napięcia + alarm zaniku** ([§5](#5-detekcja-zaniku-zasilania-i-pomiar-napięcia)) | `SupplyVoltageSensor`, dwa kody w `sensor_registry.yaml`, `flushNow()`, maszyna stanów progów | zadanie 2; oględziny [§12.4](#124-oględziny-zestawu--10-minut-zero-narzędzi) (wybór wariantu dzielnika) |
 | 5 | **Kondensatory bulk** ([§3.3](#33-pojemność-bulk-na-szynie-5-v--obliczenie)) | zakup i montaż | pomiar poz. 3 |
