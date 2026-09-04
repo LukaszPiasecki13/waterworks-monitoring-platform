@@ -12,14 +12,14 @@
 
 | Pytanie | Odpowiedź | Gdzie |
 |---|---|---|
-| Czy zasilacz 24 V / 1 A wystarcza w szczycie? | **Tak, z zapasem ~2,7× po stronie 24 V.** Wąskim gardłem nie jest zasilacz, tylko szyna 5 V: XL4015 2 A vs szczyt 1,77 A (zapas 13%) i **brak kondensatora bulk przy złączu HAT-a**. | [§3](#3-dobór-zasilania--łańcuch-230-v--24-v--5-v--33-v) |
+| Czy zasilacz 24 V / 1 A wystarcza w szczycie? | **Tak, z zapasem 2,3× po stronie 24 V.** Wąskim gardłem nie jest zasilacz, tylko szyna 5 V: XL4015 2 A vs szczyt 1,77 A (zapas 13%) i **brak kondensatora bulk przy złączu HAT-a**. | [§3](#3-dobór-zasilania--łańcuch-230-v--24-v--5-v--33-v) |
 | Ile czasu potrzeba na wysłanie alarmu „zanik zasilania"? | **Typowo 1,6–5,9 s; cel projektowy ≥ 10 s** z zapasem. | [§4.1](#41-budżet-czasu--ile-sekund-trzeba-kupić) |
 | Czym to podtrzymać? | **Kondensatory same tego nie kupią** (potrzeba ~117 000 µF na 24 V). Rekomendacja: **zasilacz buforowy DIN + akumulator AGM** (+150–250 zł/obiekt) — daje godziny zamiast sekund i zamienia „zanik zasilania" z alarmu ostatniego tchnienia w normalnie monitorowany stan. | [§4.2](#42-warianty-podtrzymania), [§4.4](#44-bom-podtrzymania) |
 | Jak wykryć zanik zasilania? | Dzielnik napięcia na **szynie 24 V** (nie 5 V — 5 V jest stabilizowane i nie ostrzega), próg + histereza + potwierdzenie 3 próbek. Dwa komplety progów: wariant niebuforowany i buforowany. | [§5](#5-detekcja-zaniku-zasilania-i-pomiar-napięcia) |
 | Czy trzeba zmieniać backend, żeby to wysłać? | **Nie.** `sensor_registry.yaml` ma już `battery_voltage`, `power_status` i kod `POWER_LOW`; backend auto-provisionuje punkt pomiarowy. Potrzebne: nowy `ISensor`, dwa nowe kody błędu w YAML i ~15 linii ścieżki „wyślij natychmiast" w firmware. | [§5.5](#55-kanał-transmisji--co-już-jest-w-repo) |
-| Czy warto wprowadzać deep sleep? | **Nie.** Cały roczny rachunek za prąd tego urządzenia to **7–18 zł**. Deep sleep łamie kontrakt próbkowania co 15 s, a rozruch modemu kosztuje **minimum 14,3 s samych `delay()`** wpisanych w kod. | [§6](#6-tryby-uśpienia--werdykt) |
-| To co jest prawdziwym problemem obecnego rytmu pracy? | **Transfer SIM, nie prąd.** Obecne firmware zużywa **~250–370 MB/miesiąc** zamiast planowanych 31,5 MB — bo każda transmisja to pełny handshake TLS (`http_->stop()` kasuje keep-alive). | [§6.2](#62-prawdziwy-koszt-obecnego-rytmu--transfer-sim) |
-| Czy obecna architektura ma szansę na baterii/solarze? | **Nie, bez przebudowy.** 0,37–0,78 W ciągle → akumulator 12 V/7 Ah starcza na **~3,4 doby**. Po przebudowie (interwał ≥1 h, deep sleep, modem wyłączany) — ~0,15 Wh/dobę, czyli ok. **9 miesięcy** z tego samego akumulatora. | [§7](#7-punkty-pomiarowe-bez-zasilania-sieciowego) |
+| Czy warto wprowadzać deep sleep? | **Nie.** Cały roczny rachunek za prąd tego urządzenia to **7–18 zł**. Deep sleep łamie kontrakt próbkowania co 15 s, a rozruch modemu kosztuje **minimum 14,8 s samych `delay()`** wpisanych w kod. | [§6](#6-tryby-uśpienia--werdykt) |
+| To co jest prawdziwym problemem obecnego rytmu pracy? | **Transfer SIM, nie prąd.** Obecne firmware zużywa **~250–370 MB/miesiąc** zamiast planowanych 31,5 MB — bo `http_->stop()` po każdym żądaniu uniemożliwia wznowienie sesji, więc każdy pakiet niesie własne uzgadnianie TLS. | [§6.2](#62-prawdziwy-koszt-obecnego-rytmu--transfer-sim) |
+| Czy obecna architektura ma szansę na baterii/solarze? | **Nie, bez przebudowy.** 0,42–0,89 W ciągle → akumulator 12 V/7 Ah starcza na **1,9–4,1 doby (typowo 2,6)**. Po przebudowie (interwał ≥1 h, deep sleep, modem wyłączany) — 0,17 Wh/dobę, czyli **~245 dób (~8 miesięcy)** z tego samego akumulatora. | [§7](#7-punkty-pomiarowe-bez-zasilania-sieciowego) |
 | Czy komponenty przeżyją lato w szafie? | **Ryzyko.** `ESP32-S3-WROOM-1 R8/R16V` (wariant z PSRAM, prawdopodobny na DevKitC-1) ma zakres **−40…+65 °C** — w nasłonecznionej szafie metalowej realny worst case to 50–60 °C, czyli margines ~5 K. | [§8](#8-temperatura-pracy) |
 
 ---
@@ -39,7 +39,7 @@
 | Modem po `powerOn()` zostaje włączony na stałe; ponownie dotykany tylko przez `Watchdog::attemptRecovery()` | [`main.cpp:62-80`](../../../firmware/src/main.cpp#L62-L80), [`Watchdog.cpp`](../../../firmware/lib/Watchdog/src/Watchdog.cpp) |
 | Kod błędu `POWER_LOW` istnieje w rejestrze, ale **nic go nigdy nie ustawia** | [`sensor_registry.yaml:60`](../../../sensor_registry.yaml#L60); `grep POWER_LOW firmware/` — zero trafień |
 | Jedyny zaimplementowany czujnik to PT100; PT-506 nie ma sterownika | [`main.cpp:96`](../../../firmware/src/main.cpp#L96), [`01_hardware.md` §5](./01_hardware.md#5-znane-ograniczenia) |
-| Każda transmisja HTTPS zaczyna się i kończy `http_->stop()`, więc `connectionKeepAlive()` nie ma efektu → **pełny handshake TLS na każdy pakiet** | [`TelemetryHttpClient.cpp:24,48`](../../../firmware/lib/TelemetryHttpClient/src/TelemetryHttpClient.cpp#L24) |
+| Każda transmisja HTTPS zaczyna się i kończy `http_->stop()`, więc `connectionKeepAlive()` nie ma efektu → **nowe połączenie TCP na każdy pakiet** (konsekwencje dla TLS — [§6.2](#62-prawdziwy-koszt-obecnego-rytmu--transfer-sim)) | [`TelemetryHttpClient.cpp:24,48`](../../../firmware/lib/TelemetryHttpClient/src/TelemetryHttpClient.cpp#L24) |
 | `seq` pakietu = uniksowa sekunda; backend odrzuca duplikat `(device_id, seq)` | [`TelemetrySender.cpp:51,59`](../../../firmware/lib/TelemetrySender/src/TelemetrySender.cpp#L51), [`ingest.py:173`](../../../backend/app/modules/telemetry/services/ingest.py#L173) |
 | Trwały zapis stanu jest dostępny (NVS przez `Preferences`, namespace `devid`) | [`DeviceIdentity.cpp:13,19`](../../../firmware/lib/DeviceIdentity/src/DeviceIdentity.cpp#L13) |
 
@@ -124,7 +124,7 @@ Przeliczniki użyte niżej:
 
 | # | Faza | ESP32-S3 + peryferia @ 5 V | Modem @ 5 V | Razem @ 5 V | Moc @ 5 V | Prąd @ 24 V |
 |---|---|---|---|---|---|---|
-| 1 | **Bezczynność** — modem zarejestrowany, PDP aktywny, bez ruchu (stan przez ~95% czasu) | 45–80 mA | 17–51 mA | **62–131 mA** | 0,31–0,66 W | 15–32 mA |
+| 1 | **Bezczynność** — modem zarejestrowany, PDP aktywny, bez ruchu (stan przez ~95% czasu) | 45–80 mA | 17–51 mA | **62–131 mA** | 0,31–0,65 W | 15–32 mA |
 | 2 | **Próbkowanie PT100** (MAX31865, 75 ms co 15 s) | +10 mA przez 0,5% czasu → **+0,05 mA średnio** | — | pomijalne | pomijalne | pomijalne |
 | 3 | **Próbkowanie ADS1015** (tryb ciągły) | +0,15 mA | — | pomijalne | pomijalne | pomijalne |
 | 4 | **Rejestracja w sieci LTE** (attach, 15–60 s po power-on) | 45–80 mA | 84–253 mA | **129–333 mA** | 0,65–1,67 W | 32–82 mA |
@@ -137,12 +137,12 @@ Uwagi do wiersza 6:
 
 ### 2.3 Średnia i koszt energii
 
-Cykl 60 s = 57 s w fazie 1 + ~3 s w fazie 5:
+Cykl 60 s = 57,5 s w fazie 1 + ~2,5 s w fazie 5:
 
 | Wielkość | Minimum | Maksimum |
 |---|---|---|
-| Moc średnia na szynie 5 V | 0,369 W | 0,784 W |
-| Moc średnia na wejściu 24 V (η 0,85) | 0,43 W | 0,92 W |
+| Moc średnia na szynie 5 V | 0,359 W | 0,754 W |
+| Moc średnia na wejściu 24 V (η 0,85) | 0,42 W | 0,89 W |
 | Moc pobierana z 230 V (η zasilacza 0,80–0,88 + bieg jałowy 0,5–1,5 W) | **~1,0 W** | **~2,5 W** |
 | Energia roczna | 8,8 kWh | 21,9 kWh |
 | **Koszt energii rocznie** (0,80 zł/kWh) | **~7 zł** | **~18 zł** |
@@ -162,7 +162,7 @@ Zauważ też, że **bieg jałowy samego zasilacza DIN (0,5–1,5 W) jest porówn
 | Moc znamionowa zasilacza | 24 W | — |
 | Szczyt zapotrzebowania (faza 6, przeliczony na wejście 24 V) | 8,8 W / 0,85 = **10,4 W** | zapas **2,3×** |
 | Prąd szczytowy z szyny 24 V | **433 mA** | 43% prądu znamionowego |
-| Średnie obciążenie | 0,43–0,92 W | 2–4% mocy znamionowej |
+| Średnie obciążenie | 0,42–0,89 W | 2–4% mocy znamionowej |
 | Rezerwa na pętlę 4-20 mA PT-506 (24 V × 20 mA) | 0,5 W | mieści się |
 
 **Werdykt: zasilacz 24 V / 1 A ma nadmiarowy zapas i nie jest wąskim gardłem.** Nawet gdyby wszystkie szczyty zbiegły się w czasie, obciążenie nie przekracza połowy prądu znamionowego.
@@ -174,7 +174,7 @@ Zauważ też, że **bieg jałowy samego zasilacza DIN (0,5–1,5 W) jest porówn
 | Deklarowany prąd wyjściowy modułu (wg briefu) | 2 A | — |
 | Szczyt zapotrzebowania na 5 V | **1,77 A** | zapas **13%** — **cienko** |
 | Strata mocy w przetwornicy przy szczycie | 10,4 − 8,8 = **1,55 W** | moduł bez radiatora wyraźnie się grzeje; przy średnim obciążeniu 0,07 W — bez znaczenia |
-| Strata w stanie średnim | 0,07–0,16 W | pomijalna |
+| Strata w stanie średnim | 0,07–0,14 W | pomijalna |
 | Tętnienia wyjściowe (180 kHz) | typ. 30–50 mV p-p | **bez znaczenia dla modemu** — HAT re-reguluje 5 V → 3,8 V, więc tętnienia nie trafiają wprost na VBAT |
 | Odpowiedź na skok obciążenia | pętla regulacji ~50–200 µs | **nadąża za LTE, nie nadąża za impulsem GSM (577 µs)** |
 
@@ -191,23 +191,39 @@ Warunek projektowy: skok prądu ΔI = 1,7 A, czas trwania impulsu Δt = 577 µs 
 C ≥ ΔI · Δt / ΔV = 1,7 A × 577 µs / 0,2 V = 4 900 µF
 ```
 
-Do tego składnik od ESR: `ΔV_ESR = ΔI × ESR`. Przy 1,7 A i ESR = 100 mΩ spadek wynosi 170 mV — czyli ESR jest tu równie ważny jak pojemność.
+Powyższe to jednak tylko składnik pojemnościowy. Pełny budżet spadku ma dwa człony:
+
+```
+ΔV_całk = ΔV_C + ΔV_ESR = ΔI·Δt/C + ΔI·ESR ≤ 200 mV
+```
+
+i dopiero on rozstrzyga o doborze. Sprawdzenie kandydatów (ESR pary równoległej = połowa ESR pojedynczego kondensatora):
+
+| Konfiguracja | C | ESR wypadkowy | ΔV_C | ΔV_ESR | **Razem** | Ocena |
+|---|---|---|---|---|---|---|
+| 2× 2 200 µF (ESR 50 mΩ) | 4 400 µF | 25 mΩ | 223 mV | 42 mV | **265 mV** | ❌ przekracza budżet |
+| **2× 3 300 µF (ESR 50 mΩ)** | **6 600 µF** | **25 mΩ** | **149 mV** | **42 mV** | **191 mV** | ✅ **rekomendacja** |
+| 3× 3 300 µF (ESR 50 mΩ) | 9 900 µF | 17 mΩ | 99 mV | 29 mV | 128 mV | ✅ z zapasem |
+
+Sama pojemność 4 900 µF **nie wystarcza** — po dodaniu członu ESR budżet się nie domyka. To jest typowy błąd w takim doborze i dlatego jest tu rozpisany.
 
 **Rekomendacja:** przy złączu zasilania HAT-a (piny 2/4 złącza 40-pin), na jak najkrótszych przewodach:
 
 | Element | Wartość | Uzasadnienie |
 |---|---|---|
-| 2× kondensator elektrolityczny low-ESR | 2 200 µF / 16 V, ESR ≤ 50 mΩ każdy, **105 °C, ≥5 000 h** | 4 400 µF łącznie ≈ wymagane 4 900 µF; dwa równolegle halvują ESR do ~25 mΩ (spadek 43 mV zamiast 170 mV); klasa temperaturowa — patrz [§8](#8-temperatura-pracy) |
+| 2× kondensator elektrolityczny low-ESR | **3 300 µF / 16 V**, ESR ≤ 50 mΩ każdy, **105 °C, ≥5 000 h** | jedyna z tanich konfiguracji, która domyka budżet 200 mV (191 mV); klasa temperaturowa — patrz [§8](#8-temperatura-pracy) |
 | 1× MLCC | 10 µF / 25 V X7R | pokrywa pasmo, którego elektrolit nie obsługuje |
 | 1× MLCC | 100 nF / 50 V X7R | odsprzęganie wysokoczęstotliwościowe |
+
+> **To jest wartość dla najgorszego przypadku i prawdopodobnie zawyżona.** Obliczenie zakłada, że po stronie HAT-a nie ma żadnej pojemności buforowej, co jest nieprawdą — moduły tej klasy mają zwykle 100–470 µF na szynie VBAT za własną przetwornicą. Nie znam wartości dla KAmod-a (nie ma jej w dokumentacji producenta ani w [`01_hardware.md`](./01_hardware.md)). **Projektuj pod tę wartość, zmierz rzeczywisty spadek ([§9](#9-do-zmierzenia-na-stanowisku), poz. 3), zredukuj, jeśli pomiar na to pozwoli.** Nadmiarowa pojemność kosztuje kilka złotych; jej brak kosztuje resety modemu w terenie.
 
 **Spadek na przewodach 5 V** — równie istotny i często pomijany:
 
 | Przekrój przewodu | Rezystancja | Długość pętli (tam i z powrotem) | Spadek przy 1,7 A | Ocena |
 |---|---|---|---|---|
-| 0,14 mm² (przewód „dupont") | 0,13 Ω/m | 2 × 1,0 m | **440 mV** | ❌ nie do przyjęcia |
-| 0,25 mm² | 0,07 Ω/m | 2 × 0,5 m | 119 mV | ⚠ granicznie |
-| **0,5 mm²** | 0,036 Ω/m | 2 × 0,3 m | **37 mV** | ✅ |
+| 0,14 mm² (przewód „dupont") | 0,123 Ω/m | 2 × 1,0 m | **418 mV** | ❌ nie do przyjęcia |
+| 0,25 mm² | 0,069 Ω/m | 2 × 0,5 m | 117 mV | ⚠ granicznie |
+| **0,5 mm²** | 0,034 Ω/m | 2 × 0,3 m | **35 mV** | ✅ |
 
 **Wymaganie: przewody zasilania 5 V do HAT-a ≥ 0,5 mm², długość ≤ 0,5 m, wspólna masa prowadzona osobnym przewodem tego samego przekroju.** Zasilanie HAT-a z pinu 5 V dev-kitu przez przewody połączeniowe jest rozwiązaniem, które przy nadawaniu wywoła reset modemu — dokładnie to, przed czym ostrzega [`01_hardware.md` §7](./01_hardware.md#uwagi-krytyczne-przed-podłączeniem).
 
@@ -298,7 +314,7 @@ To zmienia jakościowo, czym jest „zanik zasilania" w systemie: przestaje być
 
 | Poziom | Co | Kiedy | Koszt |
 |---|---|---|---|
-| **Poziom 0 — obowiązkowy, niezależnie od reszty** | Kondensatory bulk 2× 2 200 µF/16 V low-ESR + 10 µF + 100 nF przy złączu HAT-a ([§3.3](#33-pojemność-bulk-na-szynie-5-v--obliczenie)) | zawsze, także w obecnym PoC | ~15 zł |
+| **Poziom 0 — obowiązkowy, niezależnie od reszty** | Kondensatory bulk 2× 3 300 µF/16 V low-ESR + 10 µF + 100 nF przy złączu HAT-a ([§3.3](#33-pojemność-bulk-na-szynie-5-v--obliczenie)) | zawsze, także w obecnym PoC | ~21 zł |
 | **Poziom 1 — obowiązkowy dla wersji polowej** | Zasilacz buforowy DIN + 2× akumulator 12 V/1,2 Ah AGM (wariant C) | zanim pierwsze urządzenie trafi do gminy | +150–250 zł ponad zwykły zasilacz |
 
 Poziom 0 **nie jest podtrzymaniem** — to wymaganie zasilania modemu, którego dziś nie ma i którego brak najprawdopodobniej objawia się resetami modemu przy nadawaniu w słabym zasięgu.
@@ -310,11 +326,11 @@ Poziom 1 zastępuje zwykły zasilacz DIN, więc kosztem netto jest różnica cen
 | Poz. | Element | Ilość | Cena jedn. | Razem | Uwagi |
 |---|---|---|---|---|---|
 | **Poziom 0** | | | | | |
-| 1 | Kondensator elektrolityczny 2 200 µF / 16 V, low-ESR, **105 °C, ≥5 000 h** | 2 | ~6 zł | ~12 zł | przy złączu zasilania HAT-a |
+| 1 | Kondensator elektrolityczny 3 300 µF / 16 V, low-ESR, **105 °C, ≥5 000 h** | 2 | ~8 zł | ~16 zł | przy złączu zasilania HAT-a |
 | 2 | MLCC 10 µF / 25 V X7R | 1 | ~1 zł | ~1 zł | |
 | 3 | MLCC 100 nF / 50 V X7R | 1 | ~0,5 zł | ~0,5 zł | |
 | 4 | Przewód zasilania 5 V, 0,5 mm², ≤0,5 m (para) | 1 kpl. | ~3 zł | ~3 zł | [§3.3](#33-pojemność-bulk-na-szynie-5-v--obliczenie) |
-| | **Razem poziom 0** | | | **~17 zł** | |
+| | **Razem poziom 0** | | | **~21 zł** | |
 | **Poziom 1 (zastępuje zwykły zasilacz DIN)** | | | | | |
 | 5 | Zasilacz buforowy DIN Mean Well **DRC-60B** (27,6 V / 60 W, ładowarka AGM) | 1 | **138–200 zł** | ~170 zł | [ceny 2026-09](https://www.ceneo.pl/37632371); zastępuje zasilacz 24 V/1 A (~50–100 zł) |
 | 6 | Akumulator AGM 12 V / 1,2 Ah | 2 | 21–66 zł | 42–130 zł | [ceny 2026-09](https://allegro.pl/listing?string=akumulator+%C5%BCelowy+12v+1,2ah); w szeregu → 24 V |
@@ -448,6 +464,24 @@ Koszt: pomiar co 200 ms to ~5 odczytów ADC na sekundę — **poniżej 0,1% czas
 
 Napięcie zasilania jest **jednocześnie zwykłym punktem pomiarowym** raportowanym w każdym oknie — dzięki temu backend widzi przebieg, a nie tylko zdarzenie progowe, i reguła alarmowa może być skonfigurowana po stronie platformy zamiast być zaszyta w firmware.
 
+### 5.4a Wykrycie zaniku *po fakcie* — bez żadnego sprzętu
+
+Powyższy projekt wykrywa zanik **zanim** urządzenie umrze i pozwala wysłać alarm. Istnieje też komplementarna, **całkowicie darmowa** droga: rozpoznanie po restarcie, że poprzednie wyłączenie było zanikiem zasilania, a nie restartem programowym. Warto ją zaimplementować **niezależnie**, bo działa nawet wtedy, gdy zabraknie czasu na wysłanie alarmu, i nie wymaga ani dzielnika, ani ADS1015, ani podtrzymania.
+
+Trzy sygnały dostępne od ręki:
+
+| Sygnał | Co znaczy | Jak odczytać |
+|---|---|---|
+| `esp_reset_reason()` | `ESP_RST_BROWNOUT` — wbudowany detektor zaniku napięcia ESP32 zadziałał, czyli szyna 3,3 V opadła. `ESP_RST_POWERON` — zimny start. `ESP_RST_SW` / `ESP_RST_TASK_WDT` — restart programowy albo watchdog | ESP-IDF, dostępne w `setup()` bez dodatkowych bibliotek |
+| **Pamięć RTC wyczyszczona** | `RTC_DATA_ATTR` przeżywa restart programowy, ale **nie przeżywa zaniku zasilania**. `rtcRestartCounter == 0` przy jednoczesnym „provisioning ukończony" w NVS to sygnatura utraty zasilania | [`RtcState.h`](../../../firmware/include/RtcState.h) — mechanizm już istnieje i jest używany |
+| Znacznik czasu ostatniego pakietu w NVS vs. czas po synchronizacji NTP | długość przerwy → czy to był mrugnięcie sieci, czy godzinna awaria | `Preferences`, namespace `devid` |
+
+Implementacja: w `setup()`, po synchronizacji czasu, wysłać `POWER_MAINS_RESTORED` z komunikatem zawierającym powód restartu i szacowaną długość przerwy. Koszt: kilkanaście linii, zero złotych, zero zmian w sprzęcie.
+
+**To jest jedyny element całej sekcji 5, który da się wdrożyć na obecnym, nietkniętym sprzęcie** — dlatego powinien być pierwszy w kolejce, przed dzielnikiem.
+
+Uwaga projektowa: wbudowany detektor brownout ESP32 zadziała **później** niż progi z [§5.3](#53-progi-i-histereza) (reaguje dopiero na spadek szyny 3,3 V, czyli po tym, jak przetwornice już się poddały). Nie zastępuje pomiaru napięcia na szynie 24 V — **uzupełnia go**: pomiar daje ostrzeżenie z wyprzedzeniem, brownout daje pewność post factum.
+
 ### 5.5 Kanał transmisji — co już jest w repo
 
 Brief każe sprawdzić, czy kanał do wysłania takiego zdarzenia istnieje. **Istnieje, i nie wymaga zmian w backendzie.**
@@ -511,7 +545,9 @@ Do tego dochodzi koszt sieciowy: cykliczny attach/detach co minutę obciąża sy
 
 Brief słusznie zauważa, że transmisja co ~60 s „podbija zużycie transferu SIM". Policzone, jest gorzej, niż sugeruje sam interwał — bo **każda transmisja to pełny handshake TLS**.
 
-Dowód z kodu: [`TelemetryHttpClient::post()`](../../../firmware/lib/TelemetryHttpClient/src/TelemetryHttpClient.cpp#L24) wywołuje `http_->stop()` **przed** żądaniem i **po** nim. `connectionKeepAlive()` ustawia nagłówek, ale gniazdo i tak jest zamykane, więc każdy pakiet zaczyna od nowego TCP + pełnego uzgadniania TLS z łańcuchem certyfikatów.
+Dowód z kodu: [`TelemetryHttpClient::post()`](../../../firmware/lib/TelemetryHttpClient/src/TelemetryHttpClient.cpp#L24) wywołuje `http_->stop()` **przed** żądaniem i — co jest tu istotne — **po** nim. `connectionKeepAlive()` ustawia nagłówek `Connection: keep-alive`, ale końcowe `stop()` i tak zamyka gniazdo, więc każdy pakiet zaczyna od nowego połączenia TCP.
+
+> **Granica pewności tego wniosku.** Że gniazdo TCP jest zamykane po każdym żądaniu — to fakt wynikający wprost z kodu. Że **każde** otwarcie oznacza *pełne* uzgadnianie TLS z całym łańcuchem certyfikatów — to **wniosek, nie fakt**: stos TLS jest tu wykonywany wewnątrz modemu (`TINY_GSM_MODEM_A76XXSSL`), a część firmware'ów SIMCom potrafi buforować sesje TLS i wznawiać je skróconym uzgadnianiem. Jeśli A7670E to robi, narzut spada z 4–6 kB do ~0,3–0,8 kB na pakiet, a miesięczny transfer z ~300 MB do ~120 MB — czyli wniosek jakościowy („znacznie powyżej planu") zostaje, ale skala się zmienia. **Rozstrzyga to jeden pomiar** — poz. 5 w [§9](#9-do-zmierzenia-na-stanowisku); do czasu jego wykonania tabela niżej pokazuje przypadek pesymistyczny.
 
 Rozmiary policzone na rzeczywistej strukturze pakietu v2:
 
@@ -527,32 +563,34 @@ Rozmiary policzone na rzeczywistej strukturze pakietu v2:
 
 | Scenariusz | Na transmisję | Na dobę | **Na miesiąc** |
 |---|---|---|---|
-| **Stan dzisiejszy** (1 czujnik, 60 s, handshake za każdym razem) | 5,7–7,7 kB | 8,2–11,1 MB | **246–333 MB** |
-| Po dodaniu PT-506 i napięcia (3 czujniki, 60 s) | 6,5–8,5 kB | 9,4–12,2 MB | **281–367 MB** |
-| A) 60 s + działający keep-alive | ~2,6 kB | 3,8 MB | **112 MB** |
-| B) 5 min (`WINDOWS_PER_BATCH = 20`) + handshake za każdym razem | ~13,8 kB | 4,0 MB | **119 MB** |
-| C) 5 min + działający keep-alive | ~8,6 kB | 2,5 MB | **78 MB** |
+| **Stan dzisiejszy** (1 czujnik, 60 s, handshake za każdym razem) | 5,8–7,8 kB | 8,3–11,2 MB | **249–336 MB** |
+| Po dodaniu PT-506 i napięcia (3 czujniki, 60 s) | 6,6–8,6 kB | 9,5–12,3 MB | **284–370 MB** |
+| A) 60 s + działający keep-alive | ~2,6 kB | 3,7 MB | **111 MB** |
+| B) 5 min (`WINDOWS_PER_BATCH = 20`) + handshake za każdym razem | ~13,6 kB | 3,9 MB | **117 MB** |
+| C) 5 min + działający keep-alive | ~8,6 kB | 2,5 MB | **74 MB** |
 | **Założenie planu biznesowego** ([§3.8.2](../../business/01_plan_biznesowy.md)) | — | ~1,05 MB | **~31,5 MB** |
 
-**Obecne firmware zużywa 8–12× więcej transferu, niż zakłada plan biznesowy, i przekracza rekomendowany plan 200 MB/miesiąc ([§3.8.5](../../business/01_plan_biznesowy.md)) około 1,5×.** Najtańszy plan M2M (50 MB) jest przekroczony ~6×.
+**Obecne firmware zużywa 8–12× więcej transferu, niż zakłada plan biznesowy, i przekracza rekomendowany plan 200 MB/miesiąc ([§3.8.5](../../business/01_plan_biznesowy.md)) 1,4–1,8×.** Najtańszy plan M2M (50 MB) jest przekroczony 6–7×.
 
 Rekomendacje w kolejności zwrotu z nakładu:
 
 1. **Naprawić keep-alive** — usunąć `http_->stop()` poprzedzające żądanie i utrzymywać gniazdo między pakietami. **−60% transferu, ~2 linie kodu.** Zastrzeżenie: bezczynne gniazdo TCP za NAT-em operatora jest wycinane po 30–300 s, więc keep-alive działa dobrze przy 60 s, a słabo przy 5 min. To jedyny argument **za** utrzymaniem obecnego rytmu.
 2. **Podnieść `WINDOWS_PER_BATCH` z 4 na 20** (transmisja co 5 min, zgodnie z założeniem planu biznesowego). Efekt uboczny, korzystny: `RETAIN_WINDOWS_MAX` rośnie z 48 do 240 okien, czyli bufor RAM z 12 min do **60 min** — a to zbliża się do wymagania 24 h buforowania z [§3.8.4 planu](../../business/01_plan_biznesowy.md). Koszt pamięci przy 3 czujnikach: ~30 kB SRAM z 512 kB — pomijalny.
-3. Warianty A i B dają praktycznie ten sam transfer (112 vs 119 MB). **Wybór między nimi nie jest kwestią transferu, tylko opóźnienia alarmu:** przy 60 s dane trafiają do reguł alarmowych w ≤1 min, przy 5 min — w ≤5 min. Ścieżka `flushNow()` z [§5.5](#55-kanał-transmisji--co-już-jest-w-repo) wysyła alarmy natychmiast niezależnie od rytmu, więc dotyczy to tylko alarmów liczonych przez backend z przebiegu (np. „nagły spadek ciśnienia").
+3. Warianty A i B dają praktycznie ten sam transfer (111 vs 117 MB). **Wybór między nimi nie jest kwestią transferu, tylko opóźnienia alarmu:** przy 60 s dane trafiają do reguł alarmowych w ≤1 min, przy 5 min — w ≤5 min. Ścieżka `flushNow()` z [§5.5](#55-kanał-transmisji--co-już-jest-w-repo) wysyła alarmy natychmiast niezależnie od rytmu, więc dotyczy to tylko alarmów liczonych przez backend z przebiegu (np. „nagły spadek ciśnienia").
 4. **Poza zakresem tego zlecenia, ale warte zgłoszenia:** plan biznesowy zakłada wysyłanie **agregatów** (avg/min/max na okno), a firmware wysyła **surowe wartości** co 15 s. Schemat backendu obsługuje oba (`avg`/`min`/`max` obok `value` w [`measurement_packet.py:18-21`](../../../backend/app/modules/telemetry/schemas/measurement_packet.py#L18-L21)). Przejście na agregaty zmniejszyłoby liczbę rekordów w bazie ~4× i transfer o kolejne ~30%. To decyzja produktowa (utrata rozdzielczości 15 s), nie energetyczna.
 
 ### 6.3 Cykliczne wyłączanie modemu: nie przy zasilaniu sieciowym
 
-Dla porządku — bilans energii przy cyklu 60 s:
+Dla porządku — bilans energii przy cyklu 60 s, liczony na szynie 5 V wartościami środkowymi z [§2.2](#22-tabela-poboru-per-faza) (bezczynność 0,485 W, transmisja 2,32 W, **rozruch 1,16 W** — środek fazy 4, bo attach kosztuje więcej niż bezczynność):
 
-| Wariant | Energia na 60 s | Moc średnia |
-|---|---|---|
-| Modem stale włączony (stan obecny) | 30,5 J | 0,51 W |
-| Modem wyłączany, rozruch 15 s + transmisja 2,5 s | 16,3 J | 0,27 W |
+| Wariant | Rozbicie | Energia na 60 s | Moc średnia |
+|---|---|---|---|
+| Modem stale włączony (stan obecny) | 57,5 s × 0,485 W + 2,5 s × 2,32 W | **33,7 J** | 0,56 W |
+| Modem wyłączany, rozruch 15 s + transmisja 2,5 s | 42,5 s × ~0 + 15 s × 1,16 W + 2,5 s × 2,32 W | **23,2 J** | 0,39 W |
 
-Oszczędność ~0,24 W = **~2 zł/rok**, kosztem: 29% cyklu w stanie rozruchu, braku łączności przez większość czasu (alarmu nie da się wysłać natychmiast — co bezpośrednio kłóci się z [§5](#5-detekcja-zaniku-zasilania-i-pomiar-napięcia)), obciążenia sygnalizacyjnego sieci i ryzyka, że rozruch czasem trwa 110 s zamiast 15 s.
+Oszczędność **0,17 W ≈ 1,5 kWh/rok ≈ 1,2 zł/rok**, kosztem: 29% cyklu w stanie rozruchu, braku łączności przez większość czasu (alarmu nie da się wysłać natychmiast — co bezpośrednio kłóci się z [§5](#5-detekcja-zaniku-zasilania-i-pomiar-napięcia)), obciążenia sygnalizacyjnego sieci i ryzyka, że rozruch czasem trwa 110 s zamiast 15 s.
+
+Zauważ, jak słaba jest ta oszczędność: **rozruch modemu sam zjada większość zysku**, bo attach pobiera ponad dwa razy więcej niż bezczynność. Przy interwale 60 s cykliczne wyłączanie modemu to wymiana 30% niezawodności na 1,2 zł rocznie.
 
 **Werdykt: nie. Przy zasilaniu sieciowym modem zostaje włączony na stałe.**
 
@@ -568,11 +606,11 @@ Werdykt: **nie da się bez przebudowy.**
 
 | Wielkość | Wartość |
 |---|---|
-| Pobór średni (na wejściu 24 V) | 0,43–0,92 W → przyjmij 0,68 W |
-| Zużycie dobowe | **16,3 Wh/dobę** |
-| Akumulator AGM 12 V / 7 Ah = 84 Wh, użyteczne 50% = 42 Wh | **2,6 doby** |
-| Akumulator AGM 12 V / 18 Ah = 216 Wh, użyteczne 50% = 108 Wh | 6,6 doby |
-| Akumulator AGM 12 V / 100 Ah = 1 200 Wh, użyteczne 50% | 37 dób, masa ~30 kg |
+| Pobór średni (na wejściu 24 V) | 0,42–0,89 W → przyjmij 0,66 W |
+| Zużycie dobowe | **15,9 Wh/dobę** (skrajnie 10,1–21,6) |
+| Akumulator AGM 12 V / 7 Ah = 84 Wh, użyteczne 50% = 42 Wh | **2,6 doby** (skrajnie 1,9–4,1) |
+| Akumulator AGM 12 V / 18 Ah = 216 Wh, użyteczne 50% = 108 Wh | 6,8 doby |
+| Akumulator AGM 12 V / 100 Ah = 1 200 Wh, użyteczne 50% | 38 dób, masa ~30 kg |
 
 Dla nieobsługiwanej komory pomiarowej **jakikolwiek wynik liczony w dobach jest bezużyteczny** — wymagałby wizyty serwisowej co tydzień, co kosztuje więcej (dojazd 200–500 zł wg [§4.2.3 planu](../../business/01_plan_biznesowy.md)) niż cała wartość pomiaru.
 
@@ -580,11 +618,11 @@ Dla nieobsługiwanej komory pomiarowej **jakikolwiek wynik liczony w dobach jest
 
 | Wielkość | Wartość |
 |---|---|
-| Zapotrzebowanie dobowe | 16,3 Wh |
+| Zapotrzebowanie dobowe | 15,9 Wh |
 | Nasłonecznienie w Polsce, grudzień (miesiąc wymiarujący) | ~0,6–0,9 h szczytowych/dobę |
 | Sprawność systemu (MPPT + ładowanie + straty) | ~0,7 |
-| **Wymagana moc panelu (bilans grudniowy)** | 16,3 / 0,75 / 0,7 ≈ **31 Wp minimum**, praktycznie 50–80 Wp z zapasem |
-| Autonomia 5 dni bez słońca | 82 Wh użyteczne → AGM 12 V / 18 Ah |
+| **Wymagana moc panelu (bilans grudniowy)** | 15,9 / 0,75 / 0,7 ≈ **30 Wp minimum**, praktycznie 50–80 Wp z zapasem |
+| Autonomia 5 dni bez słońca | 80 Wh użyteczne → AGM 12 V / 18 Ah |
 | Koszt (panel 50 Wp + MPPT + AGM 18 Ah + konstrukcja) | **600–1 000 zł/punkt** |
 
 Do tego dochodzi problem, którego nie da się rozwiązać pieniędzmi: **w komorze pomiarowej nie ma słońca**. Panel musiałby stać na powierzchni — czyli w miejscu narażonym na wandalizm i kradzież, wymagającym zgody na zajęcie terenu, z przepustem kablowym do komory. Dla punktu pomiarowego na sieci w pasie drogowym to jest osobny projekt, nie akcesorium.
@@ -601,19 +639,19 @@ Do tego dochodzi problem, którego nie da się rozwiązać pieniędzmi: **w komo
 | Moduł radiowy | A7670E (LTE Cat 1 — brak sensownego zysku z PSM przy tym duty) | **LTE-M / NB-IoT z realnym PSM i eDRX** |
 | Kontrakt danych | `window_seconds = 15` | wymaga renegocjacji z backendem |
 
-Bilans po takiej przebudowie (24 cykle/dobę × 15 s rozruchu × 0,7 W + 2,5 s × 2,3 W transmisji, ESP w deep sleep, próbkowanie co 15 min w light-sleep):
+Bilans po takiej przebudowie (24 cykle/dobę: 15 s rozruchu przy 1,16 W + 2,5 s transmisji przy 2,32 W; ESP w deep sleep między cyklami; próbkowanie co 15 min w light-sleep):
 
 ```
-Modem + transmisja:  24 × 16,25 J    = 390 J   = 0,108 Wh/dobę
-ESP32 deep sleep:    24 h × 7 µA × 3,3 V ≈ 0,0006 Wh/dobę
-Próbkowanie (96 × 2 s po 0,3 W):      = 0,016 Wh/dobę
-────────────────────────────────────────────────────────
-Razem:                                 ≈ 0,13 Wh/dobę
+Modem + transmisja:  24 × (15 s × 1,16 W + 2,5 s × 2,32 W) = 24 × 23,2 J = 557 J = 0,155 Wh/dobę
+ESP32 deep sleep:    24 h × 7 µA × 3,3 V                                        ≈ 0,0006 Wh/dobę
+Próbkowanie (96 × 2 s po 0,3 W)                                                 = 0,016 Wh/dobę
+──────────────────────────────────────────────────────────────────────────────────────────────
+Razem:                                                                          ≈ 0,17 Wh/dobę
 ```
 
-Ten sam akumulator 12 V / 7 Ah (42 Wh użyteczne) starcza wtedy na **~320 dób**, czyli blisko rok — a panel 10 Wp z nadmiarem pokrywa nawet grudzień.
+Ten sam akumulator 12 V / 7 Ah (42 Wh użyteczne) starcza wtedy na **~245 dób, czyli ~8 miesięcy** — a panel 10 Wp z nadmiarem pokrywa nawet grudzień.
 
-**Wniosek: różnica to 125×, i nie leży w komponentach, tylko w rytmie pracy.** Obecna architektura jest architekturą urządzenia zasilanego sieciowo i nie da się jej „dostroić" do pracy bateryjnej — trzeba ją przeprojektować. Jeśli punkty bez 230 V mają realnie wejść do zakresu produktu, to jest osobne zlecenie, nie modyfikacja tego firmware'u. Rozsądny wariant pośredni: **na punktach bez zasilania używać gotowego modułu bateryjnego LTE-M/NB-IoT** (kierunek W2/W3 z briefu B-01) zamiast portować własny gateway.
+**Wniosek: różnica to ~93×, i nie leży w komponentach, tylko w rytmie pracy.** Obecna architektura jest architekturą urządzenia zasilanego sieciowo i nie da się jej „dostroić" do pracy bateryjnej — trzeba ją przeprojektować. Jeśli punkty bez 230 V mają realnie wejść do zakresu produktu, to jest osobne zlecenie, nie modyfikacja tego firmware'u. Rozsądny wariant pośredni: **na punktach bez zasilania używać gotowego modułu bateryjnego LTE-M/NB-IoT** (kierunek W2/W3 z briefu B-01) zamiast portować własny gateway.
 
 ---
 
@@ -726,4 +764,70 @@ Nie są to rzeczy do rozstrzygnięcia w tym zleceniu, ale każda podważa jaką�
 
 **Metoda cieplna:** IEC/TR 60890 (obliczanie przyrostu temperatury w rozdzielnicach), stosowana m.in. przez kalkulator Rittal Therm.
 
-> ⚠ **Zastrzeżenie metodyczne.** Środowisko, w którym powstał ten dokument, ma zablokowany bezpośredni dostęp sieciowy do serwerów producentów, więc **kart katalogowych nie udało się pobrać i odczytać bezpośrednio** — wartości z tabel katalogowych pochodzą z indeksu wyszukiwarki i cytowanych fragmentów. Odnośniki wskazują dokumenty źródłowe, ale **każda liczba oznaczona w tekście jako „szacunek" wymaga potwierdzenia w PDF-ie przed użyciem w decyzji zakupowej**. Liczby wyprowadzone z kodu w repozytorium ([§1](#1-podstawa-obliczeń--co-faktycznie-jest-w-kodzie), [§6.2](#62-prawdziwy-koszt-obecnego-rytmu--transfer-sim)) tego zastrzeżenia nie wymagają — są policzone bezpośrednio na źródle.
+> ⚠ **Zastrzeżenie metodyczne.** Środowisko, w którym powstał ten dokument, ma zablokowany bezpośredni dostęp sieciowy do serwerów producentów (weryfikacja: `curl` do `analog.com`, `ti.com` i `espressif.com` zwraca **403 na tunelu CONNECT** — to polityka egressu organizacji, nie ograniczenie narzędzia, więc przeglądarka sterowana Playwrightem trafiłaby na tę samą blokadę). **Kart katalogowych nie udało się pobrać ani odczytać bezpośrednio** — wartości z tabel katalogowych pochodzą z indeksu wyszukiwarki i cytowanych fragmentów. Odnośniki wskazują dokumenty źródłowe, ale **każda liczba oznaczona jako „szacunek" wymaga potwierdzenia w PDF-ie przed użyciem w decyzji zakupowej**. Liczby wyprowadzone z kodu w repozytorium ([§1](#1-podstawa-obliczeń--co-faktycznie-jest-w-kodzie), [§6.2](#62-prawdziwy-koszt-obecnego-rytmu--transfer-sim)) i wszystkie rachunki ([§2](#2-bilans-prądowy-per-faza)–[§8](#8-temperatura-pracy)) tego zastrzeżenia nie wymagają.
+
+---
+
+## 12. Instrukcja dla następnego agenta
+
+Dokument jest kompletny w zakresie briefu B-11, ale **dwie klasy danych są niedostępne z tego środowiska**. Poniżej dokładnie, co zdobyć, gdzie i co z tym zrobić. Kolejność = malejący wpływ na wnioski.
+
+### 12.1 Czego potrzebujesz, zanim zaczniesz
+
+- **Sesja bez blokady egressu** na domeny producentów (`espressif.com`, `analog.com`, `ti.com`, `simcom.com`, `waveshare.com`, `meanwell.com`, `kamami.pl`) — albo człowiek, który pobierze PDF-y i wrzuci je do rozmowy. **Playwright/Chromium nie pomoże** — blokada jest na poziomie proxy egressowego (403 na CONNECT), nie w narzędziu. Diagnostyka: `curl -sS "$HTTPS_PROXY/__agentproxy/status"`.
+- Do części pomiarowej — **fizyczny zestaw** i multimetr, a najlepiej oscyloskop lub profiler mocy.
+
+### 12.2 Karty katalogowe — co dokładnie odczytać
+
+| # | Dokument | Gdzie w dokumencie szukać | Co odczytać | Co zaktualizować tutaj | Dlaczego to ważne |
+|---|---|---|---|---|---|
+| 1 | **SIMCom „A7670 Series Hardware Design V1.03"** ([ktron.in](https://www.ktron.in/wp-content/uploads/2022/10/A7670-Series_Hardware-Design-V1.03-1.pdf), [waveshare](https://files.waveshare.com/wiki/A7670E-Cat-1-GNSS-HAT/A7672X_A7670X_Series_Hardware_Design_V1.03.pdf)) | rozdział **„Power consumption"** (tabela stanów) + **„Power supply"** | Prąd w stanach: OFF, sleep (CSCLK), idle zarejestrowany, **LTE-FDD data transfer — średni i szczytowy**, GSM burst. **Wraz z warunkami pomiaru** (VBAT, pasmo, moc nadawania). Z „Power supply": zalecana pojemność bulk na VBAT i dopuszczalne tętnienie | Wiersze A7670E w [§2.1](#21-dane-wejściowe-komponentów); **cała tabela [§2.2](#22-tabela-poboru-per-faza)** i wszystko, co z niej wynika ([§2.3](#23-średnia-i-koszt-energii), [§3](#3-dobór-zasilania--łańcuch-230-v--24-v--5-v--33-v), [§4.2](#42-warianty-podtrzymania), [§6.3](#63-cykliczne-wyłączanie-modemu-nie-przy-zasilaniu-sieciowym), [§7](#7-punkty-pomiarowe-bez-zasilania-sieciowego)) | **Najważniejsza pozycja.** Modem to 60–95% budżetu, a jego pobór w stanach „idle" i „transmisja" jest dziś czystym szacunkiem (20–60 mA i 300–650 mA). Wszystkie liczby w dokumencie stoją na tych dwóch zakresach |
+| 2 | **ESP32-S3 Series Datasheet** ([Espressif](https://www.espressif.com/sites/default/files/documentation/esp32-s3_datasheet_en.pdf)) | rozdział **„Current Consumption"** (w wersji 2.x rozdz. 4.6) — tabele „Active Mode", „Modem-sleep Mode", „Light-sleep", „Deep-sleep" | Prąd przy **RF wyłączonym, 240 MHz**, osobno dla „CPU idle" i „CPU busy" (nasza pętla to `delay(10)`, czyli głównie idle) | Wiersz „ESP32-S3 (SoC)" w [§2.1](#21-dane-wejściowe-komponentów), kolumna „ESP32-S3 + peryferia" w [§2.2](#22-tabela-poboru-per-faza) | Zawęża zakres 13–107 mA, który jest dziś bezużytecznie szeroki; wpływa na 30–40% budżetu |
+| 3 | **ESP32-S3-WROOM-1 / 1U Datasheet** ([Mouser](https://www.mouser.com/datasheet/2/891/esp32_s3_wroom_1_wroom_1u_datasheet_en-2930317.pdf)) | **„Recommended Operating Conditions"** + tabela wariantów modułu | Potwierdzić zakres **−40…+65 °C dla wariantów R8/R16V** i −40…+85 °C dla pozostałych | [§8.1](#81-zakresy-komponentów) | Cała [§8](#8-temperatura-pracy) i rekomendacja dla zlecenia B-10 wiszą na tej jednej liczbie |
+| 4 | **XLSEMI XL4015 Datasheet** (karta **producenta**, nie sprzedawcy) | wykresy **„Efficiency vs. Output Current"** dla V_IN = 24 V, V_OUT = 5 V | Realna sprawność w punktach 0,1 A / 0,5 A / 1,8 A; prąd ograniczenia; zakres temperatur złącza | Przyjęte η = 0,85 w [§2.1](#21-dane-wejściowe-komponentów), przeliczniki w [§2.2](#22-tabela-poboru-per-faza), straty w [§3.2](#32-czy-xl4015-wystarcza) | η = 0,85 to założenie; przy 0,75 wszystkie prądy na szynie 24 V rosną o 13% |
+| 5 | **MAX31865 Datasheet** ([Analog Devices](https://www.analog.com/media/en/technical-documentation/data-sheets/max31865.pdf)) | **„Electrical Characteristics"**, parametr **I_DD** (typ./max przy V_DD = 3,3 V) + prąd biasu RTD | I_DD w stanie spoczynku i przy włączonym biasie | Wiersz MAX31865 w [§2.1](#21-dane-wejściowe-komponentów); rozstrzyga rozbieżność nr 5 w [§10](#10-rozbieżności-do-rozstrzygnięcia) | Repo podaje „~10 mA", co wygląda na wartość zawyżoną; przy 10 mA to ~15% budżetu strony ESP32, przy 1,5 mA — 2% |
+| 6 | **Mean Well DRC-60B Datasheet** ([mean-well.pl](https://mean-well.pl/pl/drc-zasilacz-buforowy-din/drc-60b-zasilacz-276v-60w-ip20.html)) | „Specification" | **Pobór własny bez obciążenia**, prąd ładowania akumulatora, napięcie odcięcia rozładowania, zakres temperatur pracy i derating | [§4.2](#42-warianty-podtrzymania) wariant C (przyjąłem 0,4 W biegu jałowego i odcięcie 21 V), [§8.1](#81-zakresy-komponentów) | Przyjęte 11–19 h podtrzymania zależy wprost od poboru własnego zasilacza; przy 1,5 W spada do 7–11 h |
+| 7 | **Schemat / dokumentacja KAmod LTE CAT1-GNSS** ([instrukcja PL](https://download.kamami.pl/p1200196-KAmod%20LTE%20CAT1-GNSS%20z%20modu%C5%82em%20A7670E-FASE%20%28PL%29-2364.pdf), [wiki](https://wiki.kamamilabs.com/index.php?title=KAmod_LTE_CAT1-GNSS_z_modu%C5%82em_A7670E-FASE_(PL))) | schemat ideowy płytki, sekcja zasilania | **Pojemność już obecna na szynie 5 V i VBAT**, typ przetwornicy 5 → 3,8 V i jej sprawność | Zastrzeżenie w [§3.3](#33-pojemność-bulk-na-szynie-5-v--obliczenie); przyjęte η = 0,90 w [§2.1](#21-dane-wejściowe-komponentów) | Rekomendowane 2× 3 300 µF liczone jest przy założeniu zera pojemności na HAT-cie — jeśli moduł ma już 470 µF, wymagana wartość zewnętrzna spada |
+| 8 | **Dokumentacja firmware A7670E, komendy `AT+CSSLCFG` / `AT+CCHOPEN`** oraz cenniki SIM M2M w PL dla planu 200 MB | dokumentacja AT SIMCom; strony operatorów M2M | Czy modem **wznawia sesje TLS** (session resumption / cache); cena planu 200 MB i 500 MB | Zastrzeżenie w [§6.2](#62-prawdziwy-koszt-obecnego-rytmu--transfer-sim) — rozstrzyga, czy narzut to 4–6 kB czy 0,3–0,8 kB na pakiet | Różnica między „300 MB/mies." a „120 MB/mies." zmienia rekomendowany plan taryfowy i wagę rekomendacji naprawy keep-alive |
+
+### 12.3 Pomiary — kolejność wykonania
+
+Pełna lista z metodami jest w [§9](#9-do-zmierzenia-na-stanowisku). Jeśli masz ograniczony czas przy sprzęcie, rób w tej kolejności — trzy pierwsze pozycje rozstrzygają najwięcej:
+
+1. **poz. 1** (prąd w stanie ustalonym) — multimetr, 15 minut, zamyka największą niepewność bez żadnego specjalnego sprzętu.
+2. **poz. 3** (spadek napięcia przy złączu HAT-a podczas nadawania) — oscyloskop; rozstrzyga, czy [§3.3](#33-pojemność-bulk-na-szynie-5-v--obliczenie) jest realnym problemem, czy teoretycznym. **Zrób go przed zamówieniem kondensatorów.**
+3. **poz. 5** (rzeczywisty transfer) — nie wymaga sprzętu, wystarczy licznik u operatora SIM po 24 h; rozstrzyga całą [§6.2](#62-prawdziwy-koszt-obecnego-rytmu--transfer-sim).
+4. Reszta wg [§9](#9-do-zmierzenia-na-stanowisku).
+
+### 12.4 Oględziny zestawu — 10 minut, zero narzędzi
+
+Rozstrzyga cztery z ośmiu rozbieżności z [§10](#10-rozbieżności-do-rozstrzygnięcia). Wystarczy odczytać nadruki i zrobić zdjęcia:
+
+- **Nadruk na module ESP32-S3-WROOM-1** — wariant `N8R8` / `N16R8` (z PSRAM, 65 °C) czy `N8` / `N16` (bez PSRAM, 85 °C)? → rozbieżność 8, cała [§8](#8-temperatura-pracy).
+- **Czy na płytce jest ADS1015?** → rozbieżność 1, wybór wariantu dzielnika w [§5.2](#52-dzielnik-napięcia--dwa-warianty).
+- **Nadruk na module przetwornicy** — „XL4015 2 A" czy „XL4015 5 A"? → rozbieżność 3, zapas w [§3.2](#32-czy-xl4015-wystarcza).
+- **Etykieta zasilacza DIN** — rzeczywiste napięcie i prąd. → rozbieżność 3.
+- **Przekrój i długość przewodów zasilania 5 V do HAT-a.** → [§3.3](#33-pojemność-bulk-na-szynie-5-v--obliczenie); jeśli to przewody „dupont", masz gotową diagnozę ewentualnych resetów modemu.
+- **Stan zworek J2 i J_APWK** ([`01_hardware.md` §7](./01_hardware.md#uwagi-krytyczne-przed-podłączeniem)) — przy okazji, bo to i tak jest otwarta pozycja.
+
+### 12.5 Zadania wdrożeniowe wynikające z tego dokumentu
+
+Do zlecenia osobno, **w tej kolejności** — pierwsze dwa nie wymagają żadnych zmian w sprzęcie ani potwierdzenia danych katalogowych, więc można je zrobić od razu:
+
+| Kolejność | Zadanie | Zakres | Zależy od |
+|---|---|---|---|
+| 1 | **Wykrywanie zaniku po fakcie** ([§5.4a](#54a-wykrycie-zaniku-po-fakcie--bez-żadnego-sprzętu)) | `esp_reset_reason()` + pamięć RTC + znacznik w NVS → `POWER_MAINS_RESTORED` przy starcie. Kilkanaście linii, zero sprzętu | nic |
+| 2 | **Naprawa `seq`** (rozbieżność 6 w [§10](#10-rozbieżności-do-rozstrzygnięcia)) | monotoniczny licznik w `RTC_DATA_ATTR` zamiast uniksowej sekundy | nic — **blokuje zadanie 4**, a niezależnie jest istniejącą podatnością |
+| 3 | **Naprawa keep-alive** ([§6.2](#62-prawdziwy-koszt-obecnego-rytmu--transfer-sim)) | usunąć końcowe `http_->stop()`, obsłużyć wygaśnięcie gniazda | warto najpierw wykonać pomiar poz. 5 |
+| 4 | **Pomiar napięcia + alarm zaniku** ([§5](#5-detekcja-zaniku-zasilania-i-pomiar-napięcia)) | `SupplyVoltageSensor`, dwa kody w `sensor_registry.yaml`, `flushNow()`, maszyna stanów progów | zadanie 2; oględziny [§12.4](#124-oględziny-zestawu--10-minut-zero-narzędzi) (wybór wariantu dzielnika) |
+| 5 | **Kondensatory bulk** ([§3.3](#33-pojemność-bulk-na-szynie-5-v--obliczenie)) | zakup i montaż | pomiar poz. 3 |
+| 6 | **Zasilacz buforowy + akumulator** ([§4.2](#42-warianty-podtrzymania) wariant C) | zmiana BOM, aktualizacja [`01_hardware.md`](./01_hardware.md) | decyzja biznesowa (+150–250 zł/obiekt) |
+
+### 12.6 Czego **nie** trzeba już robić
+
+Żeby następny agent nie powtarzał pracy:
+
+- **Nie analizuj ponownie deep sleep.** Werdykt ([§6.1](#61-deep-sleep-nie)) stoi na trzech niezależnych argumentach, z których dwa (kontrakt próbkowania 15 s, 14,8 s `delay()` w kodzie) są wyprowadzone z repozytorium i **nie zmienią się po żadnym pomiarze**. Trzeci (7–18 zł/rok) zmieniłby się dopiero, gdyby pobór modemu okazał się o rząd wielkości wyższy.
+- **Nie szukaj nowego kanału transmisji dla zdarzeń zasilania.** [§5.5](#55-kanał-transmisji--co-już-jest-w-repo) rozstrzyga to na podstawie kodu backendu: `errors[]` i `windows[].points[]` wystarczają, `extra="forbid"` zamyka drogę nowym polom najwyższego poziomu.
+- **Nie licz jeszcze raz zapotrzebowania panelu solarnego.** [§7.2](#72-wariant-solarny) daje odpowiedź, ale ta ścieżka i tak jest zablokowana faktem, że w komorze pomiarowej nie ma słońca — rozstrzygnięcie jest jakościowe, nie liczbowe.
+- **Nie próbuj obejść blokady egressu.** To polityka organizacji zwracająca 403; obchodzenie jej jest niewskazane, a i tak nieskuteczne.
