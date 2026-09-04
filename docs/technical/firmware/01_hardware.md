@@ -40,6 +40,7 @@ Poniższe piny pochodzą z pierwotnej wersji tego dokumentu i **nie mają odpowi
 | GPIO | Funkcja | Podłączone do | Uwagi |
 |---|---|---|---|
 | 1 | ADC1_CH0 | PT-506 (4-20mA) | przez rezystor 250Ω |
+| 2 | ADC1_CH1 | dzielnik napięcia szyny 24 V | **propozycja** z [09_budzet_energetyczny.md §5.2](./09_budzet_energetyczny.md#52-dzielnik-napięcia--dwa-warianty) — wariant dla zestawu **bez** ADS1015. Dzielnik 100 kΩ / 8,2 kΩ + 100 nF, tłumienie `ADC_ATTEN_DB_12`. Wybrany, bo należy do ADC1, nie jest pinem strappingowym ESP32-S3 (GPIO0/3/45/46) i nie koliduje z SPI MAX31865 |
 
 **Uwaga**: Piny PT100/MAX31865 (od 2026-08-24) są jawnie zdefiniowane w `Config.h` i przekazywane do `SPI.begin()`: 11 (MOSI), 12 (SCK), 13 (MISO), 14 (CS). Wszystkie 4 piny SPI sąsiadują fizycznie, co ułatwia okablowanie. Zob. [sekcja 2](#2-piny--zweryfikowane-w-kodzie) i [05_pt100_temperature_sensor.md](./05_pt100_temperature_sensor.md).
 
@@ -55,6 +56,15 @@ Zapalanie LED: `pixels.setPixelColor(0, pixels.Color(R, G, B)); pixels.show();`
 
 - **PT-506 (czujnik ciśnienia) — draft.** Brak biblioteki odczytu ADC; telemetria PT-506 wciąż wysyła dane syntetyczne (sinus).
 - **PT100 (czujnik temperatury) — zweryfikowany.** Odczyt przez MAX31865 (SPI), biblioteka `adafruit/Adafruit MAX31865`. Zob. [05_pt100_temperature_sensor.md](./05_pt100_temperature_sensor.md) po szczegóły.
+- **Brak pomiaru napięcia zasilania i detekcji zaniku 230 V.** Kod błędu `POWER_LOW` istnieje w [`sensor_registry.yaml`](../../../sensor_registry.yaml), ale nic go nie ustawia. Projekt dzielnika, progów i ścieżki transmisji zdarzenia — [09_budzet_energetyczny.md §5](./09_budzet_energetyczny.md#5-detekcja-zaniku-zasilania-i-pomiar-napięcia).
+- **Brak kondensatora bulk na szynie 5 V przy złączu HAT-a.** Modem wymaga szczytowo 2 A, a przetwornica nie nadąża za impulsem nadawania GSM (577 µs). Obliczenie i wymagana wartość — [09_budzet_energetyczny.md §3.3](./09_budzet_energetyczny.md#33-pojemność-bulk-na-szynie-5-v--obliczenie).
+- **Wariant modułu ESP32-S3-WROOM-1 (z PSRAM czy bez) nie jest udokumentowany.** Rozstrzyga o górnym zakresie pracy: 65 °C (R8/R16V) albo 85 °C. Zob. [09_budzet_energetyczny.md §8](./09_budzet_energetyczny.md#8-temperatura-pracy).
+
+## 5a. Zasilanie
+
+Pełne drzewo zasilania (230 V AC → 24 V DC → 5 V → 3,3 V), bilans prądowy per faza pracy, dobór przetwornicy, wymagania dla przewodów i pojemności buforowej, podtrzymanie przy zaniku 230 V oraz zakresy temperatur komponentów: **[09_budzet_energetyczny.md](./09_budzet_energetyczny.md)**.
+
+Elementy toru zasilania (zasilacz DIN 24 V / 1 A, przetwornica XL4015 24 → 5 V) **nie są dziś potwierdzone w repozytorium** — pochodzą z opisu zadania. Po weryfikacji na fizycznym zestawie powinny trafić do tego dokumentu jako pełnoprawna sekcja.
 
 ## 6. Interfejsy
 
