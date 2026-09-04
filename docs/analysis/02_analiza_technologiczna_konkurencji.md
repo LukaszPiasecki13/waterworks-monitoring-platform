@@ -2,7 +2,7 @@
 
 > **Zlecenie:** B-02 z [`01_briefy_dla_agentow.md`](../plan/01_briefy_dla_agentow.md).
 > **Zakres:** warstwa techniczna — firmware, sprzęt, protokoły, backend, chmura. Warstwa UX/UI to osobne zlecenie (B-03) i nie jest tu poruszana.
-> **Data researchu:** 4 września 2026. Wszystkie źródła sprawdzone tego dnia.
+> **Stan na:** 4 września 2026 — data ważności wszystkich ustaleń o konkurencji i o naszym kodzie.
 > **Uzupełnia, nie zastępuje:** [`01_plan_biznesowy.md` §5.2](../business/01_plan_biznesowy.md) — analiza biznesowa konkurencji (pozycjonowanie, ceny, mocne i słabe strony) już istnieje i nie jest tu powtarzana.
 
 ---
@@ -11,7 +11,7 @@
 
 1. [Jak czytać ten dokument](#1-jak-czytać-ten-dokument)
 2. [Punkt odniesienia — nasz system w 11 wymiarach](#2-punkt-odniesienia--nasz-system-w-11-wymiarach)
-3. [Kogo zbadano, kogo odrzucono i dlaczego](#3-kogo-zbadano-kogo-odrzucono-i-dlaczego)
+3. [Zakres analizy — podmioty objęte i wykluczone](#3-zakres-analizy--podmioty-objęte-i-wykluczone)
 4. [Tabela porównawcza — podmiot × 11 wymiarów](#4-tabela-porównawcza--podmiot--11-wymiarów)
 5. [Analiza wymiar po wymiarze](#5-analiza-wymiar-po-wymiarze)
 6. [Karty podmiotów — fakty źródłowe](#6-karty-podmiotów--fakty-źródłowe)
@@ -20,8 +20,7 @@
 9. [Czego świadomie nie kopiujemy i dlaczego](#9-czego-świadomie-nie-kopiujemy-i-dlaczego)
 10. [Lista konkretnych zmian do rozważenia w naszej architekturze](#10-lista-konkretnych-zmian-do-rozważenia-w-naszej-architekturze)
 11. [Korekty do istniejących analiz](#11-korekty-do-istniejących-analiz)
-12. [Luki informacyjne — czego nie udało się ustalić](#12-luki-informacyjne--czego-nie-udało-się-ustalić)
-13. [Źródła](#13-źródła)
+12. [Źródła](#12-źródła)
 
 ---
 
@@ -29,7 +28,7 @@
 
 ### 1.1. Etykiety wiarygodności
 
-Każde ustalenie o konkurencie ma etykietę typu źródła. Kolejność wiarygodności zgodna z metodą briefu:
+Każde ustalenie o konkurencie ma etykietę typu źródła, uporządkowaną według wiarygodności:
 
 | Etykieta | Znaczenie |
 |---|---|
@@ -38,7 +37,7 @@ Każde ustalenie o konkurencie ma etykietę typu źródła. Kolejność wiarygod
 | **[mkt]** | Materiał marketingowy producenta — strona produktu, folder, wpis blogowy. Najsłabsze źródło; deklaracje niesprawdzalne |
 | **[3rd]** | Źródło trzecie — dystrybutor, katalog branżowy, prasa, Wikipedia |
 | **[repo]** | Nasz własny kod lub dokumentacja w tym repozytorium — weryfikowalne bezpośrednio |
-| **nieujawnione** | Informacji nie ma publicznie. Nie zgadujemy |
+| **nieujawnione** | Producent nie podaje tego publicznie. Znaczy „nie publikuje", **nie** „nie ma" — i nigdy nie jest podstawą do wniosku o przewadze po naszej stronie |
 | **szacunek własny** | Ocena autora analizy, nie fakt ze źródła |
 
 **Poziom pewności wynika wprost z etykiety** — nie dublujemy go osobną skalą:
@@ -64,10 +63,6 @@ Dla każdego z 11 wymiarów podajemy, gdzie stoimy względem rynku:
 
 Ocena dotyczy **stanu dzisiejszego kodu**, nie planów.
 
-### 1.3. Uwaga o asymetrii dostępnych źródeł
-
-Podmioty europejskie i australijskie (Kallipr, Ayyeka, Metasphere, HWM) publikują karty katalogowe z pełnymi parametrami elektrycznymi i część dokumentacji integracyjnej. Podmioty polskie publikują mniej: dokumentacja Inventia DataPortal jest za loginem, AquaRD trzyma DTR-y na FTP dla klientów, Hawle nie podaje interfejsów elektrycznych swojego urządzenia w ogóle. Oznacza to, że **puste pola w tabelach dla polskich dostawców częściej znaczą „nie publikują" niż „nie mają"**. Nie należy tego czytać jako przewagi konkurencyjnej po naszej stronie.
-
 ---
 
 ## 2. Punkt odniesienia — nasz system w 11 wymiarach
@@ -82,8 +77,8 @@ Wszystko poniżej zweryfikowane w kodzie i dokumentacji tego repozytorium (4 wrz
 | 4 | Tożsamość i provisioning | Para kluczy EC P-256 generowana **na urządzeniu**, challenge/response z podpisem, token JWT 36 h. Kod aktywacyjny jednorazowy (TTL 900 s, ~50 bitów entropii) wpisywany po porcie szeregowym: `ACTIVATE <kod>`. Pierwsze uruchomienie w terenie **wymaga laptopa** | [`06_device_identity_module.md`](../technical/backend/06_device_identity_module.md) |
 | 5 | Format telemetrii | Okna agregowane: próbka co 15 s, batch 4 okien = transmisja co 60 s. `quality` per punkt pomiarowy, `errors[]` z katalogu, `sent_at` + `received_at`. Deduplikacja po `(device_id, seq)` unikalnym constraintem → `200 duplicate` zamiast błędu | [`04_telemetry_module.md`](../technical/backend/04_telemetry_module.md), [`TelemetryPayload.h`](../../firmware/lib/TelemetryPayload/src/TelemetryPayload.h) |
 | 6 | Konfiguracja bez rekompilacji | **Brak.** Interwały, APN, adres serwera, piny — wszystko `#define`/`const` w [`Config.h`](../../firmware/include/Config.h), ustalane na etapie kompilacji. `sensor_registry.yaml` jest wspólnym źródłem prawdy dla *typów* i *kodów błędów*, ale nie dla konfiguracji urządzenia. Obietnica „profili urządzeń" z [ADR-0002](../business/adr/0002-pragmatic-integration-strategy.md) nie ma dziś implementacji | [`Config.h`](../../firmware/include/Config.h), [`sensor_registry.yaml`](../../sensor_registry.yaml) |
-| 7 | OTA i zarządzanie flotą | **Brak OTA.** Aktualizacja firmware wymaga fizycznego dostępu i kabla USB. Brak widoku floty; [`06_device_identity_module.md` §6](../technical/backend/06_device_identity_module.md) sam wskazuje brak widoku „pula nieprzypisanych urządzeń". Brak zarządzania SIM | grep w `firmware/` — zero kodu OTA |
-| 8 | Model danych i retencja | PostgreSQL, jeden wiersz na pakiet, pomiary w kolumnie `payload` JSONB. Brak TSDB, brak polityki retencji, brak downsamplingu. Ochrona przed nieograniczonym odczytem: `MAX_PACKETS_PER_SERIES = 5000` | [`04_telemetry_module.md`](../technical/backend/04_telemetry_module.md), [`packets.py`](../../backend/app/modules/telemetry/repositories/packets.py) |
+| 7 | OTA i zarządzanie flotą | **Brak OTA.** Aktualizacja firmware wymaga fizycznego dostępu i kabla USB. Brak widoku floty; [`06_device_identity_module.md` §6](../technical/backend/06_device_identity_module.md) sam wskazuje brak widoku „pula nieprzypisanych urządzeń". Brak zarządzania SIM | `firmware/lib/` — brak biblioteki OTA; [`platformio.ini`](../../firmware/platformio.ini) bez partycji OTA |
+| 8 | Model danych i retencja | PostgreSQL, jeden wiersz na pakiet, pomiary w kolumnie `payload` JSONB. Brak TSDB, brak polityki retencji, brak downsamplingu. Ochrona przed nieograniczonym odczytem: `MAX_PACKETS_PER_SERIES = 5000` | [`services/query.py:27`](../../backend/app/modules/telemetry/services/query.py#L27), [`04_telemetry_module.md`](../technical/backend/04_telemetry_module.md) |
 | 9 | Model alarmów | **Brak modułu alarmowego** — ani na gatewayu, ani w backendzie. Istnieje wyłącznie status wyliczany na żądanie w `TelemetryQueryService._compute_status` (`no_data` / `no_comm` / `warning` / `ok`) oraz `errors[]` zapisywane do `telemetry_errors`. Reguły alarmowe z [`01_plan_biznesowy.md` §2.6](../business/01_plan_biznesowy.md) nie są zaimplementowane | [`query.py`](../../backend/app/modules/telemetry/services/query.py) |
 | 10 | API i integracje | REST (FastAPI), dwie płaszczyzny dostępu: `/api/v1/orgs/{org_id}/...` i `/api/v1/platform/...`, autoryzacja JWT + kody `CAN_*`/`PLATFORM_*`. Brak publicznego API dla klienta, brak webhooków, brak integracji ze SCADA/GIS, brak eksportu poza UI | [`01_backend-architecture.md` §7](../technical/backend/01_backend-architecture.md) |
 | 11 | Bezpieczeństwo | TLS w transmisji, uwierzytelnianie urządzeń kluczem asymetrycznym, RBAC, **append-only audit log wymuszony na poziomie sesji SQLAlchemy** (`AuditAwareSession` blokuje commit bez wpisu audytowego), rate limiting per-IP na redeem. Brak Secure Boot i Flash Encryption (świadomie odłożone). Brak certyfikatów ISO, brak polityki ujawniania podatności, brak pen-testów | [`01_backend-architecture.md` §4.2](../technical/backend/01_backend-architecture.md), [`06_device_identity_module.md` §6](../technical/backend/06_device_identity_module.md) |
@@ -96,50 +91,48 @@ Wszystko poniżej zweryfikowane w kodzie i dokumentacji tego repozytorium (4 wrz
 
 ---
 
-## 3. Kogo zbadano, kogo odrzucono i dlaczego
+## 3. Zakres analizy — podmioty objęte i wykluczone
 
 ### 3.1. Polska — zestaw zamknięty z §5.2 planu biznesowego
 
-Brief nakazuje nie szukać nowych polskich konkurentów. Zbadano technicznie pięć podmiotów wskazanych w [§5.2](../business/01_plan_biznesowy.md):
+Zestaw zgodny z [§5.2](../business/01_plan_biznesowy.md) planu biznesowego — pięć podmiotów, każdy oceniony w 11 wymiarach:
 
-| Podmiot | Badany artefakt | Głębokość dostępnych źródeł |
-|---|---|---|
-| **Inventia** | moduły MT-101 / MT-151 / MT-331 / MT-713, platforma DataPortal | wysoka dla sprzętu (karty katalogowe, instrukcje), **niska dla platformy** (dokumentacja za loginem) |
-| **AquaRD** | rejestratory CellBOX (H4, HS, NFL), platforma HydraNet Expert / WMR | średnia — karty katalogowe publiczne, DTR-y na FTP „strefy klienta" |
-| **UniCloud / Unitronics / Elmark** | platforma UniCloud, routery IIoT, sterowniki UniStream | **wysoka** — jedyny podmiot z publiczną stroną „Security Fundamentals" opisującą model bezpieczeństwa |
-| **Hawle.live** | Hawle.live BOX, CAP, KEY, aplikacja | **niska** — materiały wyłącznie marketingowe, brak jakiejkolwiek karty katalogowej z parametrami elektrycznymi |
-| **AIUT WaterPrime** | platforma analityczna | średnia — opis modułów analitycznych, brak warstwy urządzeniowej (jej nie ma w produkcie) |
+| Podmiot | Artefakt objęty porównaniem |
+|---|---|
+| **Inventia** | moduły MT-101 / MT-151 / MT-331 / MT-713, platforma DataPortal |
+| **AquaRD** | rejestratory CellBOX (H4, HS, NFL), platforma HydraNet Expert / WMR |
+| **UniCloud / Unitronics / Elmark** | platforma UniCloud, routery IIoT, sterowniki UniStream |
+| **Hawle.live** | Hawle.live BOX, CAP, KEY, aplikacja |
+| **AIUT WaterPrime** | platforma analityczna (bez warstwy urządzeniowej — nie ma jej w produkcie) |
 
 Pozostałe podmioty z §5.2 (NASUS, Hydro-Vacuum, Metalchem, Hydro-Partner) to **integratorzy i producenci pomp sprzedający monitoring jako dodatek**. Nie mają własnej architektury technicznej do porównania w 11 wymiarach — ich „stack" to cudze PLC i cudza SCADA dobrane per projekt. Pominięte świadomie; ocena biznesowa z §5.2 pozostaje w mocy.
 
-### 3.2. Świat — kandydaci zweryfikowani
+### 3.2. Świat
 
-Brief wskazał listę kandydatów do sprawdzenia i wymagał odrzucenia niepasujących z uzasadnieniem.
-
-**Przyjęci jako porównywalni (6):**
+**Porównywalni z naszym modelem (6):**
 
 | Podmiot | Kraj | Dlaczego porównywalny |
 |---|---|---|
-| **Kallipr** (Captis + Kallipr Kloud) | AU | Wzorzec wskazany w briefie. Model tożsamy z docelowym: własne urządzenie bateryjne LPWAN + platforma chmurowa + zarządzanie flotą |
+| **Kallipr** (Captis + Kallipr Kloud) | AU | Model tożsamy z naszym docelowym: własne urządzenie bateryjne LPWAN + platforma chmurowa + zarządzanie flotą |
 | **Ayyeka** (Wavelet + FAI) | IL / US | Najbliższy technicznie odpowiednik tego, czym chcemy być: urządzenie neutralne wobec czujników, platforma z REST API, silny nacisk na cyberbezpieczeństwo |
 | **HWM** (MultiLog LX2 + DataGate / HWMOnline) | UK | Bezpośredni odpowiednik w wod-kan: logger + hurtownia danych + portal. Publikuje instrukcje użytkownika |
 | **Metasphere** (Point Orange IoT / Point Blue) | UK | Jedyny badany podmiot z **konfigurowalnym programowo I/O** i obsługą otwartego standardu branżowego WITS-DNP3 |
 | **Ovarro** (Kingfisher, TBox, D26) | UK | Wzorzec dla warstwy protokołów przemysłowych (DNP3, IEC 60870-5-101/104) i redundancji. Uwaga: Ovarro ≠ Metasphere, to dwie różne firmy |
 | **NIVUS** (NivuLink + D2W / WebPortal) | DE | Europejski odpowiednik modelu „logger + portal + osobne narzędzie konfiguracji urządzeń", z interfejsem HART |
 
-**Odrzuceni z uzasadnieniem (3):**
+**Wykluczeni z porównania (3):**
 
 | Podmiot | Dlaczego odrzucony |
 |---|---|
-| **Xylem / Sensus (FlexNet)** | To **AMI**, nie telemetria obiektowa. FlexNet jest prywatną, licencjonowaną siecią radiową dalekiego zasięgu budowaną pod masowy odczyt wodomierzy, z wieżami nadawczymi po stronie operatora **[mkt]**. Model ekonomiczny (inwestycja w sieć radiową) i skala (dziesiątki tysięcy punktów) nie mają styku z „5–15 obiektów w małej gminie". Porównywanie 11 wymiarów dałoby pozorne wnioski |
+| **Xylem / Sensus (FlexNet)** | To **AMI**, nie telemetria obiektowa. FlexNet jest prywatną, licencjonowaną siecią radiową dalekiego zasięgu budowaną pod masowy odczyt wodomierzy, z wieżami nadawczymi po stronie operatora **[mkt]**. Model ekonomiczny (inwestycja w sieć radiową) i skala (dziesiątki tysięcy punktów) nie mają styku z „5–15 obiektów w małej gminie". Porównanie w 11 wymiarach dałoby pozorne wnioski |
 | **Itron (Intelis, OpenWay Riva)** | To samo co wyżej — licznik + własna sieć AMI. Dodatkowo produkt jest meter-centric: jednostką jest wodomierz, nie obiekt wodociągowy z wieloma kanałami |
-| **Telit** | Producent modułów komórkowych z platformą (OneEdge/deviceWISE) **związaną z własnymi modułami** — patrz §7. Nie jest konkurentem w naszej kategorii; jako komponent do kupienia rozpatrzony w osobnej sekcji |
+| **Telit** | Producent modułów komórkowych z platformą (OneEdge/deviceWISE) **związaną z własnymi modułami**. Nie jest konkurentem w naszej kategorii; jako komponent do kupienia rozpatrzony w [§7](#7-platformy-device-management-ogólnego-przeznaczenia--kupić-czy-budować) |
 
-**Golioth, Blues Wireless, Balena** — zgodnie z decyzją briefu **nie są traktowane jako konkurencja** i nie występują w tabeli porównawczej. To potencjalne komponenty do kupienia zamiast budowania; analiza w [§7](#7-platformy-device-management-ogólnego-przeznaczenia--kupić-czy-budować).
+**Golioth, Blues Wireless, Balena** nie są konkurencją i nie występują w tabeli porównawczej. To potencjalne komponenty do kupienia zamiast budowania; analiza w [§7](#7-platformy-device-management-ogólnego-przeznaczenia--kupić-czy-budować).
 
-### 3.3. Standard, który okazał się ważniejszy od pojedynczego konkurenta
+### 3.3. Standard branżowy objęty analizą obok podmiotów
 
-W trakcie badania wymiaru 3 (protokół) wyszła rzecz, której nie było w żadnej z list kandydatów, a która ma dla nas większe znaczenie niż połowa zbadanych firm: **WITS** — otwarty standard telemetrii dla branży wodociągowej, w wariancie **WITS-IoT** oparty dokładnie na tym, co my budujemy własnymi siłami. Opisany w [§5.3](#53-wymiar-3--protokół-transmisji-urządzenie--chmura) i [§8](#8-co-warto-skopiować).
+**WITS** — otwarty standard telemetrii dla branży wodociągowej, zarządzany przez WITS Protocol Standards Association. Wariant **WITS-IoT** pokrywa te same funkcje, które budujemy własnymi siłami (alarmowanie, logowanie, zdalna konfiguracja, profile urządzeń), i dlatego jest traktowany w tej analizie na równi z podmiotem, a nie jako tło. Opisany w [§5.3](#53-wymiar-3--protokół-transmisji-urządzenie--chmura) i [§8](#8-co-warto-skopiować).
 
 ---
 
@@ -185,19 +178,21 @@ Dla każdego wymiaru: co robi rynek → gdzie stoimy → co konkretnie by to zmi
 
 ### 5.0. Podsumowanie pozycji — odpowiedź na pytanie „gdzie stoimy"
 
-| Wymiar | Pozycja | Jednozdaniowe uzasadnienie | Co ją zmienia |
-|---|---|---|---|
-| 1. Sprzęt gatewaya | 🔴 z tyłu | Zestaw deweloperski bez obudowy i bez IP, gdy rynkowym minimum jest IP68 albo montaż DIN w wykonaniu przemysłowym | H-1, H-3 |
-| 2. Interfejsy pomiarowe | 🔴 z tyłu | Jeden działający kanał (PT100/SPI) wobec 4–6 kanałów uniwersalnych + Modbus multidrop u każdego konkurenta | F-5, F-6, F-7, H-2 |
-| 3. Protokół | 🟡 na poziomie / 🔴 strategicznie | Bezpieczny i sensowny, ale wyłącznie własny i nieopublikowany — przy istniejącym otwartym standardzie branżowym (WITS-IoT) | B-6, poz. 12 z §8 |
-| 4. Tożsamość i provisioning | 🟢 z przodu kryptograficznie / 🔴 operacyjnie | Klucz generowany na urządzeniu jest mocniejszy niż SN+IMEI, ale wymagamy laptopa w hydroforni, czego nie wymaga nikt | B-10 |
-| 5. Format telemetrii | 🟢 semantyka / 🔴 strategia i bufor | `quality`, `errors[]` i dedupe po `(device_id, seq)` są dobre; 12 minut bufora w RAM i sztywne 60 s — nie | F-1, F-2, F-3 |
-| 6. Konfiguracja bez rekompilacji | 🔴 z tyłu | Wszystko compile-time, gdy zdalną konfigurację ma **każdy** badany podmiot; „profil urządzenia" z ADR-0002 nie ma implementacji | F-4, B-2 |
-| 7. OTA i flota | 🔴 z tyłu | Brak OTA = wyjazd do każdego obiektu przy każdej poprawce i brak ścieżki łatania podatności | F-8, B-8, B-9 |
-| 8. Model danych i retencja | 🟡 na dziś / 🔴 na trajektorii | PostgreSQL+JSONB wystarcza przy kilku prototypach, ale nie ma żadnej polityki retencji ani downsamplingu | B-3, B-4 |
-| 9. Model alarmów | 🔴 z tyłu | Zero implementacji wobec §2.6 planu; propozycja wartości „dowiesz się, zanim zadzwoni mieszkaniec" nie ma pokrycia | B-1, F-3 |
-| 10. API i integracje | 🔴 z tyłu | REST tylko na własne potrzeby: brak eksportu, webhooków i jakiegokolwiek wyjścia do systemów klienta | B-5, B-6, B-7 |
-| 11. Bezpieczeństwo | 🟡 technicznie / 🔴 formalnie / 🟢 audyt | Wymuszony maszynowo audit log jest mocniejszy niż typowy; brakuje Secure Boot, certyfikacji i polityki CVD | F-9, poz. 10 z §8 |
+Kolumna „pozycja po zmianie" mówi, na ile pozwala **komplet** wskazanych zmian — nie każda z osobna.
+
+| Wymiar | Pozycja dziś | Jednozdaniowe uzasadnienie | Co ją zmienia | Pozycja po zmianie |
+|---|---|---|---|---|
+| 1. Sprzęt gatewaya | 🔴 z tyłu | Zestaw deweloperski bez obudowy i bez IP, gdy rynkowym minimum jest IP68 albo montaż DIN w wykonaniu przemysłowym | H-1, H-3 | 🟡 — H-1 wprowadza nas do klasy „sieciowa, obiektowa"; 🟢 wymaga klasy bateryjnej IP68, czyli decyzji H-3 i zmiany platformy sprzętowej |
+| 2. Interfejsy pomiarowe | 🔴 z tyłu | Jeden działający kanał (PT100/SPI) wobec 4–6 kanałów uniwersalnych + Modbus multidrop u każdego konkurenta | F-5, F-6, F-7, H-2 | 🟡 — dogonienie typowego katalogu wejść; 🟢 wymagałoby SDI-12 i I/O konfigurowalnego programowo |
+| 3. Protokół | 🟡 na poziomie / 🔴 strategicznie | Bezpieczny i sensowny, ale wyłącznie własny i nieopublikowany — przy istniejącym otwartym standardzie branżowym (WITS-IoT) | B-6, poz. 12 z §8 | 🟡 z opublikowaną specyfikacją; 🟢 dopiero przy realnej zgodności z WITS-IoT, która jest poza zasięgiem pierwszego wdrożenia |
+| 4. Tożsamość i provisioning | 🟢 z przodu kryptograficznie / 🔴 operacyjnie | Klucz generowany na urządzeniu jest mocniejszy niż SN+IMEI, ale wymagamy laptopa w hydroforni, czego nie wymaga nikt | B-10 | 🟢 w obu wymiarach — B-10 zdejmuje laptopa i domyka lukę „kod może zużyć dowolne urządzenie" |
+| 5. Format telemetrii | 🟢 semantyka / 🔴 strategia i bufor | `quality`, `errors[]` i dedupe po `(device_id, seq)` są dobre; 12 minut bufora w RAM i sztywne 60 s — nie | F-1, F-2, F-3 | 🟢 — semantyka już jest mocna, brakuje wyłącznie trwałego bufora i elastycznej strategii wysyłki |
+| 6. Konfiguracja bez rekompilacji | 🔴 z tyłu | Wszystko compile-time, gdy zdalną konfigurację ma **każdy** badany podmiot; „profil urządzenia" z ADR-0002 nie ma implementacji | F-4, B-2 | 🟡 — pobieranie konfiguracji przy starcie dogania rynek; 🟢 dopiero z pełnymi profilami urządzeń z mapowaniem rejestrów |
+| 7. OTA i flota | 🔴 z tyłu | Brak OTA = wyjazd do każdego obiektu przy każdej poprawce i brak ścieżki łatania podatności | F-8, B-8, B-9 | 🟡 — OTA z kohortami zrównuje nas z rynkiem; zarządzanie SIM zostaje poza zakresem |
+| 8. Model danych i retencja | 🟡 na dziś / 🔴 na trajektorii | PostgreSQL+JSONB wystarcza przy kilku prototypach, ale nie ma żadnej polityki retencji ani downsamplingu | B-3, B-4 | 🟡 utrzymane na dłuższą metę — B-3 i B-4 zdejmują ryzyko trajektorii bez zmiany bazy |
+| 9. Model alarmów | 🔴 z tyłu | Zero implementacji wobec §2.6 planu; propozycja wartości „dowiesz się, zanim zadzwoni mieszkaniec" nie ma pokrycia | B-1, F-3 | 🟡 — pełny cykl życia alarmu zrównuje nas z rynkiem; 🟢 wymagałoby korelacji między obiektami, czyli analityki poza MVP |
+| 10. API i integracje | 🔴 z tyłu | REST tylko na własne potrzeby: brak eksportu, webhooków i jakiegokolwiek wyjścia do systemów klienta | B-5, B-6, B-7 | 🟢 — B-7 (kopia danych do systemu klienta) stawia nas wyżej niż większość rynku, gdzie mają to tylko Kallipr, Ayyeka i HWM |
+| 11. Bezpieczeństwo | 🟡 technicznie / 🔴 formalnie / 🟢 audyt | Wymuszony maszynowo audit log jest mocniejszy niż typowy; brakuje Secure Boot, certyfikacji i polityki CVD | F-9, poz. 10 z §8 | 🟡 technicznie i formalnie — certyfikacja ISO pozostaje poza zakresem przy obecnej skali |
 
 Odczyt całości: **mocni jesteśmy tam, gdzie decydował projekt oprogramowania** (kryptografia urządzenia, semantyka pomiaru, niezmiennik audytowy), **słabi tam, gdzie decyduje dojrzałość produktu w terenie** (sprzęt, interfejsy, zdalna konfiguracja, OTA, alarmy, otwartość danych). To jest typowy profil systemu, który przeszedł dobrą fazę projektową i nie przeszedł jeszcze fazy eksploatacyjnej — i dokładnie tak należy go przedstawiać.
 
@@ -324,7 +319,7 @@ Ale strategia jest sztywna, a bufor 12-minutowy w RAM to **poważna luka względ
 
 **Co by to zmieniło.** Dwie zmiany, obie w firmware:
 - przeniesienie bufora do NVS/flash z retencją liczoną w godzinach, nie minutach ([`TelemetryPayload.h`](../../firmware/lib/TelemetryPayload/src/TelemetryPayload.h) — `windows_buffer_` staje się warstwą nad pamięcią nieulotną). **Szacunek własny: 4–6 dni** wraz z testami wznawiania po resecie;
-- rozdzielenie interwału próbkowania od transmisyjnego i dodanie wyzwalacza „wyślij teraz" — to samo w sobie jest tanie, ale ma sens dopiero, gdy istnieje coś, co potrafi stwierdzić „przekroczono próg", czyli po wymiarze 9.
+- rozdzielenie interwału próbkowania od transmisyjnego (**F-2**) i dodanie wyzwalacza „wyślij teraz". Samo rozdzielenie interwałów jest tanie, ale wyzwalacz wymaga czegoś, co potrafi stwierdzić „przekroczono próg" — czyli klasy progu **F-3**, opisanej niżej przy wymiarze 9. **F-3 obsługuje oba wymiary naraz:** tutaj jako wyzwalacz natychmiastowej transmisji, w wymiarze 9 jako gatewayowa połowa modelu alarmów. To jedna klasa w dwóch łańcuchach, nie dwie osobne prace.
 
 ### 5.6. Wymiar 6 — konfiguracja bez rekompilacji
 
@@ -344,7 +339,7 @@ A ponad tym stoi standard: WITS definiuje **profile urządzeń jako opisy możli
 
 **Gdzie stoimy: 🔴 z tyłu, jednoznacznie i bez okoliczności łagodzących.** Wszystko jest compile-time. Zmiana APN, adresu serwera, interwału próbkowania albo dodanie kanału wymaga rekompilacji i fizycznego dostępu do urządzenia — bo nie mamy też OTA (wymiar 7). W praktyce oznacza to **wyjazd do obiektu z laptopem po każdej zmianie parametru**.
 
-Warto to zestawić z [ADR-0002](../business/adr/0002-pragmatic-integration-strategy.md) i [`CONTEXT.md`](../business/CONTEXT.md), gdzie „profil urządzenia" jest zdefiniowany jako *konfiguracja zawierająca protokół komunikacji, mapowanie rejestrów, jednostki i skalowanie, używana bez zmian firmware'u*. Definicja jest trafna i zgodna z tym, co robi rynek. **Implementacji nie ma żadnej.** To jest największy rozjazd między naszą dokumentacją a naszym kodem, jaki ta analiza znalazła.
+Warto to zestawić z [ADR-0002](../business/adr/0002-pragmatic-integration-strategy.md) i [`CONTEXT.md`](../business/CONTEXT.md), gdzie „profil urządzenia" jest zdefiniowany jako *konfiguracja zawierająca protokół komunikacji, mapowanie rejestrów, jednostki i skalowanie, używana bez zmian firmware'u*. Definicja jest trafna i zgodna z tym, co robi rynek. **Implementacji nie ma żadnej.** To największy rozjazd między naszą dokumentacją a naszym kodem — patrz K-3 w [§11](#11-korekty-do-istniejących-analiz).
 
 **Co by to zmieniło.** Jest tania ścieżka pośrednia, którą warto rozważyć przed pełnymi profilami: **pobieranie konfiguracji przy starcie**. Urządzenie po uwierzytelnieniu odpytuje backend o swoją konfigurację (interwały, progi, lista kanałów, mapowanie), zapisuje ją w NVS i stosuje. Nie wymaga OTA, nie wymaga zmiany protokołu, a zdejmuje z barków 80% powodów do wyjazdu w teren. **Szacunek własny: 6–10 dni** (endpoint + model konfiguracji w backendzie + klient w firmware + panel edycji).
 
@@ -352,7 +347,7 @@ Warto to zestawić z [ADR-0002](../business/adr/0002-pragmatic-integration-strat
 
 **Rynek.** Zdalna aktualizacja firmware jest standardem, w tym u polskiego dostawcy z rodowodem sprzed ery IoT: Inventia deklaruje **firmware flash z możliwością zdalnej aktualizacji** już przy MT-101 **[dok]**. Metasphere — zdalna aktualizacja firmware **[mkt]**. Ayyeka — aktualizacja firmware z poziomu FAI, obok zdalnej konfiguracji i przeglądu floty **[mkt]**. Kallipr — **Firmware Management** jako certyfikowana funkcja w ekosystemie Cumulocity, obok Events, Measurements, Shell Commands i Child Device Management **[spec]**.
 
-Ciekawostka warta odnotowania: UniCloud robi rzecz, której nie robi nikt inny z badanych — **automatyczny backup programu sterownika PLC co 30 dni z możliwością przywrócenia** **[mkt]**. To jest zarządzanie flotą rozumiane jako ochrona przed utratą konfiguracji obiektu, nie tylko jako wysyłanie nowych wersji.
+UniCloud robi przy tym rzecz, której nie robi nikt inny z badanych: **automatyczny backup programu sterownika PLC co 30 dni z możliwością przywrócenia** **[mkt]**. To jest zarządzanie flotą rozumiane jako ochrona przed utratą konfiguracji obiektu, nie tylko jako wysyłanie nowych wersji.
 
 Zarządzanie SIM jako element oferty: AquaRD **[mkt]**, NIVUS (SIM NIVUS albo własna) **[mkt]**, Hawle (globalna karta SIM) **[mkt]**.
 
@@ -366,7 +361,7 @@ Jest jeszcze konsekwencja, której nie widać od razu: **brak OTA blokuje bezpie
 
 ### 5.8. Wymiar 8 — model danych i retencja
 
-**Rynek.** To najsłabiej udokumentowany wymiar — **żaden z badanych podmiotów nie publikuje, jakiej bazy używa ani jaką ma politykę retencji**. Dostępne są tylko pojemności po stronie urządzenia (Metasphere: 250 mln rekordów **[mkt]**; Ayyeka: ~500 mln próbek na SD **[dok]**) i ogólniki po stronie chmury (HWM DataGate jako „hurtownia danych" z deklarowanym 99,99% uptime **[3rd]**; Hawle: „trwałe przechowywanie danych do pełnej dokumentacji" **[mkt]**).
+**Rynek.** **Żaden z badanych podmiotów nie publikuje, jakiej bazy używa ani jaką ma politykę retencji.** Publiczne są tylko pojemności po stronie urządzenia (Metasphere: 250 mln rekordów **[mkt]**; Ayyeka: ~500 mln próbek na SD **[dok]**) i ogólniki po stronie chmury (HWM DataGate jako „hurtownia danych" z deklarowanym 99,99% uptime **[3rd]**; Hawle: „trwałe przechowywanie danych do pełnej dokumentacji" **[mkt]**).
 
 Jedyna twarda informacja o architekturze danych pochodzi z ekosystemu open source, nie od konkurencji: **ThingsBoard** trzyma encje w PostgreSQL, a szeregi czasowe w PostgreSQL, **TimescaleDB** albo Cassandrze — do wyboru zależnie od skali **[dok]**. To jest realna wskazówka, jak wygląda dojrzały wybór w tej klasie systemów.
 
@@ -381,9 +376,9 @@ Jest też kwestia kształtu danych. Jeden wiersz na pakiet z pomiarami zagnieżd
 **Co by to zmieniło.** Kolejność ma znaczenie i warto ją zapisać:
 1. **najpierw polityka retencji** — decyzja produktowa („ile lat trzymamy pomiary z rozdzielczością 1 min, ile z 1 h"), nie techniczna. Bez niej pozostałe kroki są przedwczesne;
 2. **potem downsampling** — agregaty godzinowe i dobowe liczone raz, zamiast liczenia średnich z surowych danych przy każdym wejściu na dashboard;
-3. **dopiero na końcu TimescaleDB**, jeśli wolumen tego wymaga. Jest to rozszerzenie PostgreSQL, więc migracja jest addytywna i mieści się w dyscyplinie zero-downtime z ustaleń wspólnych briefów.
+3. **dopiero na końcu TimescaleDB**, jeśli wolumen tego wymaga. Jest to rozszerzenie PostgreSQL, więc migracja jest addytywna i mieści się w dyscyplinie zero-downtime.
 
-Ważne: krok 1 i 2 dają się zrobić na czystym PostgreSQL. **Szacunek własny: 3–4 dni** na politykę retencji z zadaniem czyszczącym, 5–8 dni na tabelę agregatów. Zmiana kształtu tabeli pomiarowej (rozbicie JSONB na wiersze per punkt) to osobna, większa decyzja — i jest to dokładnie ten rodzaj migracji, który briefy każą projektować jako addytywną z backfillem w tle.
+Ważne: krok 1 i 2 dają się zrobić na czystym PostgreSQL. **Szacunek własny: 3–4 dni** na politykę retencji z zadaniem czyszczącym, 5–8 dni na tabelę agregatów. Zmiana kształtu tabeli pomiarowej (rozbicie JSONB na wiersze per punkt) to osobna, większa decyzja — i jest to dokładnie ten rodzaj migracji, który trzeba zaprojektować jako addytywną, z backfillem w tle i przełączeniem odczytów na końcu.
 
 ### 5.9. Wymiar 9 — model alarmów
 
@@ -407,7 +402,7 @@ Warto to nazwać wprost: **UC-03 z planu („wykrycie możliwego wycieku lub pę
 - **na gatewayu** — proste progi na wartości z jednego kanału, z **histerezą i deadbandem** (wzorzec Inventia), których jedynym zadaniem jest wyzwolenie natychmiastowej transmisji. Firmware nie wysyła powiadomień, tylko przestaje czekać na harmonogram;
 - **w backendzie** — pełny cykl życia alarmu (wystąpienie, potwierdzenie, komentarz, zamknięcie, fałszywy alarm), reguły czasowe („ciśnienie < 2 bar **przez 120 s**" z [`CONTEXT.md`](../business/CONTEXT.md)), korelacje między kanałami, powiadomienia i eskalacja.
 
-Nowy moduł backendu `alarms/` wpisuje się wprost w istniejący szablon modułu domenowego z [`01_backend-architecture.md` §5](../technical/backend/01_backend-architecture.md), a fakt, że alarm jest zmianą stanu biznesowego (potwierdzenie przez człowieka), zgrywa się z niezmiennikiem audytowym — w przeciwieństwie do ingestu telemetrii, który świadomie commituje z `skip_audit=True`. **Szacunek własny: 12–20 dni** dla modułu backendu z powiadomieniami, 3–5 dni dla progów w firmware. Projekt ekranu alarmów jest przedmiotem B-03 i te dwa zlecenia trzeba zestawić przed implementacją.
+Nowy moduł backendu `alarms/` wpisuje się wprost w istniejący szablon modułu domenowego z [`01_backend-architecture.md` §5](../technical/backend/01_backend-architecture.md), a fakt, że alarm jest zmianą stanu biznesowego (potwierdzenie przez człowieka), zgrywa się z niezmiennikiem audytowym — w przeciwieństwie do ingestu telemetrii, który świadomie commituje z `skip_audit=True`. **Szacunek własny: 12–20 dni** dla modułu backendu z powiadomieniami (B-1). Gatewayowa połowa to klasa progu **F-3** (3–5 dni) — ta sama, która w wymiarze 5 wyzwala transmisję spontaniczną, więc liczy się raz, nie dwa razy. Projekt ekranu alarmów jest przedmiotem B-03 i te dwa zlecenia trzeba zestawić przed implementacją.
 
 ### 5.10. Wymiar 10 — API i integracje
 
@@ -425,7 +420,7 @@ Nowy moduł backendu `alarms/` wpisuje się wprost w istniejący szablon modułu
 | | NIVUS | data forwarding z portalu do systemów klienta **[mkt]** |
 | | Inventia | otwarta łączność do SCADA klienta i baz relacyjnych **[mkt]** |
 
-**Najciekawszy wzorzec całej analizy pojawił się tu, i to niezależnie u dwóch producentów z dwóch kontynentów: rozdzielenie płaszczyzny danych od płaszczyzny zarządzania.**
+**Wzorzec o najwyższej wartości dla nas w całym zestawieniu, występujący niezależnie u dwóch producentów z dwóch kontynentów: rozdzielenie płaszczyzny danych od płaszczyzny zarządzania.**
 
 Kallipr pozwala przekierować dane pomiarowe do brokera MQTT klienta, **zostawiając zarządzanie urządzeniami w Kallipr Kloud** **[mkt]**. Ayyeka robi to samo pod nazwą FAI Lite — surowe dane do MQTT/DNP3/OPC-UA/CSV, z pominięciem pełnej platformy **[mkt]**.
 
@@ -453,7 +448,7 @@ Dlaczego to jest ważne akurat dla nas: usuwa najsilniejszy zarzut, jaki gmina m
 | **Ovarro** | „bezpieczne połączenia chroniące aktywa i dane" **[mkt]**, redundancja CPU/zasilania/komunikacji |
 | **AquaRD, Hawle, NIVUS, HWM, WaterPrime** | nieujawnione |
 
-**Nikt z badanych nie publikuje polityki skoordynowanego ujawniania podatności (CVD) ani listy security advisories.** Sprawdzone celowo — to jest luka całej branży, nie tylko nasza. Warto ją odnotować, bo Cyber Resilience Act robi z CVD obowiązek producenta, a CERT Polska prowadzi ścieżkę CVD dla polskich producentów niebędących CNA **[3rd]**. Wobec gminy objętej NIS2 posiadanie takiej polityki jest tanim wyróżnikiem — dokument, nie inżynieria.
+**Nikt z badanych nie publikuje polityki skoordynowanego ujawniania podatności (CVD) ani listy security advisories** — to luka całej branży, nie tylko nasza, i dlatego tania okazja do wyróżnienia się. Cyber Resilience Act robi z CVD obowiązek producenta, a CERT Polska prowadzi ścieżkę CVD dla polskich producentów niebędących CNA **[3rd]**. Wobec gminy objętej NIS2 posiadanie takiej polityki jest tanim wyróżnikiem — dokument, nie inżynieria.
 
 **Gdzie stoimy: 🟡 na poziomie technicznie, 🔴 z tyłu formalnie, 🟢 z przodu w jednym konkretnym miejscu.**
 
@@ -469,7 +464,7 @@ Dlaczego to jest ważne akurat dla nas: usuwa najsilniejszy zarzut, jaki gmina m
 
 ## 6. Karty podmiotów — fakty źródłowe
 
-Skrócone karty z twardymi ustaleniami. Pełne notatki źródłowe w [§13](#13-źródła).
+Skrócone karty z twardymi ustaleniami. Pełna lista odnośników w [§12](#12-źródła).
 
 ### 6.1. Inventia (PL)
 
@@ -512,7 +507,7 @@ Zakres pomiarów: poziom napełnienia, wodomierz, przepływ, ciśnienie, zawory 
 
 Ekosystem: Hawle.live CAP (inteligentne nakładki modernizujące istniejące hydranty naziemne i podziemne), Hawle.live KEY (klucz NFC do zasuw), aplikacja z mapą i raportami **[mkt]**.
 
-**Interfejsy elektryczne nieujawnione** — producent nie publikuje, czy i jak podłącza się czujniki 4-20 mA, Modbus czy impulsowe. To najsłabiej udokumentowany technicznie podmiot w całej analizie.
+**Interfejsy elektryczne nieujawnione** — producent nie publikuje, czy i jak podłącza się czujniki 4-20 mA, Modbus czy impulsowe. Hawle jest w związku z tym jedynym podmiotem, którego nie da się umieścić w tabeli wymiaru 2.
 
 ### 6.5. AIUT WaterPrime (PL)
 
@@ -576,7 +571,7 @@ Oprogramowanie **[mkt]**: **D2W DeviceConfig** jako osobne narzędzie konfigurac
 
 ## 7. Platformy device management ogólnego przeznaczenia — kupić czy budować
 
-Brief nakazuje potraktować te platformy **osobno, nie jako konkurencję**, i odpowiedzieć na pytanie: czy któryś z gotowych mechanizmów (provisioning, OTA, zarządzanie flotą) opłaca się wziąć z półki zamiast pisać samodzielnie.
+Te platformy nie są konkurencją — są potencjalnym komponentem do kupienia. Pytanie brzmi: czy któryś z gotowych mechanizmów (provisioning, OTA, zarządzanie flotą) opłaca się wziąć z półki zamiast pisać samodzielnie.
 
 ### 7.1. Kandydaci i werdykty
 
@@ -586,9 +581,9 @@ Brief nakazuje potraktować te platformy **osobno, nie jako konkurencję**, i od
 | **Blues Wireless (Notecard + Notehub)** | Notecard to moduł M.2 z łącznością komórkową, komunikujący się z hostem **poleceniami JSON**. Notehub: routing danych do dowolnej chmury, zdalne zarządzanie, analityka, **OTA firmware hosta**. Funkcja **Notecard Outboard Firmware Update** pozwala wdrożyć OTA hosta **bez pisania kodu** — Notehub ustawia zmienną `_fw` na docelową wersję, a Notecard podmienia firmware przy kolejnej synchronizacji **[dok]** | **Zastępuje nasz modem.** To nie jest biblioteka, tylko inny sprzęt — A7670E + TinyGSM zniknęłyby | **Rozważyć przy wariancie W2/W3 sprzętu, nie teraz.** Jeśli B-01 doprowadzi do przeprojektowania sprzętu, Notecard jest realnym kandydatem: rozwiązuje naraz łączność, TLS, OTA i część provisioningu. Przy obecnym W1 to zmiana sprzętowa, nie programowa |
 | **balena / balenaOS** | Kontenery na urządzeniach brzegowych | **Brak.** balenaOS to minimalna dystrybucja Linuksa (Yocto) dla komputerów jednopłytkowych i SOM-ów. **Mikrokontrolery, w tym ESP32, nie są wspierane** — istnieje otwarte zgłoszenie funkcjonalności od użytkowników, usługa Custom Device Support również wymaga sprzętu linuksowego **[dok/3rd]** | **Odrzucone definitywnie.** Niezgodność architektury, nie kwestia nakładu pracy |
 | **Telit (OneEdge / deviceWISE)** | Zintegrowana oferta: moduły Telit + łączność + chmura. Transmisja przez **LwM2M**; FOTA i kampanie zarządzania urządzeniami; automatyczne akcje, alerty i alarmy na regułach w chmurze; plany pakietowe łączące moduł, oprogramowanie i transmisję **[dok/mkt]** | **Wymaga modułów Telit.** Plan „Lungo" obejmuje moduł ME910C1 LTE Cat M1/NB1 — czyli wymianę A7670E | **Odrzucone na teraz.** Wiąże nas z jednym dostawcą modułów i jednym operatorem oferty. Wartość: LwM2M jako standard device managementu wart odnotowania obok WITS |
-| **ThingsBoard** (spoza listy briefu, dodane jako najbliższy realny substytut) | Otwartoźródłowa platforma IoT: zbieranie i wizualizacja danych, device management, **rule engine** przekształcający payload w model danych, **alarmy z propagacją po hierarchii encji**, alerty wielokanałowe (e-mail, SMS, Slack, Teams). Provisioning: poświadczenia podstawowe, tokeny dostępu albo **łańcuchy certyfikatów X.509**, w tym bulk provisioning z CSV. Dane: encje w PostgreSQL, szeregi czasowe w PostgreSQL, **TimescaleDB** albo Cassandrze. Licencja **Apache 2.0** — wolno użyć komercyjnie **[dok]** | **Wysoka technicznie, ale to platforma, nie biblioteka.** Zastąpiłaby nasz backend, nie uzupełniła go | **Nie adoptować — czytać jako wzorzec.** Nasz backend ma już moduły, audyt i model uprawnień dopasowany do gmin. Ale **model alarmów i rule engine ThingsBoard to najlepsza dostępna publicznie referencja** przy projektowaniu naszego modułu `alarms/` (wymiar 9), a ich wybór „PostgreSQL na encje, TimescaleDB na szeregi" potwierdza kierunek z wymiaru 8 |
+| **ThingsBoard** (najbliższy realny substytut naszego backendu) | Otwartoźródłowa platforma IoT: zbieranie i wizualizacja danych, device management, **rule engine** przekształcający payload w model danych, **alarmy z propagacją po hierarchii encji**, alerty wielokanałowe (e-mail, SMS, Slack, Teams). Provisioning: poświadczenia podstawowe, tokeny dostępu albo **łańcuchy certyfikatów X.509**, w tym bulk provisioning z CSV. Dane: encje w PostgreSQL, szeregi czasowe w PostgreSQL, **TimescaleDB** albo Cassandrze. Licencja **Apache 2.0** — wolno użyć komercyjnie **[dok]** | **Wysoka technicznie, ale to platforma, nie biblioteka.** Zastąpiłaby nasz backend, nie uzupełniła go | **Nie adoptować — czytać jako wzorzec.** Nasz backend ma już moduły, audyt i model uprawnień dopasowany do gmin. Ale **model alarmów i rule engine ThingsBoard to najlepsza dostępna publicznie referencja** przy projektowaniu naszego modułu `alarms/` (wymiar 9), a ich wybór „PostgreSQL na encje, TimescaleDB na szeregi" potwierdza kierunek z wymiaru 8 |
 
-### 7.2. Odpowiedź na pytanie briefu
+### 7.2. Werdykt — kupić czy budować
 
 **Nie warto dziś kupować platformy device managementu z półki. Warto skopiować z niej trzy konkretne mechanizmy i jeden wybór technologiczny.**
 
@@ -608,20 +603,24 @@ Jedyny scenariusz, w którym warto wrócić do zakupu: **jeśli B-01 doprowadzi 
 
 Uszeregowane według stosunku wartości do kosztu. Szacunki nakładu są **szacunkami własnymi**, nie danymi ze źródeł.
 
-| # | Wzorzec | Od kogo | Dlaczego u nas | Nakład (szac. własny) |
-|---|---|---|---|---|
-| **1** | **Transmisja spontaniczna przy zdarzeniu, obok harmonogramu** | AquaRD, Hawle, Inventia, Sensus | Rozwiązuje sprzeczność, której dziś nie widać: żeby wykryć wyciek szybko, musimy nadawać często; żeby nadawać rzadko (bateria, transmisja), musimy wykrywać wolno. Rynek rozwiązał ją dwadzieścia lat temu — rutyna rzadko, zdarzenie natychmiast. Odblokowuje UC-03 i całą ścieżkę bateryjną | 3–5 dni (firmware), zależne od poz. 3 |
-| **2** | **Modbus RTU master przez RS485** | wszyscy poza nami | Realizuje obietnicę „neutralności sprzętowej" z `CONTEXT.md` i ADR-0002, która dziś nie ma pokrycia. Zamienia „czytamy nasze dwa czujniki" na „czytamy to, co gmina ma" | 3–5 dni + kilkanaście zł sprzętu |
-| **3** | **Progi z histerezą i deadbandem na urządzeniu** | Inventia (najlepiej opisane), AquaRD, Hawle | Wyzwalacz dla poz. 1. Histereza i deadband są w tym samym zdaniu karty katalogowej MT-101 co same progi — bo producent wie, że próg bez histerezy przy wartości drgającej wokół granicy generuje lawinę | 3–5 dni (firmware) |
-| **4** | **Bufor w pamięci nieulotnej z retencją w godzinach** | Metasphere (250 mln rek.), Ayyeka (SD), AquaRD, UniCloud (bufor na routerze) | Nasze 12 minut w RAM vs. 72 godziny obiecane we własnym `CONTEXT.md`. Dwugodzinna awaria LTE = bezpowrotna dziura w danych | 4–6 dni (firmware + testy wznawiania) |
-| **5** | **Pobieranie konfiguracji przy starcie** | wszyscy (zdalna konfiguracja jest u wszystkich) | Zdejmuje większość powodów do wyjazdu w teren, bez budowania pełnego OTA. Najtańsza droga do części obietnicy „profili urządzeń" | 6–10 dni (backend + firmware + panel) |
-| **6** | **Kopia danych do systemu klienta („dane też do was")** | Kallipr (własny broker MQTT klienta), Ayyeka (FAI Lite), HWM (serwer klienta) | Najlepszy stosunek wartości sprzedażowej do kosztu w całej analizie. Rozbraja zarzut „co z naszymi danymi, jeśli wy znikniecie" — zarzut, który mały dostawca bez ISO i bez historii usłyszy na pewno | 5–8 dni |
-| **7** | **OTA z kohortami i podpisanym obrazem** | Inventia, Metasphere, Ayyeka, Kallipr; model kohort z Golioth | Bez tego każda poprawka to wyjazd do każdego obiektu, a każda podatność jest nienaprawialna. Warunek konieczny dla jakiejkolwiek rozmowy o NIS2/CRA | 10–15 dni |
-| **8** | **Moduł alarmów z pełnym cyklem życia** | wszyscy; wzorzec modelu z ThingsBoard | Bez niego propozycja wartości „dowiesz się, zanim zadzwoni mieszkaniec" nie ma implementacji. Do zestawienia z projektem ekranu z B-03 przed startem | 12–20 dni (backend) |
-| **9** | **Publiczne API odczytu + eksport CSV** | UniCloud (REST+webhooki), Ayyeka (REST), HWM (API na wniosek) | Eksport CSV realizuje UC-05 za 1–2 dni. API odczytu jest tanie, bo płaszczyzna organizacji i kody uprawnień już istnieją | 1–2 dni (CSV) + 4–6 dni (API) |
-| **10** | **Polityka ujawniania podatności i publiczny opis modelu bezpieczeństwa** | UniCloud (jako jedyny robi to porządnie); luka całej reszty branży | Dokument, nie inżynieria. Wobec gminy objętej NIS2 tani wyróżnik — i nikt z badanych polskich dostawców tego nie ma | 2–3 dni |
-| **11** | **Rozdzielenie interwału pomiaru od interwału transmisji jako parametrów** | Kallipr (opisuje to wprost jako kompromis), HWM (1 s – 24 h) | Dziś oba są zaszyte w `Config.h` i sprzężone. Rozdzielenie jest warunkiem sensownej pracy na baterii i przy droższej transmisji | 2–3 dni, razem z poz. 5 |
-| **12** | **Semantyka WITS-IoT jako wzorzec dla naszego payloadu** | standard WITS PSA | Nie pełna zgodność — same pojęcia i struktura. Alternatywą jest wymyślanie tego samego drugi raz, gorzej | 3–5 dni + koszt dostępu do specyfikacji |
+**Jak czytać nakłady:** każda pozycja wycenia **wyłącznie własną pracę** — nakłady są rozłączne i przy realizacji kilku pozycji naraz się sumują. Kolumna „wymaga" wskazuje pozycje, które muszą powstać wcześniej, ale ich dni **nie są** wliczone w wiersz. Wyjątek zaznaczony wprost: poz. 11 mieści się w poz. 5 i nie dodaje dni.
+
+| # | Wzorzec | Od kogo | Dlaczego u nas | Nakład (szac. własny) | Wymaga |
+|---|---|---|---|---|---|
+| **1** | **Transmisja spontaniczna przy zdarzeniu, obok harmonogramu** | AquaRD, Hawle, Inventia, Sensus | Rozwiązuje sprzeczność, której dziś nie widać: żeby wykryć wyciek szybko, musimy nadawać często; żeby nadawać rzadko (bateria, transmisja), musimy wykrywać wolno. Rynek rozwiązał ją dwadzieścia lat temu — rutyna rzadko, zdarzenie natychmiast. Odblokowuje UC-03 i całą ścieżkę bateryjną | 3–5 dni (firmware) | poz. 3 (wyzwalacz), poz. 4 (żeby zdarzenie przetrwało reset) |
+| **2** | **Modbus RTU master przez RS485** | wszyscy poza nami | Realizuje obietnicę „neutralności sprzętowej" z `CONTEXT.md` i ADR-0002, która dziś nie ma pokrycia. Zamienia „czytamy nasze dwa czujniki" na „czytamy to, co gmina ma" | 3–5 dni + kilkanaście zł sprzętu | transceiver RS485 (H-2) |
+| **3** | **Progi z histerezą i deadbandem na urządzeniu** | Inventia (najlepiej opisane), AquaRD, Hawle | Wyzwalacz dla poz. 1 **i zarazem gatewayowa połowa poz. 8** — jedna klasa, liczona raz. Histereza i deadband są w tym samym zdaniu karty katalogowej MT-101 co same progi — bo producent wie, że próg bez histerezy przy wartości drgającej wokół granicy generuje lawinę | 3–5 dni (firmware) | — |
+| **4** | **Bufor w pamięci nieulotnej z retencją w godzinach** | Metasphere (250 mln rek.), Ayyeka (SD), AquaRD, UniCloud (bufor na routerze) | Nasze 12 minut w RAM vs. 72 godziny obiecane we własnym `CONTEXT.md`. Dwugodzinna awaria LTE = bezpowrotna dziura w danych | 4–6 dni (firmware + testy wznawiania) | — |
+| **5** | **Pobieranie konfiguracji przy starcie** | wszyscy (zdalna konfiguracja jest u wszystkich) | Zdejmuje większość powodów do wyjazdu w teren, bez budowania pełnego OTA. Najtańsza droga do części obietnicy „profili urządzeń" | 6–10 dni (backend + firmware + panel) | — |
+| **6** | **Kopia danych do systemu klienta („dane też do was")** | Kallipr (własny broker MQTT klienta), Ayyeka (FAI Lite), HWM (serwer klienta) | Najlepszy stosunek wartości sprzedażowej do kosztu w całej analizie. Rozbraja zarzut „co z naszymi danymi, jeśli wy znikniecie" — zarzut, który mały dostawca bez ISO i bez historii usłyszy na pewno | 5–8 dni | — |
+| **7** | **OTA z kohortami i podpisanym obrazem** | Inventia, Metasphere, Ayyeka, Kallipr; model kohort z Golioth | Bez tego każda poprawka to wyjazd do każdego obiektu, a każda podatność jest nienaprawialna. Warunek konieczny dla jakiejkolwiek rozmowy o NIS2/CRA | 10–15 dni | — |
+| **8** | **Moduł alarmów z pełnym cyklem życia** | wszyscy; wzorzec modelu z ThingsBoard | Bez niego propozycja wartości „dowiesz się, zanim zadzwoni mieszkaniec" nie ma implementacji. Do zestawienia z projektem ekranu z B-03 przed startem | 12–20 dni (backend) | poz. 3 jako gatewayowa połowa — dni już policzone tam |
+| **9** | **Publiczne API odczytu + eksport CSV** | UniCloud (REST+webhooki), Ayyeka (REST), HWM (API na wniosek) | Eksport CSV realizuje UC-05 za 1–2 dni. API odczytu jest tanie, bo płaszczyzna organizacji i kody uprawnień już istnieją | 1–2 dni (CSV) + 4–6 dni (API) | — |
+| **10** | **Polityka ujawniania podatności i publiczny opis modelu bezpieczeństwa** | UniCloud (jako jedyny robi to porządnie); luka całej reszty branży | Dokument, nie inżynieria. Wobec gminy objętej NIS2 tani wyróżnik — i nikt z badanych polskich dostawców tego nie ma | 2–3 dni | — |
+| **11** | **Rozdzielenie interwału pomiaru od interwału transmisji jako parametrów** | Kallipr (opisuje to wprost jako kompromis), HWM (1 s – 24 h) | Dziś oba są zaszyte w `Config.h` i sprzężone. Rozdzielenie jest warunkiem sensownej pracy na baterii i przy droższej transmisji | **0 dodatkowych dni** — mieści się w poz. 5 | poz. 5 |
+| **12** | **Semantyka WITS-IoT jako wzorzec dla naszego payloadu** | standard WITS PSA | Nie pełna zgodność — same pojęcia i struktura. Alternatywą jest wymyślanie tego samego drugi raz, gorzej | 3–5 dni + koszt dostępu do specyfikacji | — |
+
+**Suma wszystkich dwunastu pozycji: 56–90 dni roboczych**, z czego 54–87 to praca inżynierska, a 2–3 dni to poz. 10 (dokumentacja). Poz. 11 nie dodaje dni. To jest wielkość do świadomego pocięcia na etapy, nie plan na jeden sprint.
 
 ---
 
@@ -638,7 +637,7 @@ Uszeregowane według stosunku wartości do kosztu. Szacunki nakładu są **szacu
 | **Prywatna licencjonowana sieć radiowa** | Sensus FlexNet, Itron | Model ekonomiczny wymaga tysięcy punktów na operatora. Nasz klient ma 5–15 |
 | **Certyfikacja ISO 27001 teraz** | UniCloud, Inventia | Koszt niewspółmierny do skali kilku prototypów. Wartościowe wtedy, gdy zaczniemy przegrywać przetargi z tego powodu — a to jest pytanie do B-01, nie do tej analizy |
 | **Własna sieć dystrybutorów i partnerów wdrożeniowych** | Inventia, AquaRD | Model organizacyjny, nie techniczny. Poza zakresem tego dokumentu |
-| **Adopcja Golioth / Blues / Telit jako platformy** | — | Uzasadnienie w [§7.2](#72-odpowiedź-na-pytanie-briefu): koszt migracji warstwy transportowej lub wymiany modemu przewyższa dziś koszt własnej implementacji OTA, a dochodzi zależność w ścieżce krytycznej urządzenia |
+| **Adopcja Golioth / Blues / Telit jako platformy** | — | Uzasadnienie w [§7.2](#72-werdykt--kupić-czy-budować): koszt migracji warstwy transportowej lub wymiany modemu przewyższa dziś koszt własnej implementacji OTA, a dochodzi zależność w ścieżce krytycznej urządzenia |
 
 ---
 
@@ -686,21 +685,31 @@ Format: **co → gdzie w kodzie → dlaczego → z którego wymiaru wynika**. To
 
 ### 10.4. Zależności między zmianami
 
+Notacja: **`A ──► B` znaczy „A musi powstać przed B"**. Kierunek jest ten sam w każdym wierszu.
+
 ```
-H-2 ──► F-5 (Modbus)
-F-4 ──► F-2 (interwały z konfiguracji)   B-2 ──► F-4
-F-3 ──► F-1 (transmisja spontaniczna ma sens, gdy bufor przetrwa reset)
-B-1 ──► F-3 (progi na urządzeniu to wyzwalacz; pełna logika w backendzie)
-F-8 ──► B-8 (OTA wymaga rejestru wersji po stronie serwera)
-F-9 przed pierwszym wdrożeniem produkcyjnym; po wdrożeniu koszt rośnie skokowo
-B-3 ──► B-4 (retencja to decyzja, agregaty to jej konsekwencja)
+H-2 ──► F-5      transceiver RS485 przed sterownikiem Modbus
+
+B-2 ──► F-4 ──► F-2   endpoint konfiguracji → klient w firmware →
+                      dopiero wtedy interwały da się ustawiać zdalnie
+
+F-1 ──► F-3      bufor nieulotny przed progami: transmisja wyzwolona
+                 zdarzeniem ma sens, gdy zdarzenie przetrwa reset
+
+F-8 ──► B-8      OTA w firmware przed rejestrem wersji po stronie serwera
+
+B-3 ──► B-4      retencja to decyzja produktowa, agregaty to jej konsekwencja
 ```
+
+**F-3 i B-1 są komplementarne, nie sekwencyjne.** B-1 (moduł alarmów w backendzie) działa samodzielnie na przychodzącej telemetrii i nie wymaga F-3 technicznie — F-3 skraca jedynie czas wykrycia, bo zdarzenie nie czeka na najbliższą transmisję z harmonogramu. Można je robić w dowolnej kolejności; razem dają pełny model z §5.9. Ta sama klasa F-3 obsługuje przy tym dwa wymiary: 5 (wyzwalacz transmisji spontanicznej) i 9 (gatewayowa połowa alarmów) — i liczy się raz.
+
+**Poza grafem, ale z twardym terminem:** F-9 (Secure Boot i Flash Encryption) musi wejść **przed pierwszym wdrożeniem produkcyjnym** — po wdrożeniu wymaga fizycznego dostępu do każdego urządzenia, a bez F-8 nie ma alternatywnej drogi.
 
 ---
 
 ## 11. Korekty do istniejących analiz
 
-Zgodnie z briefem: rzeczy znalezione przy okazji, które korygują istniejącą dokumentację. **Nie przepisujemy tych dokumentów — wskazujemy rozbieżności.**
+Rozbieżności między istniejącą dokumentacją a stanem faktycznym, ujawnione przy porównaniu z rynkiem. **Nie przepisujemy tych dokumentów — wskazujemy rozbieżności do rozstrzygnięcia.**
 
 | # | Gdzie | Co jest napisane | Co ustalono | Waga |
 |---|---|---|---|---|
@@ -715,24 +724,7 @@ Zgodnie z briefem: rzeczy znalezione przy okazji, które korygują istniejącą 
 
 ---
 
-## 12. Luki informacyjne — czego nie udało się ustalić
-
-Zgodnie z metodą briefu: tam, gdzie informacji nie ma publicznie, piszemy „nieujawnione", nie zgadujemy. Poniżej rzeczy, których brak ma znaczenie dla wniosków.
-
-| Czego nie ustalono | Kogo dotyczy | Dlaczego to blokuje | Jak to zdobyć |
-|---|---|---|---|
-| **Format payloadu i protokół aplikacyjny do chmury** | Inventia (poza faktem MQTT w MT-331), AquaRD, Hawle, NIVUS, HWM | Wymiar 3 i 5 oparte są dla tych podmiotów na strategii transmisji, nie na strukturze wiadomości | Dokumentacja integracyjna dostępna po zakupie lub dla partnerów |
-| **Model retencji i baza danych po stronie chmury** | **wszyscy badani bez wyjątku** | Wymiar 8 nie ma dla konkurencji żadnego twardego punktu odniesienia — jedyne dane pochodzą z ThingsBoard (open source) | Praktycznie niedostępne publicznie |
-| **Mechanizm provisioningu i tożsamości urządzenia** | Kallipr, Ayyeka, HWM, Metasphere, NIVUS, AquaRD | Wymiar 4 porównuje nas głównie z UniCloud i Inventią, bo tylko oni to opisują | Dokumentacja dla integratorów |
-| **Interfejsy elektryczne urządzenia** | **Hawle.live** — kompletny brak | Hawle nie da się rzetelnie ocenić w wymiarze 2 | Kontakt z producentem (poza zakresem: brief zakazuje rejestracji na dema) |
-| **Polityka ujawniania podatności, security advisories, wyniki pen-testów** | **wszyscy badani bez wyjątku** | To luka całej branży, nie tylko nasza — i jednocześnie tania okazja do wyróżnienia się | — |
-| **Rzeczywiste ceny sprzętu** | większość; publiczne tylko UniCloud (router ~2 000 zł, abonament 1–3 tys. zł/rok/obiekt) i USR-DR154-E z briefu B-01 | Porównanie kosztowe wariantów należy do B-01 i B-10, nie do tej analizy | Zapytania ofertowe |
-| **Pełna specyfikacja WITS-IoT** | standard WITS PSA | Rekomendacja „użyj semantyki WITS-IoT" opiera się na opisie funkcji i architektury standardu, nie na przeczytanym dokumencie specyfikacji | WITS PSA — warunki dostępu do specyfikacji do sprawdzenia przed podjęciem decyzji |
-| **Dokumentacja Inventia DataPortal** | Inventia | Podręcznik i dokumentacja są za loginem; ocena platformy Inventii opiera się na materiałach produktowych | Konto testowe (Inventia oferuje test funkcjonalności — poza zakresem tego briefu) |
-
----
-
-## 13. Źródła
+## 12. Źródła
 
 Wszystkie odwiedzone 4 września 2026.
 
