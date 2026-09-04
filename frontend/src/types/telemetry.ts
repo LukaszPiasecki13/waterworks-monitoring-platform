@@ -57,3 +57,39 @@ export interface PaginatedResponse<T> {
   skip: number
   limit: number
 }
+
+/* Device state read channel (B-08) — one entry per reported section */
+export interface DeviceStateSection {
+  section: string
+  schema_version: number
+  captured_at: string
+  received_at: string
+  age_seconds: number
+  is_stale: boolean
+  data: Record<string, unknown>
+}
+
+export interface DeviceState {
+  device_id: string
+  external_id: string
+  last_seen_at: string | null
+  last_diagnostics_at: string | null
+  sections: DeviceStateSection[]
+}
+
+/* Fields of the `device` section. All optional: an older firmware reports a
+   subset, and a newer one may report more than this backend types. */
+export interface DeviceStateDeviceSection {
+  serial_number?: string
+  firmware_version?: string
+  registry_schema_version?: number
+  uptime_seconds?: number
+  restart_count?: number
+  restart_reason?: string
+  rssi_dbm?: number
+  free_heap_bytes?: number
+  min_free_heap_bytes?: number
+  buffer_windows_used?: number
+  buffer_windows_capacity?: number
+  buffer_windows_dropped?: number
+}

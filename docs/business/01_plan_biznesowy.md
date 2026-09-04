@@ -763,7 +763,12 @@ Wysyłana co 1–5 minut. Zawiera agregaty (min, max, avg) z okien 1-minutowych 
 
 ### 3.4.3. Wiadomość diagnostyczna
 
-Oparta na wymaganiach [rozdziału 3.7](#37-diagnostyka-urządzenia-terenowego). **Format poniżej opisuje intencję produktową, nie dosłowny kształt zaimplementowany w kodzie:** diagnostyka jest już wdrożona, ale jako pole `errors[]` dołączane do zwykłego pakietu telemetrycznego (§3.4.2), nie jako osobna wiadomość wysyłana co 15 minut na oddzielny kanał. Backend zapisuje wpisy w tabeli `telemetry_errors` i aktualizuje `Device.last_diagnostics_at` przy każdym pakiecie zawierającym błędy — szczegóły w [`04_telemetry_module.md`, sekcja 5](../technical/backend/04_telemetry_module.md#5-pakiet-v2--batchowanie-i-wieloczujniki). Pełne dane diagnostyczne urządzenia (RSSI, uptime, stan bufora — [rozdział 3.7](#37-diagnostyka-urządzenia-terenowego)) jako osobny, okresowy kanał pozostają niezrealizowaną specyfikacją.
+Oparta na wymaganiach [rozdziału 3.7](#37-diagnostyka-urządzenia-terenowego). **Format poniżej opisuje intencję produktową, nie dosłowny kształt zaimplementowany w kodzie.** Zrealizowane są dwie komplementarne rzeczy:
+
+- **Zdarzenia** (błędy czujników, modemu, zasilania) jadą jako pole `errors[]` w zwykłym pakiecie telemetrycznym (§3.4.2) i lądują w tabeli `telemetry_errors` — szczegóły w [`04_telemetry_module.md`, sekcja 5](../technical/backend/04_telemetry_module.md#5-pakiet-v2--batchowanie-i-wieloczujniki).
+- **Stan urządzenia** (wersja firmware, uptime, licznik i przyczyna restartów, RSSI, wolna pamięć, zapełnienie bufora lokalnego) jedzie jako sekcja `device` w tablicy `state[]` tego samego pakietu, co ~15 minut, i ląduje w tabeli `device_state_reports`. Nie jest to osobny endpoint: urządzenie siedzi za NAT-em operatora, a osobne żądanie kosztowałoby ~5 KB narzutu TLS zamiast 418 B danych. Pełne uzasadnienie wyboru wraz z rachunkiem transferu dla obu rytmów transmisji: [`01_kanal_stanu_urzadzenia.md`](../technical/01_kanal_stanu_urzadzenia.md).
+
+Poza zakresem pierwszej wersji kanału pozostają pola, których obecny sprzęt nie mierzy: operator i technologia połączenia, stan komunikacji z lokalnymi urządzeniami (Modbus), stan zasilania i temperatura szafy. Dołożenie każdego z nich to rozszerzenie sekcji `device`, bez zmiany kontraktu.
 
 ```json
 {

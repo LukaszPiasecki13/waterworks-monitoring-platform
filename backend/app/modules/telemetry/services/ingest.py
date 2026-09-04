@@ -6,6 +6,8 @@ from datetime import UTC, datetime
 from typing import Literal
 from uuid import UUID
 
+from pydantic import ValidationError
+
 from app.core.errors import BadRequestError, ConflictError, ForbiddenError
 from app.modules.core_data.models.device import Device
 from app.modules.core_data.models.measurement_point import MeasurementPoint
@@ -13,7 +15,15 @@ from app.modules.core_data.registry import SensorRegistry
 from app.modules.core_data.services.measurement_points import MeasurementPointService
 from app.modules.telemetry.exceptions import TelemetryPacketAlreadyExistsError
 from app.modules.telemetry.models.telemetry_error import TelemetryError
+from app.modules.telemetry.repositories.device_state import (
+    DeviceStateReportRepository,
+)
 from app.modules.telemetry.repositories.packets import TelemetryPacketRepository
+from app.modules.telemetry.schemas.device_state import (
+    SECTION_DEVICE,
+    DeviceStateData,
+    StateSectionEntry,
+)
 from app.modules.telemetry.schemas.measurement_packet import (
     MeasurementPacketRequest,
     TelemetryIngestResponse,
@@ -21,6 +31,11 @@ from app.modules.telemetry.schemas.measurement_packet import (
 from app.modules.telemetry.schemas.measurement_packet import (
     MeasurementPoint as PacketPoint,
 )
+
+# Typed models for the sections this backend understands. A section absent
+# here is still stored verbatim — the registry decides what is accepted, this
+# map only decides what is additionally type-checked on the way in.
+_SECTION_MODELS: dict[str, type[DeviceStateData]] = {SECTION_DEVICE: DeviceStateData}
 
 
 @dataclass(frozen=True)
@@ -99,14 +114,37 @@ def _packet_reported_errors(ctx: _IngestContext) -> list[TelemetryError]:
     ]
 
 
+def _validate_section(entry: StateSectionEntry) -> str | None:
+    """Type-check a section's payload; return a failure message or None.
+
+    Only sections with a typed model are checked. A section the registry
+    accepts but this backend has no model for passes through unchanged —
+    that is what lets a new read ship on the device before the backend
+    learns its shape.
+    """
+    model = _SECTION_MODELS.get(entry.section)
+    if model is None:
+        return None
+    try:
+        model.model_validate(entry.data)
+    except ValidationError as exc:
+        return "; ".join(
+            f"{'.'.join(str(loc) for loc in err['loc'])}: {err['msg']}"
+            for err in exc.errors()[:3]
+        )
+    return None
+
+
 class TelemetryIngestService:
     def __init__(
         self,
         packet_repository: TelemetryPacketRepository,
         point_service: MeasurementPointService,
+        state_repository: DeviceStateReportRepository,
     ):
         self._packet_repository = packet_repository
         self._point_service = point_service
+        self._state_repository = state_repository
 
     def ingest(
         self, packet: MeasurementPacketRequest, device: Device
@@ -145,13 +183,17 @@ class TelemetryIngestService:
                 )
 
                 mismatch_errors = self._process_measurement_windows(ctx)
+                state_errors = self._process_state_sections(ctx, device)
                 reported_errors = _packet_reported_errors(ctx)
-                errors = mismatch_errors + reported_errors
+                errors = mismatch_errors + state_errors + reported_errors
                 if errors:
                     self._packet_repository.session.add_all(errors)
                     self._packet_repository.flush()
 
-                device.last_diagnostics_at = received_at
+                # Any packet proves the device is alive; only a state report
+                # proves it answered a read. Before B-08 both meanings shared
+                # last_diagnostics_at, which made the field's name a lie.
+                device.last_seen_at = received_at
                 self._packet_repository.session.flush()
 
         except TelemetryPacketAlreadyExistsError:
@@ -176,6 +218,95 @@ class TelemetryIngestService:
         if is_duplicate:
             return _build_response("duplicate", packet)
         return None
+
+    def _process_state_sections(
+        self, ctx: _IngestContext, device: Device
+    ) -> list[TelemetryError]:
+        """Persist the state sections a device attached to this packet.
+
+        Invariant worth keeping: diagnostics must never cost you telemetry.
+        An unknown, stale-versioned or malformed section becomes an error
+        entry and (where it can be) is still stored, but never turns a packet
+        full of good measurements into a rejection.
+        """
+        errors: list[TelemetryError] = []
+        seen: set[str] = set()
+
+        for entry in ctx.packet.state:
+            if entry.section in seen:
+                # The unique constraint would reject the second row anyway;
+                # failing here keeps the whole packet from rolling back.
+                errors.append(
+                    _build_error(
+                        ctx,
+                        code="STATE_SECTION_INVALID",
+                        point_id=None,
+                        severity="warning",
+                        message=f"Duplicate state section '{entry.section}' in packet",
+                    )
+                )
+                continue
+            seen.add(entry.section)
+
+            expected_version = SensorRegistry.state_section_schema_version(
+                entry.section
+            )
+            if expected_version is None:
+                errors.append(
+                    _build_error(
+                        ctx,
+                        code="STATE_SECTION_UNKNOWN",
+                        point_id=None,
+                        severity="warning",
+                        message=f"Unknown state section '{entry.section}'",
+                    )
+                )
+                continue
+
+            if expected_version != entry.schema_version:
+                errors.append(
+                    _build_error(
+                        ctx,
+                        code="STATE_SCHEMA_VERSION_MISMATCH",
+                        point_id=None,
+                        severity="info",
+                        message=(
+                            f"Section '{entry.section}' sent schema_version="
+                            f"{entry.schema_version}, registry expects "
+                            f"{expected_version}"
+                        ),
+                    )
+                )
+            else:
+                failure = _validate_section(entry)
+                if failure is not None:
+                    errors.append(
+                        _build_error(
+                            ctx,
+                            code="STATE_SECTION_INVALID",
+                            point_id=None,
+                            severity="warning",
+                            message=f"Section '{entry.section}': {failure}"[:512],
+                        )
+                    )
+
+            self._state_repository.create(
+                packet_id=ctx.saved_packet_id,
+                device_id=ctx.packet.device_id,
+                section=entry.section,
+                schema_version=entry.schema_version,
+                captured_at=entry.captured_at,
+                received_at=ctx.received_at,
+                data=entry.data,
+            )
+
+            if entry.section == SECTION_DEVICE:
+                device.last_diagnostics_at = ctx.received_at
+                reported_firmware = entry.data.get("firmware_version")
+                if isinstance(reported_firmware, str) and reported_firmware:
+                    device.firmware_version = reported_firmware[:50]
+
+        return errors
 
     def _process_measurement_windows(self, ctx: _IngestContext) -> list[TelemetryError]:
         """Resolve each reported point to its MeasurementPoint (auto-provisioning

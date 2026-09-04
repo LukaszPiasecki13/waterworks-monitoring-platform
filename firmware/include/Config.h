@@ -49,6 +49,10 @@ const char RESOURCE[] = "/telemetry/ingest";
 // Device identity & provisioning
 // =========================
 
+// Reported in the `device` state section and mirrored onto Device.firmware_version
+// by the backend. Bump on every release that changes what the device reports.
+const char FIRMWARE_VERSION[] = "0.4.0";
+
 const char SN_PREFIX[] = "WW-";
 const char CHALLENGE_RESOURCE[] = "/devices/auth/challenge";
 const char VERIFY_RESOURCE[] = "/devices/auth/verify";
@@ -65,3 +69,8 @@ const uint8_t MAX_RESTART_ATTEMPTS = 2;
 const unsigned long CLAIM_POLL_INTERVAL_MS = 15000;        // Test interval; to be tuned after Phase B
 const uint32_t TOKEN_REFRESH_MARGIN_SECONDS = 4 * 3600;    // 4h przed wygaśnięciem 36h tokenu
 const unsigned long ACTIVATION_RETRY_INTERVAL_MS = 30000;  // backoff bazowy dla EnrollmentClient (błędy przejściowe)
+
+// Jak często stan urządzenia dołącza do pakietu telemetrycznego (B-08).
+// 15 min zgodnie z 01_plan_biznesowy.md §3.8.1; koszt jest niezależny od
+// interwału transmisji, bo licznik chodzi po zegarze, nie po pakietach.
+const unsigned long DEVICE_STATE_REPORT_INTERVAL_MS = 15UL * 60UL * 1000UL;

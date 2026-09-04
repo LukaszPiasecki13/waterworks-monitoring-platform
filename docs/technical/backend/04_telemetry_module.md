@@ -6,7 +6,11 @@
 
 `telemetry` przyjmuje pakiety pomiarowe z gatewayów terenowych i wystawia zapytania szeregów czasowych dla dashboardu. Dwie wyraźnie oddzielone ścieżki: **ingest** (write, autoryzacja kluczem urządzenia, `/telemetry/ingest`) i **query** (read, autoryzacja JWT, `/api/v1/orgs/{org_id}/telemetry/...`).
 
+Ten sam ingest niesie też **kanał odczytu stanu z urządzenia** (B-08): opcjonalna tablica `state[]` w pakiecie i endpointy `.../telemetry/devices/{device_id}/state` po stronie odczytu. Ponieważ kanał obejmuje firmware, backend i frontend naraz, ma własny dokument przekrojowy: [`01_kanal_stanu_urzadzenia.md`](../01_kanal_stanu_urzadzenia.md).
+
 ## 2. Model domenowy
+
+`DeviceStateReport` — jeden wiersz na parę (pakiet, sekcja) dla kanału odczytu stanu z urządzenia. Kanał jest opisany osobno, przekrojowo przez wszystkie trzy warstwy: [`01_kanal_stanu_urzadzenia.md`](../01_kanal_stanu_urzadzenia.md).
 
 `TelemetryPacket` — jeden wiersz na paczkę danych wysłaną przez gateway: `device_id` (external_id urządzenia, nie FK), `seq` (numer sekwencyjny nadawany przez firmware), `sent_at`, `received_at`, `payload` (JSONB z `windows`: oknami pomiarowymi zawierającymi punkty). Powiązanie z `core_data.Device` / `WaterObject` / `Organization` odbywa się przez `device_id`/`external_id`, odczytywane w zapytaniach repozytorium query-side, nie przez ORM relationship.
 
@@ -99,7 +103,7 @@ Firmware v2 i dalej wysyła pakiety w formacie `/telemetry/ingest` (`POST`):
 
 **Auto-provisioning**: `TelemetryIngestService.ingest()` przy widoku nieznanego `(device_id, point_id)` — jeśli `type` jest w katalogu (`point_types.yaml`) — tworzy `MeasurementPoint` bez interakcji użytkownika. Mismatch `(type, unit)` dla istniejącego punktu zwraca `POINT_TYPE_MISMATCH` w `errors[]`, punkt jest odrzucany z tego pakietu, reszta przetwarzana normalnie. Typ spoza katalogu → `400` na cały pakiet (to błąd firmware/rejestru).
 
-**`Device.last_diagnostics_at`**: Zaktualizowany po każdym ingest'cie zawierającym `errors[]`, niezależnie od statusu — sygnał, że urządzenie jest żywe i raportuje problemy.
+**`Device.last_seen_at` vs `Device.last_diagnostics_at`**: `last_seen_at` ustawia **każdy** przyjęty pakiet (urządzenie żyje), `last_diagnostics_at` — tylko pakiet niosący sekcję stanu `device` (urządzenie odpowiedziało na odczyt). Do B-08 oba znaczenia dzieliły jedno pole `last_diagnostics_at`, przez co jego nazwa opisywała coś innego niż zawartość. Szczegóły: [`01_kanal_stanu_urzadzenia.md`](../01_kanal_stanu_urzadzenia.md).
 
 ## 6. Sensor Registry: Single Source of Truth
 
@@ -107,7 +111,7 @@ Firmware i backend muszą znać identyczne listy `point_types` i `error_codes`. 
 
 **Struktura** (`sensor_registry.yaml`):
 ```yaml
-schema_version: 1
+schema_version: 2
 
 point_types:
   - id: temperature
@@ -120,7 +124,13 @@ error_codes:
     severity: critical
   - code: SENSOR_READ_FAILED
     severity: warning
+
+state_sections:
+  - id: device
+    schema_version: 1
 ```
+
+`state_sections` to katalog sekcji kanału odczytu stanu (B-08). Każda sekcja ma **własną** `schema_version`, niezależną od wersji rejestru — sekcja ewoluuje osobno. Pre-build porównuje identyfikatory i wersje per sekcja, więc rozjazd jest błędem builda.
 
 **Backend** — runtime loading [`backend/app/modules/core_data/registry.py`](../../backend/app/modules/core_data/registry.py):
 - App startup wołuje `SensorRegistry.initialize()` — ładuje, parsuje, waliduje YAML

@@ -1,12 +1,16 @@
 #include <Arduino.h>
 #include <HardwareSerial.h>
 #include <Esp.h>
+#include <esp_system.h>
 #include <esp_task_wdt.h>
 #include <vector>
 
 #include <Config.h>
 #include <RtcState.h>
+#include <SensorRegistry.h>
 #include <StatusLed.h>
+#include <DeviceState.h>
+#include <DeviceStateSource.h>
 #include <ModemPower.h>
 #include <ModemLink.h>
 #include <TelemetryHttpClient.h>
@@ -44,9 +48,65 @@ TelemetrySender* telemetrySender = nullptr;
 DeviceAuthClient* deviceAuthClient = nullptr;
 EnrollmentClient* enrollmentClient = nullptr;
 Watchdog* watchdog = nullptr;
+DeviceStateSource* deviceStateSource = nullptr;
 bool modemBroughtUp = false;
 bool keyGenerated = false;
 unsigned long lastModemAttemptMs = 0;
+
+// rtcRestartCounter is zeroed once telemetry comes up, so it counts the
+// watchdog restarts since the last healthy start rather than since factory —
+// captured before initializeTelemetry() resets it.
+uint32_t restartCountAtBoot = 0;
+
+// =========================
+// Device state read channel (B-08)
+// =========================
+
+// device_state::RestartReason mirrors esp_reset_reason_t numerically. If the
+// SDK ever renumbers these, fail the build instead of shipping firmware that
+// mislabels every restart it reports.
+static_assert(static_cast<int>(device_state::RestartReason::PowerOn) == ESP_RST_POWERON, "ESP_RST_POWERON drift");
+static_assert(static_cast<int>(device_state::RestartReason::External) == ESP_RST_EXT, "ESP_RST_EXT drift");
+static_assert(static_cast<int>(device_state::RestartReason::Software) == ESP_RST_SW, "ESP_RST_SW drift");
+static_assert(static_cast<int>(device_state::RestartReason::Panic) == ESP_RST_PANIC, "ESP_RST_PANIC drift");
+static_assert(static_cast<int>(device_state::RestartReason::IntWatchdog) == ESP_RST_INT_WDT, "ESP_RST_INT_WDT drift");
+static_assert(static_cast<int>(device_state::RestartReason::TaskWatchdog) == ESP_RST_TASK_WDT,
+              "ESP_RST_TASK_WDT drift");
+static_assert(static_cast<int>(device_state::RestartReason::OtherWatchdog) == ESP_RST_WDT, "ESP_RST_WDT drift");
+static_assert(static_cast<int>(device_state::RestartReason::DeepSleep) == ESP_RST_DEEPSLEEP, "ESP_RST_DEEPSLEEP drift");
+static_assert(static_cast<int>(device_state::RestartReason::Brownout) == ESP_RST_BROWNOUT, "ESP_RST_BROWNOUT drift");
+static_assert(static_cast<int>(device_state::RestartReason::Sdio) == ESP_RST_SDIO, "ESP_RST_SDIO drift");
+
+// ArduinoJson stores `const char*` by reference, not by copy, so the serial
+// must outlive the JsonDocument it is written into. A String owned here does
+// that; `deviceIdentity.serialNumber().c_str()` would dangle immediately.
+String deviceStateSerial;
+
+device_state::Snapshot captureDeviceState() {
+  device_state::Snapshot snapshot;
+  deviceStateSerial = deviceIdentity.serialNumber();
+  snapshot.serial_number = deviceStateSerial.c_str();
+  snapshot.firmware_version = FIRMWARE_VERSION;
+  snapshot.registry_schema_version = SensorRegistry::SCHEMA_VERSION;
+
+  snapshot.uptime_seconds = (uint32_t)(millis() / 1000UL);
+  snapshot.restart_count = restartCountAtBoot;
+  snapshot.restart_reason = device_state::restartReasonFromCode((int)esp_reset_reason());
+
+  snapshot.rssi_dbm =
+      modemBroughtUp ? device_state::rssiDbmFromCsq(modemLink.signalQuality()) : device_state::RSSI_UNKNOWN;
+
+  snapshot.free_heap_bytes = ESP.getFreeHeap();
+  snapshot.min_free_heap_bytes = ESP.getMinFreeHeap();
+
+  if (telemetryPayload) {
+    snapshot.buffer_windows_used = (uint32_t)telemetryPayload->bufferedWindows();
+    snapshot.buffer_windows_capacity = (uint32_t)TelemetryPayload::bufferCapacityWindows();
+    snapshot.buffer_windows_dropped = telemetryPayload->droppedWindowsTotal();
+  }
+
+  return snapshot;
+}
 
 // =========================
 // Initialization functions
@@ -111,6 +171,12 @@ void initializeTelemetry() {
 
   telemetryPayload = new TelemetryPayload(deviceIdentity.serialNumber(), sensors);
   telemetryPayload->setGetUtcTime([]() { return TimeSync::getUtcTimestamp(); });
+
+  deviceStateSource = new DeviceStateSource(
+      SensorRegistry::STATE_SECTION_DEVICE, SensorRegistry::STATE_SECTION_DEVICE_SCHEMA_VERSION,
+      (uint32_t)DEVICE_STATE_REPORT_INTERVAL_MS, captureDeviceState, []() { return (uint32_t)millis(); });
+  telemetryPayload->setStateSource(deviceStateSource);
+
   deviceAuthClient = new DeviceAuthClient(deviceIdentity, *httpClient, CLAIM_POLL_INTERVAL_MS);
   telemetrySender = new TelemetrySender(modemLink, *httpClient, *telemetryPayload, led, deviceIdentity,
                                         SAMPLE_INTERVAL_MS, ERROR_RETRY_MS);
@@ -170,7 +236,8 @@ void setup() {
   LOG_INFO("[BOOT]", "========================================");
 
   initializeDeviceIdentity();
-  LOG_INFO("[BOOT]", "Restart counter (RTC): %lu", rtcRestartCounter);
+  restartCountAtBoot = rtcRestartCounter;
+  LOG_INFO("[BOOT]", "Firmware %s, restart counter (RTC): %lu", FIRMWARE_VERSION, rtcRestartCounter);
 
   watchdog = new Watchdog(modemLink, modemPower, WATCHDOG_STUCK_MS, MAX_RESTART_ATTEMPTS);
   esp_task_wdt_reset();

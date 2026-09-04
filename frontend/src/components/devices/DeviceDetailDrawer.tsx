@@ -1,6 +1,16 @@
 import { usePlatformDevice, useWaterObject, useOrganization } from '@/hooks/useDevices';
+import { deviceSectionData, findSection, usePlatformDeviceState } from '@/hooks/useDeviceState';
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerClose, DrawerBody } from '@/components/ui/Drawer';
+import { Badge } from '@/components/ui/Badge';
 import { formatRelativeTime } from '@/lib/deviceFreshness';
+import {
+  bufferFillPercent,
+  formatAge,
+  formatBytes,
+  formatRestartReason,
+  formatUptime,
+  rssiLevel,
+} from '@/lib/deviceState';
 
 interface DeviceDetailDrawerProps {
   deviceId: string | null;
@@ -12,6 +22,11 @@ export function DeviceDetailDrawer({ deviceId, open, onOpenChange }: DeviceDetai
   const { data: device, isLoading: deviceLoading } = usePlatformDevice(deviceId || '');
   const { data: waterObject } = useWaterObject(device?.water_object_id ?? null);
   const { data: organization } = useOrganization(waterObject?.organization_id ?? null);
+  /* Gated on `open`: this is the only polling query in the app, and a closed
+     drawer that still remembers a deviceId would keep it running forever. */
+  const { data: deviceState, isLoading: stateLoading } = usePlatformDeviceState(
+    open ? deviceId : null
+  );
 
   const isLoading = deviceLoading;
 
@@ -22,6 +37,27 @@ export function DeviceDetailDrawer({ deviceId, open, onOpenChange }: DeviceDetai
     const date = new Date(iso);
     return `${date.toLocaleDateString('pl-PL')} · ${date.toLocaleTimeString('pl-PL')}`;
   };
+
+  const stateSection = findSection(deviceState, 'device');
+  const state = deviceSectionData(deviceState);
+
+  /* The device answers reads on its next contact, so every field below is
+     "as of capture", not "now". The header states that once, in one place,
+     rather than repeating a timestamp on each row. */
+  const freshness = stateSection ? (
+    <Badge variant={stateSection.is_stale ? 'warning' : 'success'}>
+      {formatAge(stateSection.age_seconds)}
+    </Badge>
+  ) : null;
+
+  const bufferFill = bufferFillPercent(state?.buffer_windows_used, state?.buffer_windows_capacity);
+  const droppedWindows = state?.buffer_windows_dropped;
+  const rssi = rssiLevel(state?.rssi_dbm);
+  const rssiVariant = rssi === 'good' ? 'success' : rssi === 'fair' ? 'warning' : 'danger';
+
+  const missing = <span className="text-neutral-600">—</span>;
+
+  const noStateYet = !stateLoading && !stateSection;
 
   return (
     <Drawer open={open} onOpenChange={onOpenChange}>
@@ -48,7 +84,18 @@ export function DeviceDetailDrawer({ deviceId, open, onOpenChange }: DeviceDetai
           <DrawerBody>
             {/* Łączność & Zdrowie */}
             <div>
-              <h5 className="font-semibold text-neutral-900 mb-4">Łączność & Zdrowie</h5>
+              <div className="flex items-center justify-between mb-4">
+                <h5 className="font-semibold text-neutral-900">Łączność &amp; Zdrowie</h5>
+                {freshness}
+              </div>
+
+              {noStateYet && (
+                <p className="text-xs text-neutral-600 mb-3">
+                  Urządzenie nie przysłało jeszcze raportu stanu. Stan dołącza do pakietu
+                  telemetrycznego co ~15 min — pojawi się przy najbliższym kontakcie.
+                </p>
+              )}
+
               <dl className="space-y-3 text-sm">
                 <div>
                   <dt className="text-neutral-600">Ostatni kontakt</dt>
@@ -57,16 +104,98 @@ export function DeviceDetailDrawer({ deviceId, open, onOpenChange }: DeviceDetai
                   </dd>
                 </div>
                 <div>
-                  <dt className="text-neutral-600">Sygnał modemu (RSSI)</dt>
-                  <dd className="text-neutral-600">— <em className="text-xs">(wymaga firmware)</em></dd>
+                  <dt className="text-neutral-600">Ostatni raport stanu</dt>
+                  <dd className="text-neutral-900">
+                    {stateSection
+                      ? `${formatAge(stateSection.age_seconds)} · ${formatDateTime(stateSection.captured_at)}`
+                      : missing}
+                  </dd>
                 </div>
                 <div>
-                  <dt className="text-neutral-600">Ostatni reset</dt>
-                  <dd className="text-neutral-600">— <em className="text-xs">(wymaga firmware)</em></dd>
+                  <dt className="text-neutral-600">Sygnał modemu (RSSI)</dt>
+                  <dd className="text-neutral-900">
+                    {state?.rssi_dbm !== undefined ? (
+                      <span className="inline-flex items-center gap-2">
+                        {state.rssi_dbm} dBm
+                        <Badge variant={rssiVariant}>
+                          {rssi === 'good' ? 'dobry' : rssi === 'fair' ? 'słaby' : 'krytyczny'}
+                        </Badge>
+                      </span>
+                    ) : (
+                      missing
+                    )}
+                  </dd>
                 </div>
                 <div>
                   <dt className="text-neutral-600">Uptime</dt>
-                  <dd className="text-neutral-600">— <em className="text-xs">(wymaga firmware)</em></dd>
+                  <dd className="text-neutral-900">{formatUptime(state?.uptime_seconds)}</dd>
+                </div>
+                <div>
+                  <dt className="text-neutral-600">Ostatni restart</dt>
+                  <dd className="text-neutral-900">
+                    {state?.restart_reason ? (
+                      <>
+                        {formatRestartReason(state.restart_reason)}
+                        {state.restart_count !== undefined && (
+                          <span className="text-neutral-600">
+                            {' '}
+                            · restartów od ostatniego zdrowego startu: {state.restart_count}
+                          </span>
+                        )}
+                      </>
+                    ) : (
+                      missing
+                    )}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-neutral-600">Wolna pamięć</dt>
+                  <dd className="text-neutral-900">
+                    {state?.free_heap_bytes !== undefined ? (
+                      <>
+                        {formatBytes(state.free_heap_bytes)}
+                        <span className="text-neutral-600">
+                          {' '}
+                          · minimum od startu: {formatBytes(state.min_free_heap_bytes)}
+                        </span>
+                      </>
+                    ) : (
+                      missing
+                    )}
+                  </dd>
+                </div>
+              </dl>
+            </div>
+
+            {/* Bufor lokalny — jedyny sygnał, że urządzenie po cichu gubi dane */}
+            <div>
+              <h5 className="font-semibold text-neutral-900 mb-4">Bufor lokalny</h5>
+              <dl className="space-y-3 text-sm">
+                <div>
+                  <dt className="text-neutral-600">Zapełnienie</dt>
+                  <dd className="text-neutral-900">
+                    {bufferFill !== undefined ? (
+                      <span className="inline-flex items-center gap-2">
+                        {state?.buffer_windows_used}/{state?.buffer_windows_capacity} okien ({bufferFill}%)
+                        {bufferFill >= 80 && <Badge variant="warning">bliski przepełnienia</Badge>}
+                      </span>
+                    ) : (
+                      missing
+                    )}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-neutral-600">Porzucone okna (od startu)</dt>
+                  <dd className="text-neutral-900">
+                    {droppedWindows !== undefined ? (
+                      <span className="inline-flex items-center gap-2">
+                        {droppedWindows}
+                        {droppedWindows > 0 && <Badge variant="danger">utrata danych</Badge>}
+                      </span>
+                    ) : (
+                      missing
+                    )}
+                  </dd>
                 </div>
               </dl>
             </div>
@@ -78,6 +207,12 @@ export function DeviceDetailDrawer({ deviceId, open, onOpenChange }: DeviceDetai
                 <div>
                   <dt className="text-neutral-600">Firmware</dt>
                   <dd className="text-neutral-900 font-mono">{device.firmware_version || '—'}</dd>
+                </div>
+                <div>
+                  <dt className="text-neutral-600">Wersja schematu rejestru</dt>
+                  <dd className="text-neutral-900 font-mono">
+                    {state?.registry_schema_version ?? '—'}
+                  </dd>
                 </div>
                 <div>
                   <dt className="text-neutral-600">Aktywne</dt>

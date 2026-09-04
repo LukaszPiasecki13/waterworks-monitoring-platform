@@ -41,6 +41,12 @@ from app.modules.security.api import (
 )
 from app.modules.security.dependencies import get_group_repo, get_permission_repo
 from app.modules.security.services.seed import SecuritySeedService
+from app.modules.telemetry.api.device_state import (
+    platform_router as telemetry_device_state_platform_router,
+)
+from app.modules.telemetry.api.device_state import (
+    router as telemetry_device_state_router,
+)
 from app.modules.telemetry.api.ingest import router as telemetry_ingest_router
 from app.modules.telemetry.api.query import router as telemetry_query_router
 
@@ -129,6 +135,9 @@ app.include_router(provisioning_router, prefix=f"{API_V1_PREFIX}/platform")
 app.include_router(activation_codes_router, prefix=f"{API_V1_PREFIX}/platform")
 app.include_router(devices_platform_router, prefix=f"{API_V1_PREFIX}/platform")
 app.include_router(water_objects_platform_router, prefix=f"{API_V1_PREFIX}/platform")
+app.include_router(
+    telemetry_device_state_platform_router, prefix=f"{API_V1_PREFIX}/platform"
+)
 
 # API v1 endpoints - organization level
 app.include_router(water_objects_router, prefix=API_V1_PREFIX)
@@ -140,4 +149,7 @@ app.include_router(permissions_router, prefix=API_V1_PREFIX)
 app.include_router(org_router, prefix=API_V1_PREFIX)
 app.include_router(
     telemetry_query_router, prefix=f"{API_V1_PREFIX}/orgs/{{org_id}}/telemetry"
+)
+app.include_router(
+    telemetry_device_state_router, prefix=f"{API_V1_PREFIX}/orgs/{{org_id}}/telemetry"
 )

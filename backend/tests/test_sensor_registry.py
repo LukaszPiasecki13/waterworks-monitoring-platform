@@ -85,6 +85,7 @@ class TestSensorRegistryThreadSafety:
         SensorRegistry._schema_version = None
         SensorRegistry._point_type_ids_cache = None
         SensorRegistry._error_codes_cache = None
+        SensorRegistry._state_sections_cache = None
 
         results = []
         errors = []
