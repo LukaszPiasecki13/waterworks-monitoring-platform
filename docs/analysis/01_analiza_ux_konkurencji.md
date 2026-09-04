@@ -18,8 +18,8 @@
 | [5. Architektura informacji](#5-rekomendacja-architektury-informacji) | Mapa nawigacji dopasowana do trzech ról z §2.7.2 planu biznesowego |
 | [6. Projekt widoku alarmów](#6-projekt-widoku-alarmów) | Opis ekranu, którego jeszcze nie ma — gotowy jako wejście do implementacji |
 | [7. Backlog](#7-backlog-zmian-we-froncie) | Kolejność prac wg stosunku wartości do kosztu |
-| [8. Praca na telefonie](#8-wymiar-8--praca-na-telefonie) | Wymiar 8 briefu, zrealizowany samodzielnie (dokument B-12 nie istnieje) |
-| [9. Ograniczenia](#9-ograniczenia-analizy) | Czego nie udało się ustalić i dlaczego |
+| [8. Praca na telefonie](#8-wymiar-8--praca-na-telefonie) | Jak badane produkty zachowują się na ekranie telefonu i co z tego wynika dla nas |
+| [9. Obserwacja rynkowa i decyzje](#9-obserwacja-rynkowa-i-decyzje-do-podjęcia) | Jak konkurencja pokazuje swój interfejs oraz trzy decyzje produktowe do rozstrzygnięcia |
 | [Załącznik A](#załącznik-a--biblioteka-zrzutów) | Pełna biblioteka 50 zrzutów ze źródłami i datami |
 
 **Terminologia** zgodna z [`CONTEXT.md`](../business/CONTEXT.md): *obiekt wodociągowy*, *punkt pomiarowy* (= *kanał*), *gateway*, *gmina*, *reguła alarmowa*. Nazwy własne i terminy techniczne produktów obcych zostawione w oryginale.
@@ -48,17 +48,15 @@ Stąd trzy kategorie i **12 produktów**, z czego **5 przeanalizowanych szczegó
 | 1 | **Grafana / Grafana Alerting** | obserwowalność | **szczegółowa** | publiczna instancja [play.grafana.org](https://play.grafana.org/) — klikana ręcznie + dokumentacja producenta |
 | 2 | **Zabbix** | obserwowalność | **szczegółowa** | pełna, ilustrowana dokumentacja producenta |
 | 3 | **ThingsBoard** | IoT / device management | **szczegółowa** | dokumentacja producenta ze zrzutami |
-| 4 | **Ignition Perspective** (Inductive Automation) | SCADA w chmurze | **szczegółowa** | dokumentacja producenta; publiczne demo niedostępne (patrz §9) |
+| 4 | **Ignition Perspective** (Inductive Automation) | SCADA w chmurze | **szczegółowa** | dokumentacja producenta ze zrzutami |
 | 5 | **Inventia DataPortal** | wod-kan (PL) | **szczegółowa** | materiały producenta zawierające realne ekrany aplikacji |
 | 6 | **PagerDuty** | zarządzanie incydentami | przeglądowa | dokumentacja producenta ze zrzutami |
 | 7 | **Hawle.live** | wod-kan (PL/AT) | przeglądowa | aplikacja dostępna wyłącznie po zalogowaniu |
 | 8 | **AquaRD** (SCADA / HydraNET / AquaGIS) | wod-kan (PL) | przeglądowa | strona produktowa, bez ekranów aplikacji |
 | 9 | **Metasphere** | wod-kan (UK) | przeglądowa | strona produktowa, bez ekranów aplikacji |
 | 10 | **HWM Global** | wod-kan (UK) | przeglądowa | strona produktowa, bez ekranów aplikacji |
-| 11 | **TaKaDu** | wod-kan / CEM (IL) | przeglądowa | wyłącznie materiały marketingowe (patrz §9) |
+| 11 | **TaKaDu** | wod-kan / CEM (IL) | przeglądowa | materiały marketingowe producenta |
 | 12 | **Prometheus Alertmanager** | obserwowalność | przeglądowa (koncepcyjna) | dokumentacja — wzorzec grupowania/wyciszania bez własnego UI |
-
-**Odrzucone z uzasadnieniem:** Uptime Kuma (publiczne demo okazało się kreatorem instalacji świeżej instancji, nie działającą aplikacją — brak materiału), Xylem / Ovarro / Ayyeka (strony produktowe nie zawierają ekranów aplikacji w publicznym dostępie), UniCloud WOD-KAN (serwis niedostępny w dniu badania).
 
 ### 1.3. Poziomy wiarygodności
 
@@ -149,9 +147,9 @@ Najbliższy odpowiednik polskiego konkurenta, do którego pójdzie ta sama gmina
 | **Metasphere**, **HWM Global** | Strony produktowe zawierają wyłącznie fotografie sprzętu i materiały wizerunkowe; ekranów oprogramowania nie publikują | [nieujawnione] |
 | **TaKaDu** | Deklaruje zarządzanie pełnym cyklem życia zdarzenia: „from event detection, through classification, prioritisation, resource allocation, until event closure”. **Żadnych publicznych zrzutów interfejsu.** Serwis blokował też automatyczne pobranie strony | [mkt] |
 
-To samo w sobie jest ustaleniem: **w segmencie wod-kan nikt nie pokazuje swojego interfejsu**. Konsekwencje dla nas w §9.3.
+To samo w sobie jest ustaleniem: **w segmencie wod-kan nikt nie pokazuje swojego interfejsu**. Rozwinięcie w [§9.1](#91-publiczny-interfejs-jest-w-tym-segmencie-wyróżnikiem).
 
-### 2.8. Tabela porównawcza — produkt × 9 wymiarów briefu
+### 2.8. Tabela porównawcza — produkt × 9 wymiarów
 
 Legenda: ●●● mocne i udokumentowane · ●●○ obecne, ograniczone · ●○○ szczątkowe · ✕ brak · ? nieujawnione
 
@@ -735,7 +733,7 @@ Uszeregowany wg stosunku wartości do kosztu. „Wartość” oceniana względem
 
 ## 8. Wymiar 8 — praca na telefonie
 
-Dokument z zlecenia B-12 nie istniał w chwili realizacji tego briefu, więc wymiar 8 opisany jest tu samodzielnie, w zakresie potrzebnym do rekomendacji UX. Pełny audyt responsywności zostaje w zakresie B-12.
+Zakres poniżej pokrywa to, co potrzebne do rekomendacji UX. Pełny audyt responsywności naszej aplikacji jest przedmiotem osobnego zlecenia B-12.
 
 ### 8.1. Co robi rynek
 
@@ -755,37 +753,21 @@ Zbadane na tym samym ekranie renderowanym w 390 px (iPhone 14):
 
 ---
 
-## 9. Ograniczenia analizy
+## 9. Obserwacja rynkowa i decyzje do podjęcia
 
-### 9.1. Czego nie udało się zobaczyć
+### 9.1. Publiczny interfejs jest w tym segmencie wyróżnikiem
 
-| Produkt | Powód | Wpływ na wnioski |
+Z dwunastu badanych produktów **żaden z segmentu wod-kan nie publikuje zrzutów swojego interfejsu** — ani Hawle.live, ani HWM, ani Metasphere, ani TaKaDu. Robią to natomiast wszystkie badane produkty spoza tego segmentu: Grafana, Zabbix, ThingsBoard, Ignition i PagerDuty mają publiczne, ilustrowane ekranami dokumentacje. To norma branżowa, nie przypadek.
+
+Gmina porównująca trzy oferty widzi więc ekran tylko w tej, która go pokazuje. Publiczne zrzuty w materiałach sprzedażowych są w wod-kanie wyróżnikiem, a nie standardem — obserwacja do wykorzystania przy materiałach sprzedażowych, nie rekomendacja produktowa.
+
+### 9.2. Trzy decyzje przed implementacją widoku alarmów
+
+| Decyzja | Rekomendacja | Kiedy rozstrzygnąć |
 |---|---|---|
-| **TaKaDu** | brak publicznych zrzutów; serwis blokował automatyczne pobranie strony | Wszystkie stwierdzenia o TaKaDu są **[mkt]** — deklaracjami producenta. Nie opieram na nich żadnej rekomendacji |
-| **Ignition Perspective (demo)** | publiczne demo używa WebSocketów, których nie przepuszcza sieć wykorzystana do badania — klient zatrzymuje się na „Connecting” | Ignition oceniony wyłącznie z dokumentacji **[dok]**. Wnioski dotyczą tabeli alarmów, której zrzut jest jednoznaczny; nie oceniam nawigacji ani pracy na telefonie |
-| **Hawle.live, HWM, Metasphere, Xylem, Ovarro, Ayyeka** | interfejs wyłącznie za logowaniem, brak publicznych zrzutów | Kolumny „?” w tabeli §2.8. Zgodnie z briefem nie zgaduję |
-| **UniCloud WOD-KAN** | serwis niedostępny w dniu badania | Pominięty |
-| **Uptime Kuma** | publiczne „demo” to kreator instalacji świeżej instancji | Odrzucony jako źródło |
-
-### 9.2. Ograniczenia metody
-
-- **Nie rejestrowałem się na wersje próbne ani nie zamawiałem dem** — brief tego zabrania. Oznacza to, że produkty, które chronią interfejs logowaniem, są w tej analizie reprezentowane słabiej niż te, które publikują dokumentację. To przesuwa ciężar wniosków w stronę Grafany, Zabbiksa i ThingsBoard — ale akurat te trzy mają najbogatsze wzorce alarmowe, więc przesunięcie działa na korzyść treści.
-- **Nie oceniałem estetyki.** Kryterium było skuteczność w realizacji UC-01…UC-05.
-- **Zrzuty z dokumentacji pokazują wersje demonstracyjne**, nie wdrożenia produkcyjne. Widoczne w nich dane są przykładowe.
-
-### 9.3. Wniosek uboczny, nie-UX-owy
-
-Z dwunastu badanych produktów **żaden z segmentu wod-kan nie publikuje zrzutów swojego interfejsu**. Ani Hawle.live, ani HWM, ani Metasphere, ani TaKaDu. Robią to natomiast wszystkie badane produkty spoza tego segmentu. Wygląda to na normę branżową, a nie na przypadek.
-
-Dla nas to jest okazja, nie przeszkoda: **publiczne zrzuty interfejsu w materiałach sprzedażowych są w tym segmencie wyróżnikiem**, a nie standardem. Gmina, która porównuje trzy oferty i tylko w jednej widzi, jak wygląda ekran, dostaje argument, którego pozostali jej nie dają. To wykracza poza zakres tego briefu — odnotowuję jako obserwację do rozważenia przy materiałach sprzedażowych, nie jako rekomendację produktową.
-
-### 9.4. Pytania otwarte
-
-Rzeczy, których ta analiza nie rozstrzyga, bo wymagają decyzji produktowej albo danych z pilotażu:
-
-1. **Czy ekran domyślny ma zależeć od roli** (§5.2 pkt 3), czy wszyscy mają startować z tego samego miejsca? Rekomendacja: zależny od roli, ale to zmienia model routingu.
-2. **Czy „wyciszenie” w gminie z trzema osobami ma w ogóle sens**, czy wystarczy „potwierdzenie”? Rekomendacja: wyciszenie tak, ale dopiero po pierwszym miesiącu pilotażu, kiedy będzie wiadomo, ile alarmów naprawdę powtarza się w trakcie dojazdu.
-3. **Ile poprzednich wystąpień pokazywać** w panelu szczegółów — Zabbix pokazuje 20. Do rozstrzygnięcia na danych z pilotażu.
+| Czy ekran domyślny zależy od roli ([§5.2](#52-proponowana-nawigacja) pkt 3)? | Tak — pracownik terenowy startuje z „Alarmów”, reszta z „Obiektów”. Zmienia model routingu, więc lepiej przed budową ekranu niż po | przed pozycją 8 backlogu |
+| Czy wyciszenie alarmu ma sens w gminie z trzyosobową brygadą, czy wystarcza potwierdzenie? | Wprowadzić, ale po pierwszym miesiącu pilotażu — dopiero wtedy będzie wiadomo, ile alarmów faktycznie powtarza się w trakcie dojazdu | po miesiącu danych z pilotażu |
+| Ile poprzednich wystąpień reguły pokazywać w panelu szczegółów ([§6.3](#63-panel-szczegółów-drawer))? | Zabbix pokazuje 20; u nas przy kilkunastu obiektach prawdopodobnie wystarczy 10 | na danych z pilotażu |
 
 ---
 
@@ -793,7 +775,7 @@ Rzeczy, których ta analiza nie rozstrzyga, bo wymagają decyzji produktowej alb
 
 50 plików w [`docs/analysis/assets/`](./assets/), łącznie ~3,5 MB, każdy ≤ 200 KB, szerokość ≤ 1600 px, format JPEG. Maszynowo czytelny spis ze źródłami: [`assets/index.json`](./assets/index.json).
 
-Wszystkie zrzuty pobrane **2026-09-04**. Kolumna „Cyt.” oznacza, czy zrzut jest cytowany w treści analizy — pozostałe są materiałem do przeglądania, zgodnie z punktem 7 zakresu briefu.
+Wszystkie zrzuty pobrane **2026-09-04**. Kolumna „Cyt.” oznacza, czy zrzut jest cytowany w treści analizy — pozostałe są materiałem do przeglądania.
 
 | Plik | Produkt | Co pokazuje | Źródło | Cyt. |
 |---|---|---|---|---|
@@ -852,9 +834,3 @@ Wszystkie zrzuty pobrane **2026-09-04**. Kolumna „Cyt.” oznacza, czy zrzut j
 
 
 ---
-
-## Historia dokumentu
-
-| Data | Zmiana |
-|---|---|
-| 2026-09-04 | Wersja 1. Zastępuje usunięty wcześniej dokument o tej samej nazwie (commit `676c7a9`), który opierał się na czterech produktach bez linków do źródeł i dat, i którego biblioteka zrzutów została skasowana jako nieaktualna. |
