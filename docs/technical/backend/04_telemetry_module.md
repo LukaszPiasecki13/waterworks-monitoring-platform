@@ -28,11 +28,11 @@ Ten sam ingest niesie też **kanał odczytu stanu z urządzenia** (B-08): opcjon
 
 ## 4. Nieoczywiste decyzje projektowe
 
-**Per-device authentication przez bearer token** — zastąpiło wcześniejszy statyczny `X-Device-Key`/`Device.hashed_secret` (usunięty całkowicie). Ingest wymaga `Authorization: Bearer <device_token>`, zweryfikowanego przez zależność `get_current_device` z modułu [`device_identity`](./06_device_identity_module.md) — token wydawany po asymetrycznym challenge/response, nie po statycznym sekrecie. `get_current_device` zwraca `401` dla brakującego/nieprawidłowego tokenu i nieaktywnego urządzenia (`is_active=False`). Dodatkowo `TelemetryIngestService.ingest()` sprawdza `packet.device_id == device.external_id` ([`services/ingest.py:31-34`](../../backend/app/modules/telemetry/services/ingest.py#L31-L34)) → `403` przy niezgodności, żeby ważny token jednego urządzenia nie mógł podszyć się pod inny SN w treści pakietu. Pełny opis flow (provisioning → claim → challenge → verify) w [`06_device_identity_module.md`](./06_device_identity_module.md).
+**Per-device authentication przez bearer token** — zastąpiło wcześniejszy statyczny `X-Device-Key`/`Device.hashed_secret` (usunięty całkowicie). Ingest wymaga `Authorization: Bearer <device_token>`, zweryfikowanego przez zależność `get_current_device` z modułu [`device_identity`](./06_device_identity_module.md) — token wydawany po asymetrycznym challenge/response, nie po statycznym sekrecie. `get_current_device` zwraca `401` dla brakującego/nieprawidłowego tokenu i nieaktywnego urządzenia (`is_active=False`). Dodatkowo `TelemetryIngestService.ingest()` sprawdza `packet.device_id == device.external_id` ([`services/ingest.py:31-34`](../../../backend/app/modules/telemetry/services/ingest.py#L31-L34)) → `403` przy niezgodności, żeby ważny token jednego urządzenia nie mógł podszyć się pod inny SN w treści pakietu. Pełny opis flow (provisioning → claim → challenge → verify) w [`06_device_identity_module.md`](./06_device_identity_module.md).
 
 **`transaction(skip_audit=True)` na ingest** — pakiety telemetryczne to dane z urządzenia IoT, nie zmiana wywołana przez użytkownika, więc nie generują wpisu w audit logu (który śledzi "kto co zmienił", nie strumień pomiarowy).
 
-**Window function zamiast agregatu do wyznaczenia "najnowszego pakietu na obiekt"** ([`queries.py:20-48`](../../backend/app/modules/telemetry/repositories/queries.py#L20-L48)):
+**Window function zamiast agregatu do wyznaczenia "najnowszego pakietu na obiekt"** ([`queries.py:20-48`](../../../backend/app/modules/telemetry/repositories/queries.py#L20-L48)):
 
 ```python
 func.row_number().over(
@@ -107,7 +107,7 @@ Firmware v2 i dalej wysyła pakiety w formacie `/telemetry/ingest` (`POST`):
 
 ## 6. Sensor Registry: Single Source of Truth
 
-Firmware i backend muszą znać identyczne listy `point_types` i `error_codes`. Rozwiązanie: plik [`sensor_registry.yaml`](../../sensor_registry.yaml) w project root — single source of truth dla obu systemów.
+Firmware i backend muszą znać identyczne listy `point_types` i `error_codes`. Rozwiązanie: plik [`sensor_registry.yaml`](../../../sensor_registry.yaml) w project root — single source of truth dla obu systemów.
 
 **Struktura** (`sensor_registry.yaml`):
 ```yaml
@@ -132,13 +132,13 @@ state_sections:
 
 `state_sections` to katalog sekcji kanału odczytu stanu (B-08). Każda sekcja ma **własną** `schema_version`, niezależną od wersji rejestru — sekcja ewoluuje osobno. Pre-build porównuje identyfikatory i wersje per sekcja, więc rozjazd jest błędem builda.
 
-**Backend** — runtime loading [`backend/app/modules/core_data/registry.py`](../../backend/app/modules/core_data/registry.py):
+**Backend** — runtime loading [`backend/app/modules/core_data/registry.py`](../../../backend/app/modules/core_data/registry.py):
 - App startup wołuje `SensorRegistry.initialize()` — ładuje, parsuje, waliduje YAML
 - Builds immutable `frozenset` cache dla O(1) lookups (`is_valid_point_type()`, `is_valid_error_code()`)
 - Thread-safe: lock synchronizuje inicjalizację
 
 **Firmware** — compile-time validation:
-- Pre-build script [`firmware/scripts/prebuild.py`](../../firmware/scripts/prebuild.py) generuje `firmware/include/SensorRegistry.h`
+- Pre-build script [`firmware/scripts/prebuild.py`](../../../firmware/scripts/prebuild.py) generuje `firmware/include/SensorRegistry.h`
 - Zawiera embedded JSON + `static constexpr` validatory
 - Schema version mismatch = build error (nie można zabootować buggy firmware)
 

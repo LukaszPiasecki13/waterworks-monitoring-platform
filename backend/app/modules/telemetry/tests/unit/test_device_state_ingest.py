@@ -204,6 +204,50 @@ def test_malformed_section_is_flagged_but_stored(service, state_repo, device, ba
     assert codes == ["STATE_SECTION_INVALID"]
 
 
+def test_capture_from_the_future_is_clamped_to_arrival(service, state_repo, device):
+    """A device clock that jumped forward would otherwise win the "latest"
+    ranking for good, and read as age 0 — frozen data shown as live."""
+    section = _section()
+    section["captured_at"] = (datetime.now(UTC) + timedelta(days=365)).isoformat()
+
+    result = service.ingest(_packet([section]), device)
+
+    assert result.status == "accepted"
+    stored = state_repo.create.call_args.kwargs
+    assert stored["captured_at"] == stored["received_at"]
+    codes = [error.code for error in _stored_errors(service)]
+    assert codes == ["STATE_CLOCK_AHEAD"]
+
+
+def test_small_clock_skew_is_left_alone(service, state_repo, device):
+    """Ordinary skew is not a fault; only a clock that is plainly wrong is."""
+    section = _section()
+    captured = datetime.now(UTC) + timedelta(seconds=30)
+    section["captured_at"] = captured.isoformat()
+
+    service.ingest(_packet([section]), device)
+
+    assert state_repo.create.call_args.kwargs["captured_at"] == captured
+    assert _stored_errors(service) == []
+
+
+def test_flagged_section_does_not_promote_firmware_version(service, device):
+    """A section we just flagged has not earned a write onto the Device row."""
+    bad = {**VALID_DEVICE_DATA, "firmware_version": "9.9.9", "rssi_dbm": 500}
+
+    service.ingest(_packet([_section(data=bad)]), device)
+
+    assert device.firmware_version is None
+    # Answering at all still counts as answering.
+    assert device.last_diagnostics_at is not None
+
+
+def test_version_mismatch_also_withholds_the_promotion(service, device):
+    service.ingest(_packet([_section(schema_version=99)]), device)
+
+    assert device.firmware_version is None
+
+
 def test_unknown_field_in_section_passes_through(service, state_repo, device):
     """A field this backend has not learned about yet is kept, not dropped."""
     data = {**VALID_DEVICE_DATA, "modem_operator": "Plus"}

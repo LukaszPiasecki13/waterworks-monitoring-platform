@@ -2,7 +2,7 @@
 
 from collections.abc import Iterator
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Literal
 from uuid import UUID
 
@@ -36,6 +36,12 @@ from app.modules.telemetry.schemas.measurement_packet import (
 # here is still stored verbatim — the registry decides what is accepted, this
 # map only decides what is additionally type-checked on the way in.
 _SECTION_MODELS: dict[str, type[DeviceStateData]] = {SECTION_DEVICE: DeviceStateData}
+
+# How far ahead of the platform a device clock may run before its captured_at
+# is treated as wrong rather than as skew. NTP sync happens at boot and the
+# device stamps captures from the same clock as `sent_at`, so anything beyond
+# this is a broken clock, not jitter.
+CLOCK_AHEAD_TOLERANCE = timedelta(minutes=5)
 
 
 @dataclass(frozen=True)
@@ -202,6 +208,10 @@ class TelemetryIngestService:
                 self._packet_repository.session.flush()
 
         except TelemetryPacketAlreadyExistsError:
+            # Lost the race to a concurrent request for the same (device_id,
+            # seq). No last_seen_at here: the repository already rolled this
+            # transaction back, and the request that won recorded the very
+            # same proof of life microseconds earlier.
             return _build_response("duplicate", packet)
 
         return _build_response("accepted", packet)
@@ -268,7 +278,10 @@ class TelemetryIngestService:
                 )
                 continue
 
+            trustworthy = True
+
             if expected_version != entry.schema_version:
+                trustworthy = False
                 errors.append(
                     _build_error(
                         ctx,
@@ -285,6 +298,7 @@ class TelemetryIngestService:
             else:
                 failure = _validate_section(entry)
                 if failure is not None:
+                    trustworthy = False
                     errors.append(
                         _build_error(
                             ctx,
@@ -295,20 +309,49 @@ class TelemetryIngestService:
                         )
                     )
 
+            # A capture cannot have happened after it arrived. Left unclamped, a
+            # device whose clock jumped into the future would win the
+            # "latest per section" ranking forever and, with the age clamped at
+            # zero, keep reading as fresh — frozen data presented as live.
+            captured_at = entry.captured_at
+            if captured_at > ctx.received_at + CLOCK_AHEAD_TOLERANCE:
+                errors.append(
+                    _build_error(
+                        ctx,
+                        code="STATE_CLOCK_AHEAD",
+                        point_id=None,
+                        severity="warning",
+                        message=(
+                            f"Section '{entry.section}' captured_at "
+                            f"{captured_at.isoformat()} is ahead of arrival "
+                            f"{ctx.received_at.isoformat()}; clamped"
+                        )[:512],
+                    )
+                )
+                captured_at = ctx.received_at
+
             self._state_repository.create(
                 packet_id=ctx.saved_packet_id,
                 device_id=ctx.packet.device_id,
                 section=entry.section,
                 schema_version=entry.schema_version,
-                captured_at=entry.captured_at,
+                captured_at=captured_at,
                 received_at=ctx.received_at,
                 data=entry.data,
             )
 
             if entry.section == SECTION_DEVICE:
+                # Answering at all is what last_diagnostics_at records, so a
+                # malformed answer still counts. Promoting a field out of the
+                # blob onto the Device row is a different claim, and a section
+                # we just flagged has not earned it.
                 device.last_diagnostics_at = ctx.received_at
                 reported_firmware = entry.data.get("firmware_version")
-                if isinstance(reported_firmware, str) and reported_firmware:
+                if (
+                    trustworthy
+                    and isinstance(reported_firmware, str)
+                    and reported_firmware
+                ):
                     device.firmware_version = reported_firmware[:50]
 
         return errors

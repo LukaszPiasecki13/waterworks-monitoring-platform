@@ -24,7 +24,11 @@ export function DeviceDetailDrawer({ deviceId, open, onOpenChange }: DeviceDetai
   const { data: organization } = useOrganization(waterObject?.organization_id ?? null);
   /* Gated on `open`: this is the only polling query in the app, and a closed
      drawer that still remembers a deviceId would keep it running forever. */
-  const { data: deviceState, isLoading: stateLoading } = usePlatformDeviceState(
+  const {
+    data: deviceState,
+    isLoading: stateLoading,
+    isError: stateError,
+  } = usePlatformDeviceState(
     open ? deviceId : null
   );
 
@@ -52,12 +56,16 @@ export function DeviceDetailDrawer({ deviceId, open, onOpenChange }: DeviceDetai
 
   const bufferFill = bufferFillPercent(state?.buffer_windows_used, state?.buffer_windows_capacity);
   const droppedWindows = state?.buffer_windows_dropped;
+  const stateFailed = !!stateError;
   const rssi = rssiLevel(state?.rssi_dbm);
   const rssiVariant = rssi === 'good' ? 'success' : rssi === 'fair' ? 'warning' : 'danger';
 
   const missing = <span className="text-neutral-600">—</span>;
 
-  const noStateYet = !stateLoading && !stateSection;
+  /* "Never reported" and "we could not ask" are opposite diagnoses; showing
+     the first when the second happened is exactly the misreading this whole
+     channel exists to prevent. */
+  const noStateYet = !stateLoading && !stateFailed && !stateSection;
 
   return (
     <Drawer open={open} onOpenChange={onOpenChange}>
@@ -89,6 +97,14 @@ export function DeviceDetailDrawer({ deviceId, open, onOpenChange }: DeviceDetai
                 {freshness}
               </div>
 
+              {stateFailed && (
+                <p className="text-xs text-red-700 mb-3">
+                  Nie udało się pobrać stanu urządzenia. To awaria odczytu po stronie
+                  platformy, a nie informacja o samym urządzeniu — poniższe pola mogą
+                  być nieaktualne.
+                </p>
+              )}
+
               {noStateYet && (
                 <p className="text-xs text-neutral-600 mb-3">
                   Urządzenie nie przysłało jeszcze raportu stanu. Stan dołącza do pakietu
@@ -114,7 +130,7 @@ export function DeviceDetailDrawer({ deviceId, open, onOpenChange }: DeviceDetai
                 <div>
                   <dt className="text-neutral-600">Sygnał modemu (RSSI)</dt>
                   <dd className="text-neutral-900">
-                    {state?.rssi_dbm !== undefined ? (
+                    {state?.rssi_dbm != null ? (
                       <span className="inline-flex items-center gap-2">
                         {state.rssi_dbm} dBm
                         <Badge variant={rssiVariant}>
@@ -136,7 +152,7 @@ export function DeviceDetailDrawer({ deviceId, open, onOpenChange }: DeviceDetai
                     {state?.restart_reason ? (
                       <>
                         {formatRestartReason(state.restart_reason)}
-                        {state.restart_count !== undefined && (
+                        {state.restart_count != null && (
                           <span className="text-neutral-600">
                             {' '}
                             · restartów od ostatniego zdrowego startu: {state.restart_count}
@@ -151,7 +167,7 @@ export function DeviceDetailDrawer({ deviceId, open, onOpenChange }: DeviceDetai
                 <div>
                   <dt className="text-neutral-600">Wolna pamięć</dt>
                   <dd className="text-neutral-900">
-                    {state?.free_heap_bytes !== undefined ? (
+                    {state?.free_heap_bytes != null ? (
                       <>
                         {formatBytes(state.free_heap_bytes)}
                         <span className="text-neutral-600">
@@ -187,7 +203,7 @@ export function DeviceDetailDrawer({ deviceId, open, onOpenChange }: DeviceDetai
                 <div>
                   <dt className="text-neutral-600">Porzucone okna (od startu)</dt>
                   <dd className="text-neutral-900">
-                    {droppedWindows !== undefined ? (
+                    {droppedWindows != null ? (
                       <span className="inline-flex items-center gap-2">
                         {droppedWindows}
                         {droppedWindows > 0 && <Badge variant="danger">utrata danych</Badge>}

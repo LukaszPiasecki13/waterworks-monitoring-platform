@@ -131,6 +131,9 @@ Nieznana sekcja, rozjazd wersji schematu, popsuty payload, duplikat sekcji w jed
 | `schema_version` inny niż w rejestrze | `STATE_SCHEMA_VERSION_MISMATCH` (info) | tak, bez zmian |
 | `data` nie przechodzi walidacji typów | `STATE_SECTION_INVALID` (warning) | tak, surowe |
 | Ta sama sekcja dwa razy w pakiecie | `STATE_SECTION_INVALID` (warning) | tylko pierwsza |
+| `captured_at` z przyszłości | `STATE_CLOCK_AHEAD` (warning) | tak, z `captured_at` przyciętym do czasu odbioru |
+
+Sekcja oflagowana jako niewiarygodna (rozjazd wersji albo błąd walidacji) **nie aktualizuje `Device.firmware_version`**. Odpowiedź na odczyt to jedno — `last_diagnostics_at` jest ustawiane tak czy owak, bo urządzenie faktycznie odpowiedziało — ale wypromowanie pola z blobu na wiersz `Device` to inne twierdzenie i sekcja, którą właśnie zakwestionowaliśmy, na nie nie zasłużyła.
 
 ## 4. Źródło prawdy o schemacie
 
@@ -164,9 +167,11 @@ Każdy wiersz trzyma **dwa** znaczniki czasu:
 
 Rozdzielenie ich ma konkretny skutek: pakiet retransmitowany po przerwie w łączności przychodzi teraz, ale opisuje stan sprzed dwóch godzin. Odczyt „najnowszej" sekcji jest dlatego rankowany po `captured_at`, nie po `received_at` — spóźniona retransmisja **nie wypiera** świeższego raportu, który przeszedł wcześniej ([`DeviceStateReportRepository.list_latest_sections`](../../backend/app/modules/telemetry/repositories/device_state.py)).
 
+Zegar urządzenia nie jest jednak przyjmowany na wiarę. Pomiar nie mógł powstać po tym, jak dotarł, więc `captured_at` wyprzedzające czas odbioru o więcej niż 5 minut jest **przycinane do czasu odbioru** i oznaczane kodem `STATE_CLOCK_AHEAD`. Bez tego urządzenie z zepsutym NTP, którego zegar skoczył w przyszłość, wygrywałoby ranking „najnowszej sekcji" na zawsze — i przy wieku przyciętym do zera czytałoby się jako świeże. Zamrożone dane udające żywe to dokładnie ta awaria, której ten mechanizm ma zapobiegać. Pięć minut to tolerancja na dryf, nie na błąd: urządzenie stempluje `captured_at` tym samym zegarem co `sent_at`, zsynchronizowanym NTP przy starcie.
+
 Endpoint dolicza przy każdym żądaniu:
 
-- `age_seconds` — wiek liczony od `captured_at` (przycięty do 0, gdyby zegar urządzenia szedł do przodu),
+- `age_seconds` — wiek liczony od `captured_at` (przycięty do 0 jako druga linia obrony; po przycięciu przy zapisie nie powinien już wyjść ujemny),
 - `is_stale` — czy wiek przekracza `settings.telemetry_stale_after_seconds`, **ten sam próg**, którego dashboard używa do statusu `no_comm`. Urządzenie nie może być „nieświeże" w jednym widoku i „w porządku" w drugim.
 
 Frontend pokazuje wiek jako etykietę przy nagłówku sekcji („sprzed 20 min"), a nie przy każdym polu — wszystkie pola sekcji pochodzą z jednego pomiaru.
@@ -237,7 +242,17 @@ Cała warstwa decyzyjna (harmonogram, licznik uptime'u odporny na przewinięcie 
 
 `device_state::RestartReason` ma **te same wartości liczbowe** co `esp_reset_reason_t`, a [`main.cpp`](../../firmware/src/main.cpp) pilnuje tego zestawem `static_assert`. Gdyby ESP-IDF kiedyś przenumerowało te stałe, build się wywali — zamiast wypuścić firmware, które błędnie etykietuje każdy restart w terenie.
 
-## 9. Weryfikacja na fizycznej płytce
+## 9. Znane ograniczenia i otwarte decyzje
+
+Rzeczy świadomie zostawione poza zakresem — nie przeoczenia, tylko wybory do podjęcia później, z podaną ceną każdego z nich.
+
+**Brak retencji `device_state_reports`.** Sekcja co 15 minut to ~35 tys. wierszy na urządzenie rocznie; dla gminy 15-obiektowej ~0,5 mln. Nic tego nie kasuje. Zapytanie odczytu rankuje po indeksie `(device_id, section, captured_at)` w obrębie jednego urządzenia, a szuflada w UI odpytuje je co 60 s — przy rocznej historii to skanowanie kilkudziesięciu tysięcy wpisów indeksu na odpytanie. Postgres to udźwignie długo, ale nie w nieskończoność. Do rozstrzygnięcia: czy trzymać pełną historię stanu (przydatna do analizy trendu RSSI i degradacji pamięci), czy kasować po N dniach zostawiając tylko najnowszą sekcję. To decyzja produktowa, nie techniczna — historia stanu ma wartość diagnostyczną, której nikt jeszcze nie wycenił.
+
+**Odpytywanie co 60 s przy danych zmieniających się co 15 minut.** Piętnaście razy częściej, niż odpowiedź może się zmienić. Robi to jednak jedną pożyteczną rzecz: utrzymuje etykietę wieku żywą, bo wiek jest liczony po stronie serwera. Alternatywa — liczyć wiek w przeglądarce z `captured_at` i odpytywać rzadziej — jest tańsza, ale przenosi próg `is_stale` na klienta, gdzie może rozjechać się z progiem dashboardu. Zostawione jak jest, świadomie.
+
+**Wyścig na duplikacie nie odświeża `last_seen_at`.** Gdy dwa równoległe żądania niosą to samo `(device_id, seq)`, przegrany wpada w `TelemetryPacketAlreadyExistsError`, którego obsługa wycofuje transakcję. Nie jest to luka: żądanie, które wygrało, zapisało dokładnie ten sam dowód życia mikrosekundy wcześniej.
+
+## 10. Weryfikacja na fizycznej płytce
 
 Testy `native` zastępują atrapą dokładnie tę warstwę, która rozmawia ze sprzętem i siecią, więc poniższe trzeba sprawdzić na urządzeniu:
 
@@ -256,4 +271,4 @@ Testy `native` zastępują atrapą dokładnie tę warstwę, która rozmawia ze s
 
 Poza tą listą zostają dwie rzeczy, których na płytce sprawdzić się nie da w rozsądnym czasie i które dlatego są przykryte testami natywnymi: zachowanie `uptime_seconds` po przewinięciu `millis()` (~49 dni) oraz wieloletnia kumulacja przewinięć.
 
-Build firmware wymaga wcześniejszego wygenerowania `SensorRegistry.h` — robi to hook pre-build, ale przy pierwszym uruchomieniu po tej zmianie warto potwierdzić w logu builda linię `9 point_types, 12 error_codes, 1 state_sections`.
+Build firmware wymaga wcześniejszego wygenerowania `SensorRegistry.h` — robi to hook pre-build, ale przy pierwszym uruchomieniu po tej zmianie warto potwierdzić w logu builda linię `9 point_types, 13 error_codes, 1 state_sections`.

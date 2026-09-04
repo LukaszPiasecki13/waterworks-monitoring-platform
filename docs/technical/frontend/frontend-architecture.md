@@ -1,6 +1,6 @@
 # Architektura Frontendu — Dokumentacja Techniczna
 
-> Odpowiednik frontendowy dokumentu [`01_backend-architecture.md`](./01_backend-architecture.md).
+> Odpowiednik frontendowy dokumentu [`01_backend-architecture.md`](../backend/01_backend-architecture.md).
 
 ## Spis treści
 

@@ -81,11 +81,14 @@ const fullSection = {
   buffer_windows_dropped: 0,
 }
 
-function renderDrawer(state: DeviceState | undefined, isLoading = false) {
+function renderDrawer(
+  state: DeviceState | undefined,
+  { isLoading = false, isError = false } = {}
+) {
   usePlatformDevice.mockReturnValue({ data: device, isLoading: false })
   useWaterObject.mockReturnValue({ data: { id: 'obj-1', organization_id: 'org-1' } })
   useOrganization.mockReturnValue({ data: { id: 'org-1', name: 'Gmina Testowa' } })
-  usePlatformDeviceState.mockReturnValue({ data: state, isLoading })
+  usePlatformDeviceState.mockReturnValue({ data: state, isLoading, isError })
 
   return render(
     <DeviceDetailDrawer deviceId="dev-1" open onOpenChange={() => {}} />
@@ -161,5 +164,24 @@ describe('DeviceDetailDrawer — device state (B-08)', () => {
 
     expect(screen.queryByText(/dBm/)).not.toBeInTheDocument()
     expect(screen.queryByText('dobry')).not.toBeInTheDocument()
+  })
+
+  it('treats an explicit null the same as an omitted field', () => {
+    /* The backend types every field as nullable, so a device may send null
+       where firmware today omits the key. Rendering " dBm" next to a red
+       "krytyczny" badge for a device that simply had no reading would invent
+       a fault that does not exist. */
+    renderDrawer(stateWith({ ...fullSection, rssi_dbm: null, uptime_seconds: null }))
+
+    expect(screen.queryByText(/dBm/)).not.toBeInTheDocument()
+    expect(screen.queryByText('krytyczny')).not.toBeInTheDocument()
+  })
+
+  it('says the read failed instead of blaming the device', () => {
+    /* "Never reported" and "we could not ask" are opposite diagnoses. */
+    renderDrawer(undefined, { isError: true })
+
+    expect(screen.getByText(/nie udało się pobrać stanu/i)).toBeInTheDocument()
+    expect(screen.queryByText(/nie przysłało jeszcze raportu stanu/i)).not.toBeInTheDocument()
   })
 })

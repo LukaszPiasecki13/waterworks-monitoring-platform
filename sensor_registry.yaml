@@ -95,6 +95,10 @@ error_codes:
     severity: info
     description: "State section schema_version differs from the registry; stored as sent, firmware/backend out of step"
 
+  - code: STATE_CLOCK_AHEAD
+    severity: warning
+    description: "Device clock ran ahead of the platform at capture; captured_at clamped to arrival, device NTP likely broken"
+
 # Device state sections — the catalogue of "reads" the device answers with on
 # its next contact (B-08). One section = one self-contained block of state,
 # carried in the telemetry packet's optional `state[]` array. Adding a read
