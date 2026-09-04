@@ -153,6 +153,20 @@ def test_packet_without_state_marks_contact_but_not_diagnostics(service, device)
     assert device.last_diagnostics_at is None
 
 
+def test_retransmission_still_counts_as_contact(service, state_repo, device):
+    """A duplicate carries no new data but still proves the device is alive."""
+    service._packet_repository.exists_by_device_seq.return_value = True
+
+    result = service.ingest(_packet([_section()]), device)
+
+    assert result.status == "duplicate"
+    assert device.last_seen_at is not None
+    # The state already landed with the original packet; re-storing it would
+    # violate the (packet_id, section) uniqueness the dedupe relies on.
+    state_repo.create.assert_not_called()
+    assert device.last_diagnostics_at is None
+
+
 def test_unknown_section_is_flagged_and_dropped(service, state_repo, device):
     result = service.ingest(_packet([_section(section="wardrobe")]), device)
 

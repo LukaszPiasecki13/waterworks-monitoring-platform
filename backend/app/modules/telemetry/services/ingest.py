@@ -169,6 +169,11 @@ class TelemetryIngestService:
             with self._packet_repository.transaction(skip_audit=True):
                 duplicate = self._response_if_duplicate(packet)
                 if duplicate:
+                    # A retransmission after a lost ACK carries no new data but
+                    # is still proof of life: dropping it here would let a
+                    # device that keeps retrying read as silent.
+                    device.last_seen_at = datetime.now(UTC)
+                    self._packet_repository.session.flush()
                     return duplicate
 
                 received_at = datetime.now(UTC)

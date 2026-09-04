@@ -62,4 +62,18 @@ void ReportScheduler::markReported(uint32_t nowMs) {
   has_reported_ = true;
 }
 
+void UptimeTracker::observe(uint32_t nowMs) {
+  if (nowMs < last_ms_) {
+    wraps_++;
+  }
+  last_ms_ = nowMs;
+}
+
+uint32_t UptimeTracker::seconds() const {
+  // Widened before the multiply so the wrap count does not overflow the
+  // arithmetic it is there to fix. Seconds still fit in uint32_t for 136 years.
+  uint64_t total_ms = (uint64_t)wraps_ * 4294967296ULL + (uint64_t)last_ms_;
+  return (uint32_t)(total_ms / 1000ULL);
+}
+
 }  // namespace device_state

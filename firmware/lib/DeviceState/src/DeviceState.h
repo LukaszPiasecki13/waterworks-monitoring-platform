@@ -89,4 +89,26 @@ class ReportScheduler {
   bool has_reported_ = false;
 };
 
+// Uptime that survives the millis() rollover.
+//
+// millis() wraps every ~49.7 days, so `millis() / 1000` reports a gateway that
+// has been up for two months as if it had just restarted — which is exactly
+// the wrong signal from a diagnostic field whose whole job is to tell a real
+// restart from a stable device. This counts the wraps instead.
+//
+// observe() must be called more often than once per wrap period; loop() runs
+// every ~10 ms, so a single missed wrap would take a 49-day stall to happen.
+class UptimeTracker {
+ public:
+  void observe(uint32_t nowMs);
+
+  uint32_t seconds() const;
+
+  uint32_t wraps() const { return wraps_; }
+
+ private:
+  uint32_t last_ms_ = 0;
+  uint32_t wraps_ = 0;
+};
+
 }  // namespace device_state

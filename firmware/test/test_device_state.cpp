@@ -84,6 +84,56 @@ TEST(ReportScheduler, SurvivesMillisRollover) {
   EXPECT_TRUE(scheduler.shouldReport(justBeforeWrap + kIntervalMs));
 }
 
+// ------------------------------------------------------------------- uptime
+
+TEST(UptimeTracker, CountsPlainMilliseconds) {
+  device_state::UptimeTracker tracker;
+
+  tracker.observe(90'000);
+
+  EXPECT_EQ(tracker.seconds(), 90u);
+  EXPECT_EQ(tracker.wraps(), 0u);
+}
+
+TEST(UptimeTracker, KeepsCountingAcrossTheMillisRollover) {
+  // A device up for two months must not report itself as freshly restarted —
+  // that is the one reading this field exists to make trustworthy.
+  device_state::UptimeTracker tracker;
+
+  tracker.observe(0xFFFFFFFFu);
+  const uint32_t beforeWrap = tracker.seconds();
+  tracker.observe(5'000);
+
+  EXPECT_EQ(tracker.wraps(), 1u);
+  EXPECT_GT(tracker.seconds(), beforeWrap) << "uptime must never go backwards";
+  EXPECT_EQ(tracker.seconds(), 4294967u + 5u);
+}
+
+TEST(UptimeTracker, SurvivesSeveralWraps) {
+  device_state::UptimeTracker tracker;
+
+  for (uint32_t wrap = 0; wrap < 3; ++wrap) {
+    tracker.observe(0xFFFFFFFFu);
+    tracker.observe(1'000);
+  }
+
+  EXPECT_EQ(tracker.wraps(), 3u);
+  // 3 wraps ≈ 149 days, well past the point where a naive millis()/1000 has
+  // already lied three times.
+  EXPECT_NEAR(tracker.seconds() / 86400.0, 149.0, 1.0);
+}
+
+TEST(UptimeTracker, NeverGoesBackwardsAcrossAWrapBoundary) {
+  device_state::UptimeTracker tracker;
+  uint32_t previous = 0;
+
+  for (uint64_t ms = 0xFFFFFF00ull; ms < 0x1000000FFull; ms += 0x40) {
+    tracker.observe((uint32_t)ms);
+    EXPECT_GE(tracker.seconds(), previous);
+    previous = tracker.seconds();
+  }
+}
+
 // ------------------------------------------------------------- value mapping
 
 TEST(RestartReason, MapsEspCodesToTheNamesTheBackendAccepts) {

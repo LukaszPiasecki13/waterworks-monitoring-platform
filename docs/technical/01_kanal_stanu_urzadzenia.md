@@ -96,6 +96,8 @@ Pakiet telemetryczny v2 zyskuje **opcjonalne** pole `state[]`. Firmware, które 
 
 **Koperta sekcji jest ścisła** (`extra="forbid"`): `section`, `schema_version`, `captured_at`, `data` — nic więcej. **Zawartość `data` jest luźna** (`extra="allow"`): znane pola są typowane, nieznane przechodzą i lądują w bazie. Ten podział jest celowy — koperta to protokół, `data` to treść, która ma prawo wyprzedzić backend.
 
+Luźne nie znaczy nieograniczone: skoro `data` trafia do JSONB dosłownie, jego rozmiar jest ucinany na wejściu — **64 klucze i 8 KB** na sekcję, maksymalnie **16 sekcji** w pakiecie. Realna sekcja `device` to ~330 B w 12 kluczach, więc zapas na rozwój jest duży, a uwierzytelnione, ale zepsute lub przejęte urządzenie nie zapisze wiersza bez granic.
+
 ### Pola sekcji `device` (schema_version 1)
 
 | Pole | Znaczenie | Skąd |
@@ -103,7 +105,7 @@ Pakiet telemetryczny v2 zyskuje **opcjonalne** pole `state[]`. Firmware, które 
 | `serial_number` | numer seryjny | `DeviceIdentity::serialNumber()` |
 | `firmware_version` | wersja firmware | `FIRMWARE_VERSION` w `Config.h` |
 | `registry_schema_version` | wersja schematu rejestru czujników | `SensorRegistry::SCHEMA_VERSION` |
-| `uptime_seconds` | czas od startu | `millis()` |
+| `uptime_seconds` | czas od startu | `device_state::UptimeTracker` (patrz niżej) |
 | `restart_count` | restarty od ostatniego zdrowego startu | `rtcRestartCounter` (RTC, przeżywa reset) |
 | `restart_reason` | przyczyna ostatniego restartu | `esp_reset_reason()` |
 | `rssi_dbm` | siła sygnału | `AT+CSQ` → `-113 + 2·CSQ` |
@@ -114,6 +116,8 @@ Pakiet telemetryczny v2 zyskuje **opcjonalne** pole `state[]`. Firmware, które 
 Dwa ostatnie wiersze są w zestawie **nie przypadkiem**: bufor RAM mieści ~12 minut, a [`CONTEXT.md`](../business/CONTEXT.md) obiecuje klientowi 72 h retencji offline. Trwały bufor to osobne zadanie, ale **bez tych pól nikt nie zauważy, że urządzenie po cichu gubi dane**. Kod błędu `WINDOW_DROPPED_BUFFER_FULL` sygnalizuje pojedyncze zdarzenie i znika po potwierdzeniu pakietu; `buffer_windows_dropped` niesie sumę od startu.
 
 `rssi_dbm` jest **pomijane**, a nie zerowane, gdy modem zwraca CSQ 99 („nie do wykrycia"). Brak odczytu i bardzo słaby sygnał nie mogą wyglądać tak samo.
+
+`uptime_seconds` **nie** jest liczone jako `millis() / 1000`. `millis()` przewija się co ~49,7 dnia, więc gateway działający dwa miesiące raportowałby się jako świeżo zrestartowany — dokładnie odwrotny sygnał niż ten, po który sięga się do diagnostyki. [`device_state::UptimeTracker`](../../firmware/lib/DeviceState/src/DeviceState.h) zlicza przewinięcia; jest odpytywany z `loop()` (co ~10 ms), a nie przy zbieraniu snapshotu co 15 minut, bo przeoczonego przewinięcia nie da się później odtworzyć.
 
 ### Zasada nadrzędna kanału
 
@@ -204,8 +208,10 @@ Teraz:
 
 | Pole | Ustawiane gdy | Znaczy |
 |---|---|---|
-| `last_seen_at` | **każdy** przyjęty pakiet | urządzenie żyje i się odzywa |
+| `last_seen_at` | **każdy** przyjęty pakiet, łącznie z retransmisją rozpoznaną jako duplikat | urządzenie żyje i się odzywa |
 | `last_diagnostics_at` | pakiet zawiera sekcję `device` | urządzenie odpowiedziało na odczyt stanu |
+
+Duplikat też odświeża `last_seen_at`, choć nie niesie nowych danych: urządzenie, które retransmituje po zgubionym ACK, jest jak najbardziej żywe, a pominięcie tego przypadku kazałoby mu wyglądać na milczące dokładnie wtedy, gdy najbardziej się stara.
 
 Dodatkowo sekcja `device` aktualizuje `device.firmware_version` — pole istniało od początku, ale nie miało kto go wypełniać.
 
@@ -225,7 +231,7 @@ TelemetrySender ── build() ──► TelemetryPayload ──► IStateSectio
 
 **Potwierdzenie idzie po akceptacji, nie po wysłaniu.** `markReported()` woła się dopiero z `TelemetryPayload::acknowledge()`, czyli po HTTP 200/202. Nieudana wysyłka **nie zjada interwału** — kolejna próba znów dołączy stan. Przy ponownym budowaniu pakietu snapshot jest zbierany od nowa: uptime, RSSI i zapełnienie bufora zdążyły się zmienić, a stare liczby ostemplowane świeżym `captured_at` byłyby kłamstwem.
 
-Cała warstwa decyzyjna (harmonogram, mapowanie przyczyn restartu, przeliczenie CSQ, kształt JSON-a) jest wolna od Arduino i ESP-IDF, więc testuje się na `env:native` bez sprzętu.
+Cała warstwa decyzyjna (harmonogram, licznik uptime'u odporny na przewinięcie `millis()`, mapowanie przyczyn restartu, przeliczenie CSQ, kształt JSON-a) jest wolna od Arduino i ESP-IDF, więc testuje się na `env:native` bez sprzętu — łącznie ze scenariuszami, których na płytce nie da się wywołać w rozsądnym czasie, jak zachowanie uptime'u po 49 dniach.
 
 ### Odwzorowanie przyczyn restartu
 
@@ -246,5 +252,8 @@ Testy `native` zastępują atrapą dokładnie tę warstwę, która rozmawia ze s
 | `restart_reason` po watchdogu | wymuś restart watchdoga → `"restart_reason":"task_watchdog"` (albo `int_watchdog`), `restart_count` wzrasta |
 | Zapełnienie bufora rośnie przy braku sieci | odłącz antenę na >2 min → `buffer_windows_used` rośnie; po >12 min `buffer_windows_dropped` > 0 |
 | `Device.firmware_version` uzupełnia się samo | w UI (`DeviceDetailDrawer`) pojawia się `0.4.0` bez ręcznej edycji |
+| Retransmisja po zgubionym ACK nadal liczy się jako kontakt | wymuś duplikat `seq` → odpowiedź 200 `duplicate`, a `last_seen_at` w UI się odświeża |
+
+Poza tą listą zostają dwie rzeczy, których na płytce sprawdzić się nie da w rozsądnym czasie i które dlatego są przykryte testami natywnymi: zachowanie `uptime_seconds` po przewinięciu `millis()` (~49 dni) oraz wieloletnia kumulacja przewinięć.
 
 Build firmware wymaga wcześniejszego wygenerowania `SensorRegistry.h` — robi to hook pre-build, ale przy pierwszym uruchomieniu po tej zmianie warto potwierdzić w logu builda linię `9 point_types, 12 error_codes, 1 state_sections`.

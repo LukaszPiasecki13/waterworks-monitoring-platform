@@ -82,6 +82,10 @@ static_assert(static_cast<int>(device_state::RestartReason::Sdio) == ESP_RST_SDI
 // that; `deviceIdentity.serialNumber().c_str()` would dangle immediately.
 String deviceStateSerial;
 
+// Polled from loop() rather than from the 15-minute capture, so the millis()
+// rollover is spotted within ~10 ms of happening instead of being missed.
+device_state::UptimeTracker uptimeTracker;
+
 device_state::Snapshot captureDeviceState() {
   device_state::Snapshot snapshot;
   deviceStateSerial = deviceIdentity.serialNumber();
@@ -89,7 +93,7 @@ device_state::Snapshot captureDeviceState() {
   snapshot.firmware_version = FIRMWARE_VERSION;
   snapshot.registry_schema_version = SensorRegistry::SCHEMA_VERSION;
 
-  snapshot.uptime_seconds = (uint32_t)(millis() / 1000UL);
+  snapshot.uptime_seconds = uptimeTracker.seconds();
   snapshot.restart_count = restartCountAtBoot;
   snapshot.restart_reason = device_state::restartReasonFromCode((int)esp_reset_reason());
 
@@ -256,6 +260,9 @@ void setup() {
 
 void loop() {
   esp_task_wdt_reset();
+
+  // Before any early return below: a missed rollover cannot be recovered later.
+  uptimeTracker.observe((uint32_t)millis());
 
   if (deviceIdentity.needsReprovisioning()) {
     LOG_INFO("[BOOT]", "Device deleted from platform, restarting...");
