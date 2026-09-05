@@ -34,32 +34,28 @@ Przy zakładanej skali („kilka prototypów, brak planów skalowania") łączna
 
 **Rekomendacja:** nie robić portu teraz. Jeżeli motywem jest wyłącznie cena modułu, istnieje rozwiązanie za **0 godzin pracy** zamiast 20–30: zmiana wariantu w obrębie rodziny S3 (dziś kupowany `N8R8` ma 8 MB PSRAM, z których firmware nie używa **ani jednego bajtu** — patrz [§4.4](#44-pamięć--zmierzone-nie-szacowane)). Szczegóły w [§7.1](#71-tańsza-alternatywa-zamiast-portu).
 
-Dokument daje jednocześnie wszystko, co potrzebne, żeby port **zlecić od ręki**, gdyby warunki z [§9](#9-warunki-przy-których-ten-werdykt-się-zmienia) zostały spełnione: gotową mapę pinów z uzasadnieniem każdego wyboru ([§4.1](#41-piny--kompletna-mapa-przeniesienia)), listę zmian w kodzie ([§10](#10-gotowe-wejście-do-przyszłego-zlecenia-portu)) i listę rzeczy do zweryfikowania na płytce ([§12](#12-do-zweryfikowania-na-fizycznym-sprzęcie)).
+Dokument daje jednocześnie wszystko, co potrzebne, żeby port **zlecić od ręki**, gdyby warunki z [§9](#9-warunki-przy-których-ten-werdykt-się-zmienia) zostały spełnione: gotową mapę pinów z uzasadnieniem każdego wyboru ([§4.1](#41-piny--kompletna-mapa-przeniesienia)), listę zmian w kodzie ([§10](#10-gotowe-wejście-do-przyszłego-zlecenia-portu)) i listę rzeczy do zweryfikowania na płytce ([§10.1](#101-weryfikacja-sprzętowa-pozycja-e-z-62)).
 
 ---
 
-## 2. Metoda i status dowodów
+## 2. Podstawa dowodowa
 
-Analiza opiera się na trzech rodzajach dowodów, oznaczonych w tekście:
+Każde twierdzenie w dokumencie ma etykietę wiarygodności:
 
 | Etykieta | Znaczenie |
 |---|---|
-| **[zmierzone]** | Wynik uruchomienia narzędzia w tej sesji — kompilacja, dump środowiska, odczyt nagłówków SDK. Odtwarzalne. |
-| **[dokumentacja]** | Cytat lub ustalenie z oficjalnej dokumentacji Espressif albo ze źródeł ESP-IDF. |
-| **[przypuszczenie]** | Wniosek nie poparty bezpośrednim pomiarem ani źródłem pierwotnym. Każde takie miejsce jest oznaczone jawnie. |
+| **[zmierzone]** | Wynik uruchomienia narzędzia — kompilacja, dump środowiska, odczyt nagłówków SDK. Odtwarzalne. |
+| **[dokumentacja]** | Ustalenie z oficjalnej dokumentacji Espressif albo ze źródeł ESP-IDF. |
+| **[przypuszczenie]** | Wniosek nie poparty bezpośrednim pomiarem ani źródłem pierwotnym. |
 
-**Czego nie zrobiono:** niczego nie weryfikowano na fizycznym sprzęcie. Nie ma tu ani jednego pomiaru z płytki. Lista rzeczy, które wymagają płytki, jest w [§12](#12-do-zweryfikowania-na-fizycznym-sprzęcie).
+Kompilacje wykonano na kopii źródeł poza repozytorium (brief zabrania zmian w `firmware/`); kopia różniła się od repo wyłącznie dodaniem środowiska `env:esp32-wroom` (`board = esp32dev`) o identycznych `build_flags` i `lib_deps`. Wersje użyte do pomiarów z [§3](#3-dowód-kod-kompiluje-się-na-oba-targety-bez-zmian) i [§4.4](#44-pamięć--zmierzone-nie-szacowane):
 
-### 2.1. Środowisko pomiarowe
-
-Kompilacje wykonano na **kopii roboczej poza repozytorium** (`/tmp/.../fwtest`), żeby nie naruszyć zakazu zmian w `firmware/` z briefu. Kopia zawierała identyczne źródła (`include/`, `lib/`, `src/`, `test/`, `scripts/`) i `platformio.ini` różniący się wyłącznie dodaniem drugiego środowiska `env:esp32-wroom` (`board = esp32dev`) o identycznych `build_flags` i `lib_deps`.
-
-| Składnik | Wersja | Źródło |
-|---|---|---|
-| PlatformIO Core | 6.1.19 | [zmierzone] |
-| platform `espressif32` | 7.1.0 | [zmierzone] |
-| `framework-arduinoespressif32` | 3.20017.241212+sha.dcc1105b (Arduino core 2.0.17) | [zmierzone] |
-| toolchain Xtensa | 8.4.0+2021r2-patch5 | [zmierzone] |
+| Składnik | Wersja |
+|---|---|
+| PlatformIO Core | 6.1.19 |
+| platform `espressif32` | 7.1.0 |
+| `framework-arduinoespressif32` | 3.20017.241212+sha.dcc1105b (Arduino core 2.0.17) |
+| toolchain Xtensa | 8.4.0+2021r2-patch5 |
 
 ---
 
@@ -75,9 +71,9 @@ esp32-wroom   SUCCESS   RAM 22 532 B (6.9% z 327 680)   Flash 432 273 B (33.0% z
 
 **Zero zmian w źródłach.** Ten sam `main.cpp`, te same 13 bibliotek w `lib/`, ten sam `Config.h` z pinami 11/12/13/14/48. Zmieniono wyłącznie `board = esp32-s3-devkitc-1` → `board = esp32dev`.
 
-### 3.1. Co ten wynik znaczy, a czego nie znaczy
+### 3.1. Zasięg tego wyniku
 
-**Znaczy:** w kodzie nie ma żadnej konstrukcji specyficznej dla S3 — żadnego `#ifdef CONFIG_IDF_TARGET_ESP32S3`, żadnego USB CDC, żadnego PSRAM, żadnej instrukcji wektorowej. Wyszukanie w całym `firmware/` (poza `.pio/`) daje **cztery** wystąpienia ciągu „S3" i wszystkie są kosmetyczne:
+**Wniosek:** w kodzie nie ma żadnej konstrukcji specyficznej dla S3 — żadnego `#ifdef CONFIG_IDF_TARGET_ESP32S3`, żadnego USB CDC, żadnego PSRAM, żadnej instrukcji wektorowej. Wyszukanie w całym `firmware/` (poza `.pio/`) daje **cztery** wystąpienia ciągu „S3" i wszystkie są kosmetyczne:
 
 | Miejsce | Charakter |
 |---|---|
@@ -90,7 +86,7 @@ esp32-wroom   SUCCESS   RAM 22 532 B (6.9% z 327 680)   Flash 432 273 B (33.0% z
 
 Nie znaleziono również: `HWCDC`, `USBCDC`, `ARDUINO_USB_*`, `Serial0`, `TinyUSB`, `psram`, `ps_malloc`, `heap_caps` [zmierzone].
 
-**Nie znaczy:** że firmware zadziała na klasycznym ESP32. Kompilator nie sprawdza, czy GPIO 11 fizycznie istnieje i czy nie należy do magistrali flash. **Piny z `Config.h` są na klasycznym ESP32 częściowo niedozwolone i uruchomienie bez remapu skończy się awarią dostępu do flash.** To jest istota pracy portu i temat następnej sekcji.
+**Ograniczenie:** kompilacja nie dowodzi, że firmware zadziała na klasycznym ESP32. Kompilator nie sprawdza, czy GPIO 11 fizycznie istnieje i czy nie należy do magistrali flash. **Piny z `Config.h` są na klasycznym ESP32 częściowo niedozwolone i uruchomienie bez remapu skończy się awarią dostępu do flash.** To jest istota pracy portu i temat następnej sekcji.
 
 ---
 
@@ -213,9 +209,9 @@ Jedyna różnica to wydajność rdzenia: Xtensa LX6 vs LX7. Publikowane wyniki C
 
 **Wniosek:** operacje kryptograficzne na klasycznym ESP32 będą wolniejsze o rząd **~20%**, nie o rząd wielkości. Nie ma tu ryzyka projektowego.
 
-#### 4.3.3. Bezwzględne czasy — co wiadomo, a czego nie
+#### 4.3.3. Bezwzględne czasy operacji
 
-Nie zmierzono czasów na sprzęcie (brak płytki). Widełki z publicznych pomiarów mbedTLS na ESP32 @ 240 MHz są szerokie i sprzeczne: **weryfikacja** podpisu P-256 raportowana od ~240–390 ms (konfiguracja domyślna) do ~2 s (przy niekorzystnych ustawieniach optymalizacji). Podpis wymaga ok. **jednego** mnożenia punktu, weryfikacja ok. **dwóch** — więc podpis to rząd **100–250 ms**, a generowanie klucza jest kosztem porównywalnym z podpisem [przypuszczenie — wnioskowanie z liczby operacji, nie pomiar].
+Widełki z publicznych pomiarów mbedTLS na ESP32 @ 240 MHz są szerokie i sprzeczne: **weryfikacja** podpisu P-256 raportowana od ~240–390 ms (konfiguracja domyślna) do ~2 s (przy niekorzystnych ustawieniach optymalizacji). Podpis wymaga ok. **jednego** mnożenia punktu, weryfikacja ok. **dwóch** — więc podpis to rząd **100–250 ms**, a generowanie klucza jest kosztem porównywalnym z podpisem [przypuszczenie — wnioskowanie z liczby operacji, nie pomiar].
 
 Nawet przy najbardziej pesymistycznym z tych wyników margines jest kilkukrotny. Kod dodatkowo rozbija generowanie klucza wywołaniami `esp_task_wdt_reset()` i `yield()` przed i po ([`DeviceIdentity.cpp:191–200`](../../../firmware/lib/DeviceIdentity/src/DeviceIdentity.cpp#L191)), a `ensureKey()` jest wywoływane raz, w `loop()`, po starcie ([`main.cpp:199–202`](../../../firmware/src/main.cpp#L199)) — nie w krytycznej ścieżce bootu.
 
@@ -235,7 +231,7 @@ Framework Arduino jest dostarczany **skompilowany**. Makro z `build_flags` wpły
 
 **Po drugie — zadanie `loop()` w ogóle nie jest zapisane do watchdoga.** W `cores/esp32/main.cpp` Arduino ustawia `loopTaskWDTEnabled = false;` i resetuje TWDT tylko, gdy ta flaga jest prawdziwa. Firmware nigdy nie wywołuje `enableLoopWDT()` ani `esp_task_wdt_add(NULL)` [zmierzone — brak wystąpień w repo]. Zgodnie z nagłówkiem `esp_task_wdt.h` dostarczonym z frameworkiem, `esp_task_wdt_reset()` wywołane z niezapisanego zadania zwraca `ESP_ERR_NOT_FOUND` i nic nie robi. **Kilkanaście wywołań `esp_task_wdt_reset()` rozsianych po `main.cpp` i `DeviceIdentity.cpp` to dziś operacje puste.** Faktycznie pilnowane jest wyłącznie zadanie bezczynne rdzenia 0 (`CONFIG_ESP_TASK_WDT_CHECK_IDLE_TASK_CPU0 1`), a `loop()` biegnie na rdzeniu 1.
 
-**Wpływ na werdykt portu: żaden** — zachowanie jest identyczne na obu układach. **Wpływ na projekt: istotny** i wykracza poza to zlecenie — patrz [§11](#11-obserwacje-uboczne-poza-zakresem-tego-zlecenia).
+**Wpływ na werdykt portu: żaden** — zachowanie jest identyczne na obu układach. **Wpływ na obecne firmware: istotny** — patrz [§11](#11-ustalenia-dodatkowe-dotyczące-obecnego-firmware).
 
 #### 4.3.5. Co realnie traci się w warstwie bezpieczeństwa
 
@@ -301,7 +297,7 @@ Trzy zmienne w [`RtcState.h`](../../../firmware/include/RtcState.h) (`rtcRestart
 
 **Zgodność: pełna.** Oba układy mają pamięć RTC slow (8 KB) i oba obsługują `RTC_DATA_ATTR` w identyczny sposób. Kod **skompilował się na oba targety bez zmian** [zmierzone], co obejmuje również te deklaracje.
 
-⚠️ Jedno zastrzeżenie z istniejącej dokumentacji: [`03_esp32_reset_and_recovery.md`](./03_esp32_reset_and_recovery.md) sam wymienia w tabeli diagnostycznej przypadek „RTC counter nie increments → RTC memory nie persisted (variant ESP32 issue)". To jest **istniejąca, nierozstrzygnięta wątpliwość dokumentacyjna**, niezależna od portu — ale port jest dobrą okazją, żeby ją zamknąć pomiarem na obu płytkach. Do listy w [§12](#12-do-zweryfikowania-na-fizycznym-sprzęcie).
+⚠️ Jedno zastrzeżenie z istniejącej dokumentacji: [`03_esp32_reset_and_recovery.md`](./03_esp32_reset_and_recovery.md) sam wymienia w tabeli diagnostycznej przypadek „RTC counter nie increments → RTC memory nie persisted (variant ESP32 issue)". Wątpliwość jest niezależna od portu, ale bring-up jest okazją, żeby ją zamknąć pomiarem na obu płytkach — pozycja 3 w [§10.1](#101-weryfikacja-sprzętowa-pozycja-e-z-62).
 
 ---
 
@@ -309,7 +305,7 @@ Trzy zmienne w [`RtcState.h`](../../../firmware/include/RtcState.h) (`rtcRestart
 
 Wymóg z briefu: nowe środowisko `env:esp32-wroom` **obok** istniejącego, bez usuwania `env:esp32-s3`.
 
-Obecny plik ma 29 linii, z czego 15 to wspólne `lib_deps` i `build_flags` — dosłowne skopiowanie ich do drugiego środowiska stworzyłoby duplikat do rozjechania się. Sprawdzona w tej analizie struktura (użyta w kopii roboczej) rozwiązuje to sekcją `[common]` i interpolacją `${common.*}`:
+Obecny plik ma 29 linii, z czego 15 to wspólne `lib_deps` i `build_flags` — dosłowne skopiowanie ich do drugiego środowiska stworzyłoby duplikat do rozjechania się. Poniższa struktura rozwiązuje to sekcją `[common]` i interpolacją `${common.*}`:
 
 ```ini
 [common]
@@ -333,7 +329,7 @@ lib_deps = ${common.lib_deps}
 build_flags = ${common.build_flags} -D BOARD_ESP32_WROOM
 ```
 
-Flagi `-D BOARD_*` służyłyby do wyboru mapy pinów w `Config.h` (`#if defined(BOARD_ESP32_WROOM) ... #else ... #endif`) — to jedyna zmiana w `Config.h` poza samymi numerami. Konstrukcja została **zweryfikowana kompilacją obu środowisk** w tej analizie [zmierzone].
+Flagi `-D BOARD_*` służyłyby do wyboru mapy pinów w `Config.h` (`#if defined(BOARD_ESP32_WROOM) ... #else ... #endif`) — to jedyna zmiana w `Config.h` poza samymi numerami. Konstrukcja została **zweryfikowana kompilacją obu środowisk** [zmierzone].
 
 ⚠️ **Uwaga:** `extra_scripts = scripts/prebuild.py` w obecnej postaci wywraca build — patrz [§11.1](#111-hook-prebuild-wywraca-build). Trzeba to naprawić **przed** portem, niezależnie od portu.
 
@@ -561,18 +557,34 @@ Gdyby zaszedł którykolwiek warunek z [§9](#9-warunki-przy-których-ten-werdyk
 3. `platformio.ini`: sekcja `[common]` + `env:esp32-wroom` (`board = esp32dev`) obok istniejącego `env:esp32-s3`, flagi `-D BOARD_ESP32_S3` / `-D BOARD_ESP32_WROOM`. Struktura zweryfikowana kompilacją, gotowy szkielet w [§4.7](#47-platformioini).
 4. `Config.h`: mapa pinów pod `#if defined(BOARD_ESP32_WROOM)` wg tabeli z [§4.1.3](#413-proponowana-mapa-pinów).
 5. Kompilacja obu środowisk (oczekiwany wynik znany: [§3](#3-dowód-kod-kompiluje-się-na-oba-targety-bez-zmian)).
-6. Bring-up sprzętowy wg listy z [§12](#12-do-zweryfikowania-na-fizycznym-sprzęcie).
+6. Bring-up sprzętowy wg listy z [§10.1](#101-weryfikacja-sprzętowa-pozycja-e-z-62).
 7. Aktualizacja dokumentacji: `01_hardware.md` (druga kolumna mapy pinów, nie osobny dokument), `02_modem_a7670e_communication.md` §2.2, `03_esp32_reset_and_recovery.md` (tytuł i wstęp mówią „ESP32-S3"), `05_pt100_temperature_sensor.md` §SPI Pins.
 
 **Czego zlecenie NIE musi już ustalać:** czy kod się skompiluje (tak, zweryfikowane), czy kryptografia się zmieści (tak, brak akceleratora po obu stronach), czy starczy RAM/flash (tak, zmierzone), czy `RTC_DATA_ATTR` działa (tak), które piny są niedozwolone (rozpisane), jak ma wyglądać `platformio.ini` (szkielet gotowy).
 
 **Definicja ukończenia portu:** oba środowiska budują się z jednego źródła; urządzenie na WROOM-32 przechodzi pełen cykl `ACTIVATE <kod>` → enrollment → challenge/response → wysyłka telemetrii z PT100 → potwierdzenie w backendzie; zmierzone czasy `mbedtls_ecp_gen_key` i `mbedtls_ecdsa_write_signature` są zapisane w `01_hardware.md`; testy `env:native` przechodzą.
 
+### 10.1. Weryfikacja sprzętowa (pozycja E z §6.2)
+
+Dziewięć pozycji, których nie da się rozstrzygnąć z kodu ani z dokumentacji — do wykonania na płytce w ramach bring-upu:
+
+| # | Do sprawdzenia | Dlaczego to ważne |
+|---|---|---|
+| 1 | Czas `mbedtls_ecp_gen_key(SECP256R1)` na WROOM-32, w ms | Jedyna liczba w [§4.3.3](#433-bezwzględne-czasy-operacji) oparta na przypuszczeniu. Zmierzyć też na S3, żeby mieć porównanie. |
+| 2 | Czas `mbedtls_ecdsa_write_signature` na WROOM-32, w ms | j.w. |
+| 3 | Czy `RTC_DATA_ATTR` przeżywa `esp_restart()` na WROOM-32 | [`03_esp32_reset_and_recovery.md`](./03_esp32_reset_and_recovery.md) sygnalizuje tu wątpliwość („variant ESP32 issue"). Dotyczy licznika restartów w [`Watchdog`](../../../firmware/lib/Watchdog/src/Watchdog.cpp). |
+| 4 | Czy MAX31865 działa na nowej mapie SPI (18/19/23/5) | Zmiana z pinów niestandardowych na natywne VSPI — teoretycznie prostsza, praktycznie do potwierdzenia. |
+| 5 | Czy GPIO 5 jako CS nie powoduje fałszywych transakcji przy starcie | Uzasadnienie w [§4.1.3](#413-proponowana-mapa-pinów) jest teoretyczne. Alternatywa GPIO 32 gotowa. |
+| 6 | Czy modem nie resetuje się przy starcie ESP32 na nowym pinie RESET (25) | Powód przeniesienia z GPIO 5. Sprawdzić oscyloskopem albo po logach modemu. |
+| 7 | Czy płytka docelowa ma diodę użytkownika na GPIO 2 | Oryginał Espressif prawdopodobnie nie ma — [§4.2.4](#424-rozstrzygnięcie). |
+| 8 | Rewizja krzemu modułu WROOM-32E (v3.0+?) | Warunek dostępności Secure Boot V2 — [§4.3.5](#435-co-realnie-traci-się-w-warstwie-bezpieczeństwa). |
+| 9 | Stabilność zasilania: modem 5 V / 2 A przy płytce WROOM | Uwaga krytyczna z [`01_hardware.md` §7](./01_hardware.md) dotyczy obu wariantów, ale rozkład masy i długość przewodów się zmieniają. |
+
 ---
 
-## 11. Obserwacje uboczne (poza zakresem tego zlecenia)
+## 11. Ustalenia dodatkowe dotyczące obecnego firmware
 
-Trzy rzeczy znalezione przy okazji pomiarów. **Żadna nie wpływa na werdykt portu — dotyczą obu targetów tak samo — ale każda dotyczy działającego dziś firmware.** Odnotowane, żeby nie zginęły; do zlecenia osobno.
+Dwa ustalenia zebrane przy pomiarach. Dotyczą obu targetów tak samo, więc **nie wpływają na werdykt portu** — wpływają natomiast na obecny build i na obecne zabezpieczenie przed zawieszeniem.
 
 ### 11.1. Hook prebuild wywraca build
 
@@ -581,7 +593,7 @@ Trzy rzeczy znalezione przy okazji pomiarów. **Żadna nie wpływa na werdykt po
 1. **Zły moment.** Hook jest zarejestrowany jako `env.AddPreAction("$BUILD_DIR/firmware.elf", ...)`, czyli uruchamia się przed **linkowaniem**. `SensorRegistry.h` jest potrzebny przy **kompilacji** ([`ISensor.h:3`](../../../firmware/lib/Sensor/include/ISensor.h#L3)), która następuje wcześniej. Wynik na czystym repo: `fatal error: SensorRegistry.h: No such file or directory`.
 2. **`__file__` nie istnieje.** Gdy plik nagłówkowy już istnieje i build dochodzi do linkowania, hook przewraca się na `NameError: name '__file__' is not defined` ([`prebuild.py:33`](../../../firmware/scripts/prebuild.py#L33)) — SCons wykonuje skrypt w sposób, w którym `__file__` nie jest ustawione.
 
-Obejście użyte w tej analizie: ręczne `python3 firmware/scripts/prebuild.py` z katalogu głównego (tryb standalone działa poprawnie), a następnie build. Poprawka: `env.AddPreAction` na obiektach źródłowych zamiast na `firmware.elf` (albo wykonanie generacji natychmiast przy imporcie skryptu) plus zastąpienie `__file__` ścieżką z `env["PROJECT_DIR"]`.
+Obejście: ręczne `python3 firmware/scripts/prebuild.py` z katalogu głównego (tryb standalone działa poprawnie), a następnie build. Poprawka: `env.AddPreAction` na obiektach źródłowych zamiast na `firmware.elf` (albo wykonanie generacji natychmiast przy imporcie skryptu) plus zastąpienie `__file__` ścieżką z `env["PROJECT_DIR"]`.
 
 `SensorRegistry.h` jest w `.gitignore`, więc **każdy świeży klon repozytorium ma dziś zepsuty build firmware.**
 
@@ -595,34 +607,9 @@ Rozpisane w [§4.3.4](#434-sprostowanie-budżet-watchdoga-to-nie-15-s). Skrót:
 
 Zabezpieczeniem, które **działa**, jest [`Watchdog`](../../../firmware/lib/Watchdog/src/Watchdog.cpp) na poziomie aplikacji (5 min bez sukcesu → test AT → hard reset modemu → `esp_restart()`). Dokumentacja w [`03_esp32_reset_and_recovery.md`](./03_esp32_reset_and_recovery.md) opisuje jednak TWDT jako aktywny mechanizm ochrony `loop()` — to jest rozjazd dokumentacji ze stanem faktycznym.
 
-### 11.3. Niespójności w dokumentacji, potwierdzone przy okazji
-
-Brief B-05 wymienia je jako zadanie do naprawy; ta analiza potwierdza dwie z nich niezależnie:
-
-- **PT-506 / 4-20 mA nie istnieje w kodzie** — brak sterownika, brak `analogRead()`, brak I2C. [`01_hardware.md` §1 i §5](./01_hardware.md) mówią o tym poprawnie („draft"), ale §6 nazywa też SPI/PT100 „draftem", podczas gdy PT100 jest w pełni zaimplementowany ([`PT100Sensor.cpp`](../../../firmware/lib/Sensor/src/PT100Sensor.cpp)) i wpięty w [`main.cpp:96`](../../../firmware/src/main.cpp#L96).
-- **Rezystor 250 Ω w §6 wobec 136 Ω gdzie indziej** — nie do rozstrzygnięcia z kodu, bo w kodzie nie ma żadnej obsługi 4-20 mA. `Config.h` nie zawiera ani jednej stałej związanej z ADC.
-
 ---
 
-## 12. Do zweryfikowania na fizycznym sprzęcie
-
-Lista wprost do wykonania w ramach przyszłego bring-upu (pozycja E z [§6.2](#62-koszt-pracy)). Żadnej z tych rzeczy **nie da się rozstrzygnąć z kodu ani z dokumentacji**.
-
-| # | Do sprawdzenia | Dlaczego to ważne |
-|---|---|---|
-| 1 | Czas `mbedtls_ecp_gen_key(SECP256R1)` na WROOM-32, w ms | Jedyna liczba w [§4.3.3](#433-bezwzględne-czasy--co-wiadomo-a-czego-nie), która jest przypuszczeniem. Zmierzyć też na S3, żeby mieć porównanie. |
-| 2 | Czas `mbedtls_ecdsa_write_signature` na WROOM-32, w ms | j.w. |
-| 3 | Czy `RTC_DATA_ATTR` przeżywa `esp_restart()` na WROOM-32 | [`03_esp32_reset_and_recovery.md`](./03_esp32_reset_and_recovery.md) sam sygnalizuje wątpliwość („variant ESP32 issue"). Dotyczy licznika restartów w [`Watchdog`](../../../firmware/lib/Watchdog/src/Watchdog.cpp). |
-| 4 | Czy MAX31865 działa na nowej mapie SPI (18/19/23/5) | Zmiana z pinów niestandardowych na natywne VSPI — teoretycznie prostsza, praktycznie do potwierdzenia. |
-| 5 | Czy GPIO 5 jako CS nie powoduje fałszywych transakcji przy starcie | Uzasadnienie w [§4.1.3](#413-proponowana-mapa-pinów) jest teoretyczne. Alternatywa GPIO 32 gotowa. |
-| 6 | Czy modem nie resetuje się przy starcie ESP32 na nowym pinie RESET (25) | Powód przeniesienia z GPIO 5. Sprawdzić oscyloskopem albo po logach modemu. |
-| 7 | Czy płytka docelowa ma diodę użytkownika na GPIO 2 | Oryginał Espressif prawdopodobnie nie ma — [§4.2.4](#424-rozstrzygnięcie). |
-| 8 | Rewizja krzemu modułu WROOM-32E (v3.0+?) | Warunek dostępności Secure Boot V2 — [§4.3.5](#435-co-realnie-traci-się-w-warstwie-bezpieczeństwa). |
-| 9 | Stabilność zasilania: modem 5 V / 2 A przy płytce WROOM | Uwaga krytyczna z [`01_hardware.md` §7](./01_hardware.md) dotyczy obu wariantów, ale rozkład masy i długość przewodów się zmieniają. |
-
----
-
-## 13. Źródła
+## 12. Źródła
 
 **Repozytorium (stan `43116cd`):** [`Config.h`](../../../firmware/include/Config.h), [`main.cpp`](../../../firmware/src/main.cpp), [`platformio.ini`](../../../firmware/platformio.ini), [`StatusLed.cpp`](../../../firmware/lib/StatusLed/src/StatusLed.cpp), [`DeviceIdentity.cpp`](../../../firmware/lib/DeviceIdentity/src/DeviceIdentity.cpp), [`TelemetryPayload.h`](../../../firmware/lib/TelemetryPayload/src/TelemetryPayload.h), [`PT100Sensor.cpp`](../../../firmware/lib/Sensor/src/PT100Sensor.cpp), [`Watchdog.cpp`](../../../firmware/lib/Watchdog/src/Watchdog.cpp), [`prebuild.py`](../../../firmware/scripts/prebuild.py), [`01_hardware.md`](./01_hardware.md), [`03_esp32_reset_and_recovery.md`](./03_esp32_reset_and_recovery.md), [`01_plan_biznesowy.md`](../../business/01_plan_biznesowy.md).
 
@@ -652,12 +639,3 @@ Lista wprost do wykonania w ramach przyszłego bring-upu (pozycja E z [§6.2](#6
 **Wydajność (źródła wtórne, nie Espressif — oznaczone jako takie w tekście):**
 - [PCBway — ESP32 vs ESP32-S3](https://www.pcbway.com/blog/14/ESP32_vs_ESP32_S3_Key_Differences_Performance_Comparison_and_PCB_Design_Consi_2c205f9a.html) — CoreMark 991,10 vs 1181,60
 - [Forum ESP32 — „Signature verify seems SLOW with ECDSA and mbedtls"](https://esp32.com/viewtopic.php?t=25628) — pomiary weryfikacji podpisu P-256 na ESP32
-
----
-
-## 14. Zastrzeżenia
-
-- **Ceny są migawką z jednego dnia** (2026-09-05) i z detalicznego kanału sprzedaży. Przy zamówieniu produkcyjnym relacje mogą się zmienić — ale musiałyby zmienić się o rząd wielkości, żeby odwrócić werdykt.
-- **Nakład pracy 20–30 h to szacunek**, nie oferta. Pozycja „bring-up sprzętowy" jest z natury nieprzewidywalna i historycznie bywa przekraczana.
-- **Stawka godzinowa nie jest w tym dokumencie założona** — progi podano jako funkcję stawki, żeby czytelnik podstawił własną.
-- **Nic nie zweryfikowano na fizycznej płytce.** Wszystkie wnioski o zachowaniu sprzętu są wnioskami z dokumentacji i z kodu.
