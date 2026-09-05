@@ -197,10 +197,20 @@ Zakres w fazach D i E odzwierciedla realną zmienność: modem nadaje z pełną 
 
 ### 5.3. Średnia w cyklu 60 s
 
+Cykl to 54 s bezczynności (faza A) i 6 s transmisji (faza E). Warianty różnią się tym, którą granicę zakresów z [§4](#4-bilans-prądowy--per-komponent) przyjmiemy:
+
+| Składnik bezczynności | Wariant realistyczny | Wariant pesymistyczny |
+|---|---|---|
+| ESP32-S3, płytka DevKitC-1 | 55 mA (środek zakresu) | 70 mA (górna granica zakresu 40–70) |
+| MAX31865 | 1,5 mA (typ.) | 3,0 mA (max z karty katalogowej) |
+| WS2812 | 1,0 mA | 1,0 mA |
+| Modem, idle | 30 mA | 40 mA (górna granica przyjętego 20–40) |
+| **Razem faza A** | **88 mA** | **114 mA** |
+
 | Wariant | Wyliczenie | Średnia @ 5 V | Moc |
 |---|---|---|---|
-| Realistyczny (dobry zasięg) | (54 s × 88 mA + 6 s × 300 mA) / 60 s | **109 mA** | **0,54 W** |
-| Pesymistyczny (skraj zasięgu, TX pełną mocą) | (54 s × 114 mA + 6 s × 565 mA) / 60 s | **159 mA** | **0,80 W** |
+| Realistyczny (dobry zasięg, TX ze sterowaniem mocą) | (54 s × 88 mA + 6 s × 300 mA) / 60 s | **109 mA** | **0,54 W** |
+| Pesymistyczny (skraj zasięgu, TX pełną mocą 23 dBm) | (54 s × 114 mA + 6 s × 565 mA) / 60 s | **159 mA** | **0,80 W** |
 
 Do dalszych obliczeń przyjmuję **0,60 W** jako wartość projektową (realistyczny + zapas).
 
@@ -250,8 +260,11 @@ Zasilacz 24 V nawet w szczycie nie jest problemem: 8,75 W na wyjściu 5 V + 1,54
 Przetwornica pracująca na 180 kHz ma pasmo pętli regulacji rzędu pojedynczych kiloherców. Skok obciążenia o 1,2 A w 577 µs jest **szybszy niż zdolność regulacji** — nadąży za nim wyłącznie kondensator. Ładunek, który musi dostarczyć:
 
 ```
-ΔQ = (I_szczyt − I_średni_w_ramce) × t_burst
+ΔQ = (I_szczyt − I_dostarczany_przez_przetwornicę) × t_burst
 ```
+
+`I_szczyt` = 1,689 A — szczyt GSM przeliczony na szynę 5 V ([§5.1](#51-przeliczenie-modemu-na-szynę-5-v)).
+`I_dostarczany_przez_przetwornicę` = 0,532 A — średni prąd GPRS z karty katalogowej, przeliczony na 5 V. Przetwornica widzi obciążenie uśrednione przez swoją pętlę regulacji, więc nadąża za składową stałą; kondensator pokrywa wyłącznie różnicę między szczytem a tą średnią.
 
 | Scenariusz | ΔQ | C przy ΔV = 0,25 V | C przy ΔV = 0,5 V |
 |---|---|---|---|
