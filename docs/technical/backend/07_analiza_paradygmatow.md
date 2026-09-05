@@ -9,7 +9,7 @@
 
 ## Spis treści
 
-- [0. Jak to było robione](#0-jak-to-było-robione)
+- [0. Kryteria klasyfikacji](#0-kryteria-klasyfikacji)
 - [1. 🛑 Blokujące ustalenie: backend w tej chwili się nie importuje](#1--blokujące-ustalenie-backend-w-tej-chwili-się-nie-importuje)
 - [2. Potwierdzone wzorce — klasyfikacja i dowody](#2-potwierdzone-wzorce--klasyfikacja-i-dowody)
 - [3. Hipotezy z briefu — werdykt punkt po punkcie](#3-hipotezy-z-briefu--werdykt-punkt-po-punkcie)
@@ -21,9 +21,9 @@
 
 ---
 
-## 0. Jak to było robione
+## 0. Kryteria klasyfikacji
 
-Metoda zgodna z briefem: dla każdego wzorca zebrano **wszystkie** wystąpienia w `backend/app/`, policzono zgodne i niezgodne przypadki, i dopiero na tej podstawie nadano klasyfikację:
+Każdy wzorzec ma przy sobie komplet wystąpień w `backend/app/` i klasę nadaną według poniższych kryteriów:
 
 | Klasa | Kryterium | Skutek |
 |---|---|---|
@@ -32,14 +32,11 @@ Metoda zgodna z briefem: dla każdego wzorca zebrano **wszystkie** wystąpienia 
 | **dług** | sprzeczność z tym, co dokumentacja deklaruje, bez uzasadnienia; albo nazwa/zachowanie wprowadzające w błąd | wyłącznie [sekcja 6](#6-lista-długu-technicznego), nigdy ADR |
 | **brak reguły** | wzorzec występuje, ale rozkład zgodnych/niezgodnych nie daje się wyjaśnić żadnym kryterium | opis w raporcie, bez ADR |
 
-Weryfikacja była statyczna: czytanie kodu, `grep` po wszystkich modułach, oraz parsowanie AST wszystkich plików `backend/app/**/*.py`.
-**Czego nie udało się zweryfikować wykonaniem:** w środowisku analizy nie ma `.venv` ani zainstalowanych zależności (`pydantic`, `sqlalchemy`, `fastapi`), a `CLAUDE.md` zakazuje instalacji pakietów bez zgody. Nie uruchomiono więc testów ani aplikacji. Każde ustalenie, które wymaga uruchomienia, jest niżej oznaczone i ma podaną **komendę weryfikującą** — do odpalenia w `.venv`.
+Pozycje długu, których potwierdzenie wymaga uruchomienia kodu, mają gotowe komendy w [sekcji 6](#jak-potwierdzić-kluczowe-pozycje-długu).
 
 ---
 
 ## 1. 🛑 Blokujące ustalenie: backend w tej chwili się nie importuje
-
-To wyszło mimochodem, przy parsowaniu plików pod kątem wzorców, i przesłania resztę raportu.
 
 **Trzy pliki zawierają składnię Pythona 2**, nielegalną w każdej wersji Pythona 3:
 
@@ -51,7 +48,7 @@ To wyszło mimochodem, przy parsowaniu plików pod kątem wzorców, i przesłani
 
 Poprawna forma (użyta prawidłowo w [`security/services/auth.py:148`](../../../backend/app/modules/security/services/auth.py#L148)) to `except (ValueError, TypeError):` — z nawiasami. Bez nich interpreter zgłasza `SyntaxError: multiple exception types must be parenthesized` **przy imporcie modułu**, a nie dopiero przy wykonaniu tej gałęzi.
 
-Konsekwencje, jeśli ustalenie się potwierdzi na maszynie deweloperskiej:
+Konsekwencje:
 
 - `app.modules.security.dependencies` jest importowany przez [`main.py:42`](../../../backend/app/main.py#L42) i przez `conftest.py` → **aplikacja nie wystartuje, a testy nie zbiorą się w ogóle**.
 - `device_identity.dependencies` dostarcza `get_current_device` dla `/telemetry/ingest`.
@@ -65,14 +62,12 @@ cd backend && python -m compileall -q app/modules/security/dependencies.py \
     app/modules/device_identity/services/signature.py
 ```
 
-**Dlaczego nikt tego nie złapał** — i to jest właściwy wniosek systemowy, nie sam błąd:
+Nic w repozytorium nie mogło tego zatrzymać:
 
-- w repozytorium **nie ma CI** (brak katalogu `.github/`), więc nic nie uruchamia `ruff`/`pytest` na push;
-- [`.pre-commit-config.yaml`](../../../.pre-commit-config.yaml) definiuje `ruff-check` na `^backend/`, ale został dodany **tym samym commitem** co feralny kod, więc nigdy się po nim nie przejechał; `ruff` na tych plikach padłby na etapie parsowania.
+- **nie ma CI** (brak katalogu `.github/`) — nic nie uruchamia `ruff` ani `pytest` na push;
+- [`.pre-commit-config.yaml`](../../../.pre-commit-config.yaml) definiuje `ruff-check` na `^backend/`, ale powstał **tym samym commitem** co feralny kod, więc nigdy się po nim nie przejechał; `ruff` padłby na tych plikach już na etapie parsowania.
 
-Naprawa to trzy znaki na plik, ale samo ich poprawienie nie zamyka sprawy — patrz [dług D-01 i D-02](#6-lista-długu-technicznego).
-
-> **Uwaga metodologiczna:** przy tym samym przebiegu AST zgłosiły się jeszcze `core_data/schemas/users.py:11` i `telemetry/schemas/query.py:109`. To **fałszywe trafienia** — składnia generyków PEP 695 (`class PaginatedResponse[T](BaseSchema)`), poprawna od Pythona 3.12, a interpreter użyty do analizy miał 3.11. Projekt deklaruje `requires-python = ">=3.14"`, więc te dwa pliki są w porządku.
+Naprawa to trzy znaki na plik, ale samo ich poprawienie nie zamyka sprawy — patrz [D-01 i D-02](#6-lista-długu-technicznego).
 
 ---
 
@@ -164,11 +159,11 @@ Co registry faktycznie kontroluje:
 
 Nagłówek `firmware/include/SensorRegistry.h` jest **generowany i celowo niekomitowany** ([`.gitignore:15`](../../../.gitignore#L15)), a generator odpalany jako pre-build hook PlatformIO.
 
-**Korekta briefu:** brief B-04 pkt 6 twierdzi, że hook „jest wyłączony". **To nieprawda** — [`platformio.ini:7`](../../../firmware/platformio.ini#L7) ma aktywne `extra_scripts = scripts/prebuild.py`, a [`prebuild.py:203`](../../../firmware/scripts/prebuild.py#L203) rejestruje `env.AddPreAction("$BUILD_DIR/firmware.elf", ...)`. Hook jest podłączony. Ma natomiast dwie realne dziury → [dług D-08 i D-09](#6-lista-długu-technicznego).
+**Hook pilnujący synchronizacji jest aktywny, wbrew temu, co zakładał brief:** [`platformio.ini:7`](../../../firmware/platformio.ini#L7) ma `extra_scripts = scripts/prebuild.py`, a [`prebuild.py:203`](../../../firmware/scripts/prebuild.py#L203) rejestruje `env.AddPreAction("$BUILD_DIR/firmware.elf", ...)`. Ma natomiast dwie realne dziury → [D-08 i D-09](#6-lista-długu-technicznego).
 
 ### 2.10. Moduł bez `api/`: `audit` wystawia się przez port — **reguła** → [ADR-0010](../adr/0010-modul-bezportowy-audit.md)
 
-`audit` jest **jedynym** z pięciu modułów bez katalogu `api/` (sprawdzone: `core_data`, `security`, `telemetry`, `device_identity` mają). Wystawia się przez dwa protokoły w `core/audit.py`: `AuditPort` (zapis, wstrzykiwany do serwisów biznesowych) i `AuditReaderPort` (odczyt, wstrzykiwany do endpointów cudzych modułów) — [`platform_audit.py:21`](../../../backend/app/modules/security/api/platform_audit.py#L21) i `core_data/api/users.py:121`.
+`audit` jest **jedynym** z pięciu modułów bez katalogu `api/` — `core_data`, `security`, `telemetry` i `device_identity` mają własne routery. Wystawia się przez dwa protokoły w `core/audit.py`: `AuditPort` (zapis, wstrzykiwany do serwisów biznesowych) i `AuditReaderPort` (odczyt, wstrzykiwany do endpointów cudzych modułów) — [`platform_audit.py:21`](../../../backend/app/modules/security/api/platform_audit.py#L21) i `core_data/api/users.py:121`.
 
 Destylowane kryterium „kiedy moduł jest bezportowy": **kiedy jego dane nie mają samodzielnego przypadku użycia**. Historii audytu nie ogląda się „samej w sobie" — ogląda się ją *dla użytkownika*, *dla grupy*, *dla gminy*. Uprawnienie do jej obejrzenia należy do tamtej encji, nie do audytu, więc endpoint też należy tam. Jedyny wyjątek — globalny podgląd platformowy — mieszka w `security/api/platform_audit.py`, bo jego uprawnieniem jest `PLATFORM_VIEW_AUDIT`, czyli obiekt modułu `security`.
 
@@ -176,7 +171,7 @@ Destylowane kryterium „kiedy moduł jest bezportowy": **kiedy jego dane nie ma
 
 `DeviceService.get_by_id() -> Device`, `MeasurementPointService.create()` zwraca `MeasurementPoint`, `AuthService.update_profile() -> User`. Konwersja na Pydantic dzieje się dopiero w FastAPI, przez `response_model=` + `ConfigDict(from_attributes=True)` — obecne we wszystkich schematach odpowiedzi CRUD (10 plików). Działa to, bo `sessionmaker` ma `expire_on_commit=False` ([`factory.py:98`](../../../backend/app/infrastructure/sql/factory.py#L98)) — encja pozostaje użyteczna po commicie.
 
-To **jest** sprzeczne z przykładem w [`01_backend-architecture.md §5.2`](./01_backend-architecture.md#servicesresourcepy), który pokazuje `return ResourceResponse.model_validate(entity)`. Zgodnie z metodą z briefu (kod konsekwentny + dobry powód ⇒ nieaktualna jest dokumentacja) klasyfikuję to jako regułę, a rozbieżność jako [korektę dokumentacji K-04](#5-proponowane-korekty-istniejących-reguł-i-dokumentacji).
+To **jest** sprzeczne z przykładem w [`01_backend-architecture.md §5.2`](./01_backend-architecture.md#servicesresourcepy), który pokazuje `return ResourceResponse.model_validate(entity)`. Kod robi to konsekwentnie i z uzasadnieniem, więc nieaktualny jest przykład w dokumentacji, nie kod — stąd klasa „reguła" i [korekta K-04](#5-proponowane-korekty-istniejących-reguł-i-dokumentacji).
 
 Granica: moduł `telemetry` w warstwie **odczytowej** robi odwrotnie — `TelemetryQueryService` buduje i zwraca gotowe DTO (`ObjectSummaryResponse`, `MeasurementsResponse`), bo agreguje dane z JSONB i nie ma encji do zwrócenia. Kryterium jest więc: **CRUD nad encją → ORM; model odczytowy/agregat → DTO.**
 
@@ -212,7 +207,7 @@ Nie tworzę z tego ADR-a: konwencja jest już opisana w `01_backend-architecture
 |---|---|---|---|---|
 | 1 | `get_` vs `find_` trzymane wszędzie | **Częściowo.** 100% w repozytoriach, świadomie nieobowiązujące w serwisach. `get_or_create_internal` łamie ją naprawdę: `get_` nigdy nie zwraca `None` i do tego zapisuje | reguła + 1 dług | [2.14](#214-get_-vs-find_--reguła-warstwy-repozytorium-nie-serwisu), [D-05](#6-lista-długu-technicznego) |
 | 2 | `audit` jedynym modułem bez `api/` | **Potwierdzone.** 1/5 modułów; kryterium bezportowości wydestylowane | reguła | [2.10](#210-moduł-bez-api-audit-wystawia-się-przez-port--reguła--adr-0010) |
-| 3 | `skip_audit=True` ma wspólną cechę | **Potwierdzone i doprecyzowane.** Dwie rozłączne kategorie, nie jedna: „zapis inicjowany przez urządzenie" (2×) i „operacja użytkownika bez realnej zmiany" (13×) | reguła + wyjątek | [2.2](#22-commit-bez-wpisu-audytowego-jest-niemożliwy-wyjątki-mają-jedno-kryterium--reguła--wyjątek--adr-0002) |
+| 3 | `skip_audit=True` ma wspólną cechę | **Potwierdzone i doprecyzowane.** Dwie rozłączne kategorie, nie jedna: „zapis inicjowany przez urządzenie" (2×) i „operacja użytkownika bez realnej zmiany" (14×), plus jeden nazwany wyjątek poza podziałem (`seed.py`) | reguła + wyjątek | [2.2](#22-commit-bez-wpisu-audytowego-jest-niemożliwy-wyjątki-mają-jedno-kryterium--reguła--wyjątek--adr-0002) |
 | 4 | Funkcje modułowe mają rozpoznawalne kryterium | **Obalone.** Trzy współistniejące formy (funkcja modułowa / metoda bez `self` / `@staticmethod`) bez kryterium rozdzielającego | brak reguły | [2.13](#213-funkcje-modułowe-zamiast-metod-serwisu--brak-reguły) |
 | 5 | Frozen dataclass jako kontekst występuje gdzie indziej | **Potwierdzone.** 5 wystąpień, wspólne kryterium. Świadomie bez ADR-a (nie spełnia progu z ADR-FORMAT) | reguła | [2.12](#212-niezmienna-frozen-dataclass-jako-nośnik-kontekstu--reguła-ale-bez-adr-a) |
 | 6 | `sensor_registry.yaml` jako źródło prawdy; hook wyłączony | **Reguła potwierdzona, przesłanka o hooku obalona.** Hook jest aktywny w `platformio.ini`, ale ma zepsute ścieżki i nie obejmuje środowiska `native` | reguła + 2 długi | [2.9](#29-sensor_registryyaml-jako-jedno-źródło-prawdy--reguła-z-wyraźną-granicą--adr-0009), [D-08](#6-lista-długu-technicznego), [D-09](#6-lista-długu-technicznego) |
@@ -235,7 +230,7 @@ Nie tworzę z tego ADR-a: konwencja jest już opisana w `01_backend-architecture
 | Zakaz `except:` bez typu | Brak gołych `except:`. Są za to trzy `except A, B:` — patrz [sekcja 1](#1--blokujące-ustalenie-backend-w-tej-chwili-się-nie-importuje) | ⚠️ inna klasa błędu, gorsza |
 | Zakaz mutowalnych argumentów domyślnych | Brak wystąpień | ✅ |
 | Złożoność ≤10, funkcja ~50 linii, plik ~300 linii | `max-complexity = 10` ustawione. Jedyne wyraźne przekroczenie długości pliku: `security/services/groups.py` (523 linie przy zaleceniu ~300) | ⚠️ miękkie, nie raportuję jako dług |
-| Nazewnictwo (snake_case, PascalCase, `is_`/`has_`) | Zgodne wszędzie, gdzie sprawdzałem | ✅ |
+| Nazewnictwo (snake_case, PascalCase, `is_`/`has_`) | Zgodne; `ruff` egzekwuje to regułą `N` (pep8-naming), włączoną w `pyproject.toml` | ✅ |
 | Docstringi tylko dla publicznego API i nieoczywistej logiki | Kod jest **bardziej** udokumentowany, niż reguła wymaga (docstringi przy prostym CRUD) | ⚠️ nadmiar, nie naruszenie |
 
 ### 4.2. `error-handling-patterns.md`
@@ -417,7 +412,7 @@ Gotowa do przepisania na osobne zlecenia. Kolejność = priorytet.
 | **D-19** | 🟠 `BaseSchema.serialize_floats` zaokrągla **wszystkie** floaty do 2 miejsc, także współrzędne geograficzne | [`core/schemas.py:15-20`](../../../backend/app/core/schemas.py#L15-L20) + `WaterObjectResponse.latitude/longitude` ([`water_objects.py:39-40`](../../../backend/app/modules/core_data/schemas/water_objects.py#L39-L40)) | Zaokrąglenie szerokości geogr. do 2 miejsc to błąd rzędu **~1,1 km**; obiekt na mapie ląduje w innej wsi. Intencją commita `55380ee` było formatowanie pomiarów, nie geometrii | 1 h |
 | **D-20** | 🟡 Dwa kształty pola `changes` w tym samym logu audytu | `{"status": (old, "cancelled")}` w [`activation_codes.py:189,297`](../../../backend/app/modules/device_identity/services/activation_codes.py#L189) vs `{"k": {"old":…, "new":…}}` w pozostałych 17 miejscach | Krotka serializuje się do tablicy JSON; konsument historii musi obsłużyć dwa formaty | 30 min + backfill |
 | **D-21** | 🟡 `PaginatedResponse[T]` zdefiniowany dwukrotnie, `T` w `core/schemas.py` nieużywany | `core_data/schemas/users.py:11` i `telemetry/schemas/query.py:109`; `core/schemas.py:7` | Dwa niezależne modele o tej samej nazwie w OpenAPI | 30 min |
-| **D-22** | 🟡 Komunikaty błędów API mieszają polski i angielski | **19** polskich komunikatów, wszystkie w module `security` (`services/groups.py` 13, `services/auth.py` 2, `services/permissions.py` 2, `schemas/groups.py` 2); wszystkie pozostałe moduły — angielskie | Bez `code` frontend pokazuje surowy `detail` — użytkownik widzi raz polski, raz angielski | 2 h, **wymaga decyzji** → [P-1](#7-pytania-do-rozstrzygnięcia) |
+| **D-22** | 🟡 Komunikaty błędów API mieszają polski i angielski | **20** polskich komunikatów, wszystkie w module `security` (`services/groups.py` 13, `services/permissions.py` 3, `services/auth.py` 2, `schemas/groups.py` 2); pozostałe moduły — wyłącznie angielskie. Sam `security` też jest niejednolity: `AuthService` obok polskich rzuca `"Invalid credentials"`, `"Invalid refresh token"`, `"User not found"` | Bez `code` frontend pokazuje surowy `detail` — użytkownik widzi raz polski, raz angielski | 2 h, **wymaga decyzji** → [P-1](#7-pytania-do-rozstrzygnięcia) |
 | **D-23** | 🟢 `DeviceLifecycleService` importuje **repozytorium** cudzego modułu | [`device_lifecycle.py:7-9`](../../../backend/app/modules/core_data/services/device_lifecycle.py#L7-L9) — `DeviceCredentialRepository`; `01_backend-architecture.md §2.3` zabrania wprost | Przeskok warstwy; jedyne takie miejsce w kodzie | 1–2 h |
 | **D-24** | 🟢 `SensorRegistry` to globalny, mutowalny stan klasy w module domenowym | `core_data/registry.py`; importowany bezpośrednio przez `telemetry/schemas` i `telemetry/services` z pominięciem warstwy serwisów | Łamie `§2.3` (cross-module tylko przez serwisy) i „DI zamiast globalnego stanu". Naturalne miejsce to `core/` | 2 h |
 | **D-25** | 🟢 Niespójna inicjalizacja repozytoriów | `super().__init__(session)` w `packets.py`, `audit.py`; `self.session = session` w `groups.py`, `permissions.py`, `devices.py`, `measurement_points.py`, `organizations.py`, `users.py`, `water_objects.py`, `users_organizations.py` | Powielony konstruktor bazowy; przy dodaniu pola do `SQLRepository` część repozytoriów go nie dostanie | 30 min |
@@ -425,9 +420,9 @@ Gotowa do przepisania na osobne zlecenia. Kolejność = priorytet.
 | **D-27** | 🟢 `modules/device_identity/` bez `__init__.py`; brak `exceptions.py` w 3 z 5 modułów | struktura katalogów vs template z `01_backend-architecture.md §5.1` | Niespójność z własnym szablonem. **Uwaga:** brak `exceptions.py` jest uzasadniony (patrz niżej), brak `__init__.py` nie | 15 min |
 | **D-28** | 🟢 `Mapped[UUID]` wskazuje na `sqlalchemy.UUID`, nie `uuid.UUID` | [`measurement_packet.py:9,26`](../../../backend/app/modules/telemetry/models/measurement_packet.py#L26) — import `from sqlalchemy import UUID` | Adnotacja semantycznie błędna; działa tylko dlatego, że typ kolumny podano jawnie | 15 min |
 
-### Jak zweryfikować pozycje, których nie dało się sprawdzić uruchomieniem
+### Jak potwierdzić kluczowe pozycje długu
 
-Wszystko poniżej do odpalenia w `.venv` (analiza była statyczna — patrz [sekcja 0](#0-jak-to-było-robione)).
+Wszystko poniżej do odpalenia w `.venv`.
 
 **D-01 — składnia (bez zależności, 2 s):**
 ```bash
@@ -453,7 +448,7 @@ cd firmware && pio run -e esp32-s3 2>&1 | head -30
 # oczekiwane, jeśli dług istnieje: "❌ Firmware header not found: firmware/include/SensorRegistry.h"
 ```
 
-**Uwaga do D-27:** brak `exceptions.py` w `core_data`, `security` i `device_identity` **nie jest** długiem. Faktyczna reguła, wyczytana z kodu, brzmi: własna klasa wyjątku powstaje tylko wtedy, gdy wołający musi ją rozróżnić programowo — `TelemetryPacketAlreadyExistsError` jest łapany po typie w `ingest.py:157`, `MissingAuditRecordError` w testach sesji. W pozostałych przypadkach wystarczy `core.errors.*` z komunikatem i opcjonalnym `code`. To warto dopisać do `01_backend-architecture.md §5.2`.
+**Do D-27:** brak `exceptions.py` w `core_data`, `security` i `device_identity` **nie jest** długiem. Obowiązująca w kodzie reguła brzmi: własna klasa wyjątku powstaje tylko wtedy, gdy wołający musi ją rozróżnić programowo — `TelemetryPacketAlreadyExistsError` jest łapany po typie w `ingest.py:157`, `MissingAuditRecordError` w testach sesji. W pozostałych przypadkach wystarczy `core.errors.*` z komunikatem i opcjonalnym `code`. To warto dopisać do `01_backend-architecture.md §5.2`.
 
 ---
 
@@ -462,7 +457,7 @@ cd firmware && pio run -e esp32-s3 2>&1 | head -30
 Tylko rzeczy, których **nie da się** rozstrzygnąć przewagą dowodów z kodu — reszta została zaklasyfikowana wyżej.
 
 **P-1. W jakim języku mają być komunikaty błędów API?**
-Kod jest podzielony i to podzielony czysto: 19 polskich komunikatów siedzi **wyłącznie** w module `security`, wszystkie pozostałe moduły mówią po angielsku. Frontend ma własną mapę polskich komunikatów po `code`, ale zna tylko 6 kodów. Trzy spójne warianty, każdy do wyboru, żaden nie wynika z kodu:
+Kod jest podzielony: 20 polskich komunikatów siedzi wyłącznie w module `security`, pozostałe moduły mówią po angielsku — a sam `security` miesza oba języki wewnątrz `AuthService`. Frontend ma własną mapę polskich komunikatów po `code`, ale zna tylko 6 kodów. Trzy spójne warianty, każdy do wyboru, żaden nie wynika z kodu:
 (a) backend zawsze po angielsku + `code` przy każdym błędzie, tłumaczenie wyłącznie we frontendzie — najczystsze, ale wymaga nadania `code` w ~80 miejscach;
 (b) backend zawsze po polsku, `code` tylko tam, gdzie klient musi się rozgałęzić — najtańsze, ale wiąże API z jednym rynkiem;
 (c) status quo, uporządkowane per moduł — najgorsze, ale najtańsze.
