@@ -2,16 +2,14 @@
 
 Analiza poboru mocy gatewaya ESP32-S3 + A7670E, doboru zasilania, podtrzymania przy zaniku 230 V, detekcji zaniku zasilania oraz zasadności trybów uśpienia.
 
-**Status dokumentu:** analiza obliczeniowa na podstawie kart katalogowych i kodu w repozytorium. **Żadna liczba w tym dokumencie nie pochodzi z pomiaru na fizycznym sprzęcie.** Pozycje wymagające pomiaru są zebrane w [§12](#12-do-zmierzenia-na-stanowisku) i oznaczone w tabelach jako `[M]`.
-
-**Konwencja oznaczeń:**
+Podstawą są karty katalogowe i kod z repozytorium — **żadna liczba nie pochodzi z pomiaru na fizycznym sprzęcie.** Każda wartość jest oznaczona pochodzeniem:
 
 | Znacznik | Znaczenie |
 |---|---|
-| `[DS]` | wartość z karty katalogowej producenta (źródło w [§14](#14-źródła)) |
+| `[DS]` | wartość z karty katalogowej producenta (źródła w [§14](#14-źródła)) |
 | `[OBL]` | wartość wyliczona z `[DS]` — wzór podany w miejscu użycia |
 | `[EST]` | oszacowanie inżynierskie, nie ma go w żadnej karcie katalogowej |
-| `[M]` | do zmierzenia na stanowisku; obecna wartość to `[EST]` |
+| `[M]` | wymaga pomiaru na stanowisku; lista w [§12](#12-do-zmierzenia-na-stanowisku) |
 
 ---
 
@@ -21,8 +19,8 @@ Analiza poboru mocy gatewaya ESP32-S3 + A7670E, doboru zasilania, podtrzymania p
 |---|---|---|
 | 1 | Bilans prądowy per faza | Średnia **~110 mA @ 5 V ≈ 0,55 W**; szczyt transmisji **1,7–2,1 A @ 5 V** przez <1 ms. Dominuje modem: ~30 mA w spoczynku, 440–530 mA przy nadawaniu. Zob. [§4](#4-bilans-prądowy--per-komponent) i [§5](#5-bilans-prądowy--per-faza-pracy). |
 | 2 | Czy łańcuch 24 V 1 A → XL4015 wystarcza | **Średnia z ogromnym zapasem (~29 mA z 1000 mA). Szczyt jest na granicy modułu XL4015 2 A i w pesymistycznym wariancie ją przekracza.** Wymagane: bulk ≥1000 µF przy wejściu 5 V HAT-a. Rekomendacja: moduł przetwornicy o deklarowanym prądzie ≥3 A. Zob. [§6](#6-dobór-zasilania--weryfikacja-obliczeniowa). |
-| 3 | Podtrzymanie przy zaniku 230 V | Sam kondensator wyjściowy zasilacza daje **100–500 ms** — starczy na zapis stanu, nie na wysyłkę. Depesza HTTPS przy ciepłym łączu wymaga ~12 J; realizowalne bankiem superkondensatorów 2× 10 F z przetwornicą boost (**50–86 PLN**). **Ale depesza z urządzenia nie może być podstawowym wykrywaczem** — tym musi być backend, [§7.7](#77-zastrzeżenie-które-unieważnia-część-powyższego). Zob. [§7](#7-podtrzymanie-przy-zaniku-230-v). |
-| 4 | Detekcja zaniku i pomiar napięcia | Dzielnik 91 k/10 k z szyny **24 V** (nie 5 V) na kanał ADS1015 + **komparator sprzętowy ALERT/RDY** na przerwanie GPIO. Progi i histereza w [§8](#8-detekcja-zaniku-zasilania-i-pomiar-napięcia). **Ścieżka zdarzeń jest dziś zablokowana błędem w [`TelemetryPayload.cpp:92`](../../../firmware/lib/TelemetryPayload/src/TelemetryPayload.cpp#L92)** — zob. [§11](#11-usterki-blokujące-znalezione-przy-okazji). |
+| 3 | Podtrzymanie przy zaniku 230 V | Sam kondensator wyjściowy zasilacza daje **100–500 ms** — starczy na zapis stanu, nie na wysyłkę. Depesza HTTPS przy ciepłym łączu wymaga ~12 J; realizowalne bankiem superkondensatorów 2× 10 F z przetwornicą boost (**50–86 PLN**). **Ale depesza z urządzenia nie może być podstawowym wykrywaczem** — tym musi być backend, [§7.7](#77-ograniczenie-depesza-z-urządzenia-nie-może-być-podstawowym-wykrywaczem). Zob. [§7](#7-podtrzymanie-przy-zaniku-230-v). |
+| 4 | Detekcja zaniku i pomiar napięcia | Dzielnik 91 k/10 k z szyny **24 V** (nie 5 V) na kanał ADS1015 + **komparator sprzętowy ALERT/RDY** na przerwanie GPIO. Progi i histereza w [§8](#8-detekcja-zaniku-zasilania-i-pomiar-napięcia). **Ścieżka zdarzeń jest dziś zablokowana błędem w [`TelemetryPayload.cpp:92`](../../../firmware/lib/TelemetryPayload/src/TelemetryPayload.cpp#L92)** — zob. [§11](#11-usterki-blokujące-ścieżkę-power_low). |
 | 5 | Czy warto wprowadzać tryby uśpienia | **Nie — przy zasilaniu sieciowym.** Oszczędność ~0,13 W (24% poboru) nie uzasadnia ryzyka. Ale problem, który uśpienie miało rozwiązać, jest realny i ma inną przyczynę: **transfer SIM ~268 MB/mies. zamiast zakładanych 50–200 MB**, przez pełny handshake TLS w każdym cyklu. Zob. [§9](#9-tryby-uśpienia--werdykt). |
 | 6 | Punkty bez zasilania sieciowego | **Nie da się bez przebudowy.** Obecna architektura zużywa 14,4 Wh/dobę — ogniwo 18650 starcza na **18 godzin**. Po przebudowie: transmisja co 2–3 h z 2× D LiSOCl₂ na 2–3 lata. Zob. [§10](#10-punkty-pomiarowe-bez-zasilania-sieciowego). |
 | 7 | Temperatura pracy | **Wąskim gardłem jest wariant modułu ESP32-S3 na DevKitC-1.** Jeśli jest to wersja z PSRAM Octal (`R8`/`R8V`/`R16V`), limit otoczenia to **+65 °C** — poniżej realnego wnętrza metalowej szafy w lecie. Zob. [§13](#13-temperatura-pracy). |
@@ -47,19 +45,19 @@ Punkt wyjścia analizy. Wszystko poniżej zweryfikowane w drzewie repozytorium n
 | Nie ma pomiaru napięcia zasilania | brak `analogRead`, brak sterownika ADC, brak ADS1015 w `firmware/lib/` |
 | `MODEM_SIGNAL_WEAK` też nigdy nie jest ustawiany | `getSignalQuality()` wołane raz przy starcie i tylko logowane, [`ModemLink.cpp:105`](../../../firmware/lib/ModemLink/src/ModemLink.cpp#L105) |
 
-### 2.1. Rozbieżności między briefem B-11 a stanem repozytorium
+### 2.1. Elementy przyjęte jako dane wejściowe
 
-Brief zakłada kilka rzeczy, których w repozytorium nie ma. Nie zgaduję ich — zapisuję rozbieżność:
+Poniższe nie występują jeszcze w kodzie ani w [`01_hardware.md`](./01_hardware.md). Analiza je zakłada, bo są przewidziane w projekcie sprzętowym:
 
-| Założenie briefu | Stan faktyczny |
+| Element | Rola w tej analizie |
 |---|---|
-| „ADS1015 ma **trzy wolne kanały** (AIN1–3 wg `01_hardware.md` §3)" | [`01_hardware.md` §3](./01_hardware.md) **nie wymienia ADS1015**. Wymienia jeden pin draft: GPIO1 / ADC1_CH0 → PT-506 przez rezystor 250 Ω. ADS1015 nie występuje nigdzie w `firmware/` ani w `docs/technical/`. |
-| Rezystor pomiarowy pętli 4-20 mA: 136 Ω (2× 68 Ω) wg briefu B-05 | `Config.h` nie zawiera **żadnego** rezystora pomiarowego; `01_hardware.md` §6 mówi o 250 Ω |
-| Zasilacz 24 V **1 A**, przetwornica **XL4015** | Nie występują w żadnym pliku repozytorium poza samym briefem. Przyjmuję je jako dane wejściowe od zamawiającego i tak je traktuję w [§6](#6-dobór-zasilania--weryfikacja-obliczeniowa). |
+| Zasilacz DIN 24 V / 1 A, przetwornica XL4015 24→5 V / 2 A | przedmiot weryfikacji w [§6](#6-dobór-zasilania--weryfikacja-obliczeniowa) |
+| ADS1015 (przetwornik ADC, I²C) | nośnik toru pomiaru napięcia i komparatora w [§8](#8-detekcja-zaniku-zasilania-i-pomiar-napięcia) |
+| PT-506 na pętli 4-20 mA | pozycja obciążenia szyny 24 V w [§5.4](#54-obciążenie-zasilacza-24-v) |
 
-**Konsekwencja dla projektu z [§8](#8-detekcja-zaniku-zasilania-i-pomiar-napięcia):** projektuję tor pomiaru napięcia **pod ADS1015**, bo taka jest intencja briefu i taki układ jest w planie schematu w B-05, ale zapisuję jawnie, że układu nie ma jeszcze ani w kodzie, ani w mapie sprzętowej. Podaję też wariant awaryjny na wbudowanym ADC ESP32-S3, gdyby ADS1015 nie trafił do BOM.
+Tor pomiaru napięcia jest zaprojektowany **pod ADS1015**; [§8.2](#82-dzielnik-napięcia) podaje też wariant awaryjny na wbudowanym ADC ESP32-S3, gdyby układ nie trafił do BOM.
 
-**Nie przypisuję numeru GPIO dla linii ALERT/RDY.** Źródłem prawdy dla pinów jest [`01_hardware.md`](./01_hardware.md) i [`Config.h`](../../../firmware/include/Config.h) — pinów się tu nie zgaduje. Wymaganie do spełnienia przy okablowaniu: **jeden wolny GPIO zdolny do obsługi przerwania**, przypisanie i weryfikacja na płytce przy aktualizacji mapy sprzętowej (zakres B-05).
+**Numer GPIO dla linii ALERT/RDY nie jest tu przypisany** — źródłem prawdy dla pinów jest [`01_hardware.md`](./01_hardware.md) i [`Config.h`](../../../firmware/include/Config.h). Wymaganie do spełnienia przy okablowaniu: **jeden wolny GPIO zdolny do obsługi przerwania**.
 
 ---
 
@@ -221,7 +219,7 @@ Uwaga do sprawności: XL4015 to przetwornica **asynchroniczna**, z diodą Schott
 
 ## 6. Dobór zasilania — weryfikacja obliczeniowa
 
-Pytanie z briefu: czy łańcuch **zasilacz 24 V / 1 A → XL4015 24→5 V / 2 A** wystarcza w szczycie. Rozkładam je na trzy niezależne pytania, bo odpowiedzi są różne.
+Czy łańcuch **zasilacz 24 V / 1 A → XL4015 24→5 V / 2 A** wystarcza w szczycie. Rozkładam na trzy niezależne pytania, bo odpowiedzi są różne.
 
 ### 6.1. Średnia — z zapasem, sprawa zamknięta
 
@@ -283,7 +281,7 @@ Producent modemu wymaga **≥300 µF na VBAT** przy zasilaniu zdolnym do 2 A, al
 | Straty LDO na DevKitC-1 | 1,7 V × 57 mA = **0,10 W** `[OBL]` | ciepło oddawane wewnątrz szafy |
 | Całkowita moc rozpraszana w szafie (bez zasilacza DIN) | ~0,8 W średnio `[OBL]` | zob. [§13](#13-temperatura-pracy) |
 
-**Werdykt §6:** łańcuch jest **wystarczający pod względem energii i nadmiarowy pod względem średniego prądu**, ale jego poprawne działanie zależy od dwóch rzeczy, których w briefie nie ma i których nie widać w BOM: **pojemności bufora przy wejściu 5 V modemu** i **rzeczywistej obciążalności konkretnego egzemplarza modułu XL4015**. Bez nich układ może działać na biurku i przestać w terenie, przy pierwszym fallbacku na 2G.
+**Werdykt §6:** łańcuch jest **wystarczający pod względem energii i nadmiarowy pod względem średniego prądu**, ale jego poprawne działanie zależy od dwóch rzeczy spoza obecnego BOM: **pojemności bufora przy wejściu 5 V modemu** i **rzeczywistej obciążalności konkretnego egzemplarza modułu XL4015**. Bez nich układ może działać na biurku i przestać w terenie, przy pierwszym fallbacku na 2G.
 
 ---
 
@@ -342,7 +340,7 @@ Dwa kondensatory 2,7 V w szereg dają 5,4 V napięcia znamionowego przy pojemno�
 | **2× 10 F / 2,7 V** | 5 F | 16,3 J → 8,1 s @2 W | **46 J → 23 s** @2 W |
 | 2× 22 F / 2,7 V | 11 F | 35,8 J → 17,9 s @2 W | 102 J → 51 s @2 W |
 
-Przetwornica boost zmienia wszystko: bez niej wykorzystujemy 26% zgromadzonej energii (bo schodzimy tylko z 5,0 do 4,3 V), z nią — 84%. **To najtańsze 3× w całym dokumencie.**
+Przetwornica boost zmienia wszystko: bez niej wykorzystujemy 26% zgromadzonej energii (bo schodzimy tylko z 5,0 do 4,3 V), z nią — 84%. **Trzykrotny zysk za cenę jednego modułu za kilkanaście złotych.**
 
 Zastrzeżenia projektowe, bez których wariant nie zadziała:
 
@@ -390,9 +388,9 @@ Ceny netto, rynek polski, orientacyjnie na 2026 — **do potwierdzenia ofertą p
 
 Odniesienie: [`01_plan_biznesowy.md` §4.2.2](../../business/01_plan_biznesowy.md) wycenia sprzęt na obiekt na 1400–3500 PLN w wariancie MVP. Poziom podstawowy to **1,5–6% BOM** — nie jest to pozycja, o którą warto się spierać.
 
-### 7.7. Zastrzeżenie, które unieważnia część powyższego
+### 7.7. Ograniczenie: depesza z urządzenia nie może być podstawowym wykrywaczem
 
-**Depesza „zanik zasilania" wysyłana z urządzenia nie może być podstawowym mechanizmem wykrywania zaniku zasilania.** Powody wynikają z liczb powyżej:
+Powody wynikają wprost z liczb powyżej:
 
 - przy zimnym łączu wysyłka kosztuje ~36 J, czyli bank 2× 22 F i przetwornicę boost — i nadal jest to loteria, bo rejestracja w sieci LTE bywa dłuższa niż 30 s ([`ModemLink.cpp:84,116`](../../../firmware/lib/ModemLink/src/ModemLink.cpp#L84) dopuszczają 60 s + 30 s);
 - zanik zasilania obiektu bardzo często idzie w parze z zanikiem zasilania stacji bazowej albo z awarią, która i tak zrywa łącze.
@@ -498,7 +496,7 @@ Odczyt wartości napięcia do telemetrii odbywa się osobno, przy okazji próbko
 
 ### 8.5. Ścieżka transmisji — kanał już istnieje
 
-Brief każe sprawdzić, czy kanał zdarzeń istnieje. **Istnieje i nie trzeba nic projektować od zera:**
+Kanał zdarzeń **istnieje i nie trzeba nic projektować od zera:**
 
 | Element | Gdzie | Stan |
 |---|---|---|
@@ -523,13 +521,13 @@ Trzy rzeczy do zrobienia po stronie firmware:
 
 ### 8.6. Czego świadomie nie używam
 
-Rejestr ma typ punktu `power_status` z jednostką `enum`. **Nie da się go dziś użyć**: schemat `MeasurementPoint` w backendzie deklaruje `value: float | int | bool | None` — łańcuch znaków (`"on_mains"`, `"on_battery"`) nie przejdzie walidacji. Jeśli stan zasilania ma być raportowany jako enum, wymaga to zmiany kontraktu API, czyli osobnego zlecenia. **Do czasu takiej zmiany: `battery_voltage` (liczba) + `POWER_LOW` (błąd) wystarczają w zupełności** i nie wymagają dotykania backendu.
+Rejestr ma typ punktu `power_status` z jednostką `enum`. **Nie da się go dziś użyć**: schemat `MeasurementPoint` w backendzie deklaruje `value: float | int | bool | None` — łańcuch znaków (`"on_mains"`, `"on_battery"`) nie przejdzie walidacji. Raportowanie stanu zasilania jako enum wymagałoby zmiany kontraktu API. **Do czasu takiej zmiany: `battery_voltage` (liczba) + `POWER_LOW` (błąd) wystarczają w zupełności** i nie wymagają dotykania backendu.
 
 ---
 
 ## 9. Tryby uśpienia — werdykt
 
-Brief formułuje trzy powody, dla których uśpienie mogłoby się opłacać: **zużycie energii**, **transfer SIM** i **temperatura w szafie**. Rozstrzygam każdy osobno, liczbami.
+Trzy powody, dla których uśpienie mogłoby się opłacać: **zużycie energii**, **transfer SIM** i **temperatura w szafie**. Każdy rozstrzygnięty osobno, liczbami.
 
 ### 9.1. Energia — nie ma sprawy
 
@@ -614,7 +612,7 @@ Koszt wybudzenia liczony z **własnych limitów czasowych kodu**:
 
 Przy transmisji **co 60 s** urządzenie musiałoby być online dłużej, niż trwa cały cykl — **arytmetycznie niewykonalne**. Przy 5 minutach (300 s) rejestracja zajmuje 20–110 s, czyli **7–37% cyklu przy prądzie 3–8× wyższym niż spoczynkowy**. Uwzględniając, że modem w spoczynku bierze ~30 mA, a rejestracja ~200 mA, oszczędność jest bliska zeru albo ujemna.
 
-Do tego dochodzi problem, którego nie widać w bilansie prądowym: **bufor pomiarowy nie przeżyje deep sleepu**. `windows_buffer_` to `std::vector<MeasurementWindow>` na stercie ([`TelemetryPayload.h`](../../../firmware/lib/TelemetryPayload/src/TelemetryPayload.h)) — pamięć RAM jest tracona przy deep sleepie. W `RTC_DATA_ATTR` są dziś tylko trzy `uint32_t` ([`RtcState.h`](../../../firmware/include/RtcState.h)). Przeniesienie bufora do pamięci RTC (8 kB) to przebudowa `TelemetryPayload` na strukturę o stałym rozmiarze — zlecenie samo w sobie.
+Do tego dochodzi problem, którego nie widać w bilansie prądowym: **bufor pomiarowy nie przeżyje deep sleepu**. `windows_buffer_` to `std::vector<MeasurementWindow>` na stercie ([`TelemetryPayload.h`](../../../firmware/lib/TelemetryPayload/src/TelemetryPayload.h)) — pamięć RAM jest tracona przy deep sleepie. W `RTC_DATA_ATTR` są dziś tylko trzy `uint32_t` ([`RtcState.h`](../../../firmware/include/RtcState.h)). Przeniesienie bufora do pamięci RTC (8 kB) wymaga przebudowy `TelemetryPayload` na strukturę o stałym rozmiarze.
 
 ### 9.5. Werdykt
 
@@ -635,13 +633,13 @@ Uzasadnienie punkt po punkcie:
 2. **Przestać zrywać sesję TLS przy każdej wysyłce** — usunąć `http_->stop()` z [`TelemetryHttpClient.cpp:23,47`](../../../firmware/lib/TelemetryHttpClient/src/TelemetryHttpClient.cpp#L23) i faktycznie wykorzystać już wywoływane `connectionKeepAlive()`, z obsługą zerwania po stronie serwera. Największy pojedynczy zysk na transferze.
 3. Jeżeli po tych dwóch krokach transfer nadal będzie problemem — dopiero wtedy wracać do tematu uśpienia.
 
-**Punkt 1 i 2 są poza zakresem tego zlecenia** (dotyczą transportu telemetrii, nie zasilania), ale bez nich założenie o karcie SIM z planu biznesowego jest nieprawdziwe. Zapisane tutaj, bo analiza budżetu energetycznego jest miejscem, w którym to wyszło.
+Punkty 1 i 2 dotyczą transportu telemetrii, nie zasilania, ale bez nich założenie o karcie SIM z planu biznesowego pozostaje nieprawdziwe.
 
 ---
 
 ## 10. Punkty pomiarowe bez zasilania sieciowego
 
-[`01_plan_biznesowy.md` §2.2](../../business/01_plan_biznesowy.md) zakłada, że „w głównych obiektach dostępne jest zasilanie elektryczne", ale zakres produktu obejmuje też **punkty pomiarowe na sieci** i **komory pomiarowe**, gdzie 230 V bywa niedostępne. Pytanie briefu: czy obecna architektura ma tam jakąkolwiek szansę.
+[`01_plan_biznesowy.md` §2.2](../../business/01_plan_biznesowy.md) zakłada, że „w głównych obiektach dostępne jest zasilanie elektryczne", ale zakres produktu obejmuje też **punkty pomiarowe na sieci** i **komory pomiarowe**, gdzie 230 V bywa niedostępne. Czy obecna architektura ma tam jakąkolwiek szansę na zasilaniu bateryjnym lub solarnym.
 
 ### 10.1. Werdykt dla architektury bez zmian
 
@@ -692,7 +690,7 @@ Poza usunięciem trzech blokad z [§10.2](#102-trzy-blokady-które-trzeba-usuną
 1. **Bufor w pamięci RTC.** Deep sleep kasuje `windows_buffer_` ([§9.4](#94-dlaczego-deep-sleep-nie-działa-przy-tej-kadencji)). Struktura o stałym rozmiarze w `RTC_DATA_ATTR` (8 kB) zamiast `std::vector`.
 2. **Zaakceptowanie ryzyka rejestracji.** Nieudany attach kosztuje pełne 111 s przy wysokim prądzie ([§9.4](#94-dlaczego-deep-sleep-nie-działa-przy-tej-kadencji)) i nic nie daje. Kilka takich pod rząd potrafi zjeść dzienny budżet. Konieczny backoff i limit prób na dobę.
 3. **Pomiar napięcia baterii.** Dokładnie ten tor z [§8](#8-detekcja-zaniku-zasilania-i-pomiar-napięcia), z innymi progami. `POWER_LOW` i typ punktu `battery_voltage` z rejestru nabierają wtedy pierwotnego znaczenia.
-4. **Rozważenie NB-IoT / LTE-M zamiast LTE Cat 1.** A7670E to Cat 1 — moduły NB-IoT/LTE-M mają PSM i eDRX, projektowane właśnie pod taki cykl pracy. **To jednak zmiana modemu, czyli inne zlecenie** (styk z B-10, analiza portu na inną platformę).
+4. **Rozważenie NB-IoT / LTE-M zamiast LTE Cat 1.** A7670E to Cat 1 — moduły NB-IoT/LTE-M mają PSM i eDRX, projektowane właśnie pod taki cykl pracy. **Oznacza to jednak wymianę modemu**, a więc zmianę platformy sprzętowej.
 
 ### 10.5. Zasilanie solarne
 
@@ -716,9 +714,9 @@ Dla **obecnej** architektury (14,4 Wh/dobę, praca ciągła):
 
 ---
 
-## 11. Usterki blokujące, znalezione przy okazji
+## 11. Usterki blokujące ścieżkę `POWER_LOW`
 
-Projekt z [§8.5](#85-ścieżka-transmisji--kanał-już-istnieje) korzysta z istniejącego kanału `errors[]`. Przy weryfikacji tego kanału wyszły dwie usterki. **Pierwsza blokuje ścieżkę `POWER_LOW`**, więc nie da się jej pominąć.
+Projekt z [§8.5](#85-ścieżka-transmisji--kanał-już-istnieje) korzysta z istniejącego kanału `errors[]`. Weryfikacja tego kanału ujawniła dwie usterki — **pierwsza uniemożliwia działanie ścieżki `POWER_LOW`** i musi być naprawiona przed wdrożeniem detekcji zaniku zasilania.
 
 ### 11.1. `SENSOR_FAULT` — nieprawidłowy kod błędu i nieprawidłowy `severity`
 
@@ -743,9 +741,7 @@ Walidacja zachodzi na poziomie **całego pakietu**, więc backend zwraca **422 i
 2. **Ścieżka `POWER_LOW` z [§8.5](#85-ścieżka-transmisji--kanał-już-istnieje) trafi w to samo.** Jeśli `POWER_LOW` poleci w pakiecie, w którym jest też `SENSOR_FAULT` (a awaria zasilania i awaria czujnika lubią chodzić parami), zostanie odrzucona razem z nim.
 3. **`PT100Sensor` już zwraca poprawny kod.** `SensorReading::errorCode` jest ustawiane na `"SENSOR_FAULT_HW"` — kod, który **jest** w rejestrze. `TelemetryPayload::build()` po prostu go ignoruje i wpisuje własny literał.
 
-**Poprawka** (poza zakresem tego zlecenia, ale warunkiem koniecznym dla [§8](#8-detekcja-zaniku-zasilania-i-pomiar-napięcia)): użyć `reading.errorCode` zamiast literału i `"critical"` zamiast `"error"` — zgodnie z tym, co rejestr przypisuje `SENSOR_FAULT_HW`.
-
-**Uwaga o testach:** ta usterka przeżyła, bo `static_assert(SensorRegistry::isValidErrorCode("SENSOR_FAULT_HW"))` w [`PT100Sensor.cpp`](../../../firmware/lib/Sensor/src/PT100Sensor.cpp) sprawdza kod, którego `build()` nie używa. W `TelemetryPayload.cpp` nie ma analogicznej asercji dla literałów faktycznie wysyłanych. Materiał dla zlecenia B-06.
+**Poprawka:** użyć `reading.errorCode` zamiast literału i `"critical"` zamiast `"error"` — zgodnie z tym, co rejestr przypisuje `SENSOR_FAULT_HW`. Dodatkowo warto dołożyć w `TelemetryPayload.cpp` `static_assert` na wysyłane literały: istniejąca asercja w [`PT100Sensor.cpp`](../../../firmware/lib/Sensor/src/PT100Sensor.cpp) sprawdza kod, którego `build()` nie używa, i dlatego usterki nie wyłapała.
 
 ### 11.2. `MODEM_SIGNAL_WEAK` — kod istnieje, nic go nie ustawia
 
@@ -759,9 +755,9 @@ Rejestr ma gotowy typ punktu `modem_rssi` w `dBm`, a backend auto-rejestruje now
 
 ## 12. Do zmierzenia na stanowisku
 
-Lista pozycji, które wymagają przyrządu. Bez nich dokument pozostaje analizą obliczeniową — z nimi staje się bilansem. Kolejność według wpływu na wnioski.
+Pozycje wymagające przyrządu, w kolejności według wpływu na wnioski.
 
-| # | Co zmierzyć | Jak | Co weryfikuje | Wartość przyjęta w dokumencie |
+| # | Co zmierzyć | Jak | Co weryfikuje | Wartość przyjęta w analizie |
 |---|---|---|---|---|
 | 1 | **Spadek napięcia na szynie 5 V w trakcie burstu GSM** | oscyloskop, sonda na wejściu 5 V HAT-a, wymuszony fallback na 2G (`AT+CNMP=13`); mierzyć bez i z kondensatorem bulk | **kluczowe go/no-go dla XL4015** oraz dobór pojemności z [§6.3](#63-pojemność-bufora--tu-jest-realne-ryzyko) | ΔV ≤ 0,5 V przy 2200–4400 µF `[OBL]` |
 | 2 | **Prąd wejściowy 5 V modułu KAmod** w trzech stanach: idle zarejestrowany, transmisja HTTPS, obwiednia burstu | bocznik 0,1 Ω + oscyloskop (burst) i multimetr z uśrednianiem (idle) | luka `TBD` w karcie katalogowej SIMCom; wpływa na **cały** [§5](#5-bilans-prądowy--per-faza-pracy) | ~30 mA idle `[EST]` |
@@ -772,15 +768,15 @@ Lista pozycji, które wymagają przyrządu. Bez nich dokument pozostaje analizą
 | 7 | **Czas rejestracji LTE i RSSI w docelowej lokalizacji** | `AT+CSQ`, pomiar czasu do `CGATT=1` | czy 60 s timeoutu wystarcza; ryzyko fallbacku na 2G | 15–110 s `[EST]` z limitów w kodzie |
 | 8 | **Prąd spoczynkowy modułu MAX31865 na konkretnym breakoucie** | multimetr w linii 3,3 V modułu | breakout Adafruit ma własny LDO i konwertery poziomów — dodają do 1,5 mA z karty katalogowej | 1,5 mA `[DS]`, sam układ scalony |
 | 9 | **Pojemność bulk zamontowana na płytce KAmod** | oględziny + odczyt oznaczeń kondensatorów | czy producent spełnił własne zalecenie ≥300 µF | zakładane, niezweryfikowane |
-| 10 | **Wariant modułu ESP32-S3 na posiadanej płytce** | odczyt oznaczenia na ekranie modułu (`N8`, `N8R2`, `N8R8`, `N16R8`) | **rozstrzyga limit temperatury: +65 °C czy +105 °C** ([§13](#13-temperatura-pracy)) | nieznany — **największa niepewność w dokumencie** |
+| 10 | **Wariant modułu ESP32-S3 na posiadanej płytce** | odczyt oznaczenia na ekranie modułu (`N8`, `N8R2`, `N8R8`, `N16R8`) | **rozstrzyga limit temperatury: +65 °C czy +105 °C** ([§13](#13-temperatura-pracy)) | nieznany |
 
-Pozycja 10 nie wymaga przyrządu, tylko spojrzenia na płytkę, a rozstrzyga najpoważniejsze ryzyko w całym dokumencie.
+Pozycja 10 nie wymaga przyrządu, tylko spojrzenia na płytkę, a rozstrzyga najpoważniejsze ryzyko techniczne z tej listy — warto zacząć od niej.
 
 ---
 
 ## 13. Temperatura pracy
 
-Scenariusz z briefu: **metalowa szafa w hydroforni latem**.
+Warunek projektowy: **metalowa szafa w hydroforni latem**.
 
 ### 13.1. Zakresy pracy komponentów
 
@@ -826,7 +822,7 @@ Zestawienie tego z tabelą limitów:
 
 > **Jeśli na płytce jest moduł z PSRAM Octal (`R8`, `R8V`, `R16V` — a taki jest domyślny w większości sprzedawanych ESP32-S3-DevKitC-1 z serii N8R8), limit +65 °C jest w tym scenariuszu przekroczony.** Superkondensatory z [§7](#7-podtrzymanie-przy-zaniku-230-v) w standardowej serii 70 °C — również. Modem A7670E wychodzi poza zakres normalny (+80 °C) tylko w najgorszym przypadku, i to wciąż w zakresie rozszerzonym.
 
-To jest **jedyne miejsce w dokumencie, w którym analiza kończy się na „poza specyfikacją", a nie na „z zapasem"**. Zauważalne jest przy tym, że decyduje o tym pamięć PSRAM, której to firmware **w ogóle nie używa** — nie ma Wi-Fi ani żadnego bufora wymagającego PSRAM.
+Jest to **jedyny parametr w całej analizie wychodzący poza specyfikację**, a decyduje o nim pamięć PSRAM, której to firmware **w ogóle nie używa** — nie ma Wi-Fi ani żadnego bufora wymagającego PSRAM.
 
 ### 13.3. Rekomendacje
 
@@ -850,7 +846,7 @@ W kolejności od najtańszej:
 
 ### Repozytorium
 
-Cały kod cytowany w dokumencie pochodzi z gałęzi `main`, commit `43116cd`. Odnośniki wskazują konkretne pliki i linie.
+Cały cytowany kod pochodzi z gałęzi `main`, commit `43116cd`. Odnośniki wskazują konkretne pliki i linie.
 
 ### Karty katalogowe
 
@@ -877,12 +873,3 @@ Cały kod cytowany w dokumencie pochodzi z gałęzi `main`, commit `43116cd`. Od
 ### Ceny
 
 Ceny w [§7.6](#76-bom-podtrzymania) i [§10.5](#105-zasilanie-solarne) to orientacyjne stawki netto z rynku polskiego (2026), zebrane z ofert dystrybutorów (Farnell PL, Compax, Ceneo, morele.net). **Nie są to oferty ani wyceny** — przed zamówieniem wymagają potwierdzenia u dostawcy. Podane jako rzędy wielkości do decyzji „opłaca się / nie opłaca się", nie do kosztorysu.
-
-### Czego w źródłach nie ma
-
-Uczciwie, żeby nikt nie szukał:
-
-- **Prądu idle i sleep modemu A7670E** — karta katalogowa SIMCom ma w tych polach `TBD`. Użyta liczba (~30 mA) pochodzi od producenta płytki, nie od producenta modułu.
-- **Typu regulatora na płytce KAmod** (impulsowy czy LDO) — nie podaje go żadna dostępna dokumentacja. Stąd dwa warianty w [§6.2](#62-szczyt--dwa-warianty-i-oba-trzeba-wytrzymać).
-- **Pojemności wyjściowej zasilacza DIN** — zależy od konkretnego modelu, który nie jest wybrany. Stąd zakres 470–2200 µF w [§7.2](#72-co-daje-sam-układ-bez-dokładania-niczego).
-- **Danych o zasilaczu 24 V / 1 A i module XL4015** — nie ma ich w repozytorium; przyjęte za briefem B-11 jako dane wejściowe.
