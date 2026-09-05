@@ -108,7 +108,9 @@ Brief B-10 zakłada, że `Config.h` używa GPIO **4, 5, 8, 9, 11, 12, 13, 14, 17
 |---|---|
 | „GPIO6-11 and GPIO16-17 are usually connected to the SPI flash and PSRAM integrated on the module and therefore should not be used for other purposes." | **GPIO 6–11 wykluczone.** GPIO 16/17 wykluczone tylko na modułach z PSRAM (WROVER); na WROOM-32 są wolne. |
 | „GPIO34-39 can only be set as input mode and do not have software-enabled pullup or pulldown functions." | GPIO 34–39 tylko jako wejścia (nadają się na ADC1). |
-| Piny strapujące: GPIO **0, 2, 5, 12 (MTDI), 15 (MTDO)** | Stan tych pinów przy starcie decyduje o trybie bootowania i napięciu flash. |
+| Piny strapujące: GPIO **0, 2, 5, 12 (MTDI), 15 (MTDO)** | Poziom tych pinów jest próbkowany przy resecie i decyduje o trybie bootowania oraz o napięciu flash. Układ zewnętrzny podpięty do takiego pinu może zmienić próbkowaną wartość — i odwrotnie, stan bootowy może zakłócić układ zewnętrzny. |
+| GPIO **12 (MTDI)**: wewnętrzny pull-down; wymuszenie stanu wysokiego przełącza flash na 1,8 V | „May prevent flashing and/or booting if 3.3V flash is used and this pin is pulled high, causing the flash to brownout" [dokumentacja]. Najgroźniejszy pojedynczy pin na tej liście. |
+| GPIO **2**: wewnętrzny pull-down; „must also be either left unconnected/floating, or driven Low, in order to enter the serial bootloader" [dokumentacja] | Wymóg dotyczy wejścia w bootloader szeregowy (flashowanie), nie zwykłego startu. |
 | GPIO 12–15 to interfejs JTAG | Użyteczne, ale generują aktywność przy starcie. |
 | GPIO 1/3 to UART0 (konsola i flashowanie) | Wykluczone. |
 | ADC2 nieużywalny przy aktywnym Wi-Fi | Bez znaczenia dziś (brak Wi-Fi w firmware), ale ADC1 to bezpieczniejszy wybór na przyszły pomiar 4-20 mA. |
@@ -124,22 +126,23 @@ Płytka odniesienia: **ESP32-DevKitC-32E (moduł ESP-WROOM-32E, bez PSRAM)**. Pi
 | `MODEM_TX_PIN` | 17 | **17** | Wolny na WROOM-32, wyjściowy, nie strapujący. Bez zmiany — mniej różnic między wariantami. |
 | `MODEM_RX_PIN` | 18 | **16** | GPIO 18 przenoszę na SPI SCK (natywny VSPI). GPIO 16 jest wolny na WROOM-32. ⚠️ Zajęty na modułach z PSRAM (WROVER) — wariant WROOM-32 staje się wymogiem, patrz [§4.1.4](#414-ryzyko-uboczne-tej-mapy). |
 | `MODEM_PWRKEY_PIN` | 4 | **4** | Wolny, wyjściowy, nie strapujący. Bez zmiany. |
-| `MODEM_RESET_PIN` | 5 | **25** | **Zmiana wymuszona.** GPIO 5 jest pinem strapującym z wewnętrznym pull-upem — przy każdym starcie ESP32 linia RESET modemu byłaby podciągana do stanu wysokiego. [`ModemPower::hardReset()`](../../../firmware/lib/ModemPower/src/ModemPower.cpp) traktuje stan wysoki jako aktywny reset, więc grozi to niezamierzonym resetem modemu przy każdym boocie. GPIO 25 jest wolny, dwukierunkowy, nie strapujący. |
+| `MODEM_RESET_PIN` | 5 | **25** | **Zmiana zalecana.** GPIO 5 jest pinem strapującym, a linia RESET modemu to układ zewnętrzny na stałe do niego podpięty — działa w obie strony: może przestawić wartość próbkowaną przy resecie, a stan pinu w oknie bootowania (zanim `ModemPower` ustawi `pinMode`) jest poza kontrolą firmware. [`ModemPower::hardReset()`](../../../firmware/lib/ModemPower/src/ModemPower.cpp) traktuje stan wysoki jako aktywny reset, więc konsekwencją niekontrolowanego stanu jest reset modemu przy starcie. GPIO 25 jest wolny, dwukierunkowy, nie strapujący — usuwa całą klasę problemu zamiast ją analizować. |
 | `PT100_SPI_SCK` | 12 | **18** | **Zmiana wymuszona.** GPIO 12 to MTDI — pin strapujący napięcia flash (`VDD_SDIO`). Podciągnięcie go do 3,3 V w chwili startu przełącza flash na 1,8 V i moduł nie wystartuje. Linia zegara SPI jest podciągana przez większość układów peryferyjnych → realne ryzyko cegły. GPIO 18 to natywny VSPI CLK. |
 | `PT100_SPI_MISO` | 13 | **19** | Natywny VSPI MISO. GPIO 13 działałby, ale zwolnienie go pozwala trzymać cały SPI na sprzętowym VSPI. |
 | `PT100_SPI_MOSI` | 11 | **23** | **Zmiana wymuszona.** GPIO 11 należy do magistrali flash SPI i nie jest wyprowadzony na module. Natywny VSPI MOSI to 23. |
-| `PT100_SPI_CS` | 14 | **5** (alt. **32**) | GPIO 14 (MTMS/JTAG) działa, ale generuje impulsy przy starcie. GPIO 5 to domyślny VSPI CS i — mimo że jest pinem strapującym — jego domyślny stan przy starcie (pull-up, HIGH) to dokładnie stan nieaktywny dla CS. Bez taktowania SCK żaden impuls na CS nie zostanie zinterpretowany przez MAX31865. **Alternatywa dla puryzmu: GPIO 32** — całkowicie poza strappingiem, kosztem odejścia od domyślnych pinów VSPI. |
+| `PT100_SPI_CS` | 14 | **32** | GPIO 14 (MTMS/JTAG) działa, ale generuje impulsy przy starcie. Domyślnym CS dla VSPI jest GPIO 5 — **odrzucony świadomie**, bo jest pinem strapującym, a linia CS jest na stałe podpięta do MAX31865. GPIO 32 jest całkowicie poza strappingiem i poza JTAG; kosztem jest odejście od domyślnego pinu VSPI, co dla `SPI.begin()` z jawnymi argumentami nie ma znaczenia ([`PT100Sensor.cpp:14`](../../../firmware/lib/Sensor/src/PT100Sensor.cpp#L14) i tak przekazuje piny jawnie). |
 | `LED_PIN` | 48 | **2** lub **13** | **Zmiana wymuszona** (GPIO 48 nie istnieje). Dwa scenariusze — patrz [§4.2](#42-led-statusu). |
 | *(rezerwa)* I2C SDA/SCL | — | **21 / 22** | Domyślne `Wire` na klasycznym ESP32. Rezerwacja pod przyszły ADS1015. |
 | *(rezerwa)* ADC 4-20 mA | 1 *(draft)* | **34, 35, 36, 39** | ADC1, działa niezależnie od Wi-Fi. Piny tylko-wejściowe, co dla ADC jest bez znaczenia. |
 
-**Bilans:** z dziewięciu używanych pinów **cztery muszą się zmienić obowiązkowo** (11, 12, 5, 48), **jeden zmienia się w konsekwencji przetasowania SPI** (18 → 16 dla UART), **cztery mogą zostać** (4, 17 oraz — gdyby zrezygnować z VSPI — 13, 14).
+**Bilans:** z dziewięciu używanych pinów **trzy muszą się zmienić obowiązkowo** — 11 (pin magistrali flash, niewyprowadzony), 12 (MTDI, strapping napięcia flash), 48 (nie istnieje na tym układzie). **Dwa zmieniają się z rekomendacji** — 5 i 14 działałyby, ale leżą na strappingu i JTAG. **Dwa zmieniają się w konsekwencji przetasowania SPI** — 13 → 19 i 18 → 16. **Dwa zostają bez zmian** — 4 i 17.
 
 #### 4.1.4. Ryzyko uboczne tej mapy
 
 - **Wymóg modułu bez PSRAM.** Użycie GPIO 16 na UART wyklucza moduły ESP32-WROVER. Jeżeli przyszły wybór płytki padnie na wariant z PSRAM, `MODEM_RX_PIN` trzeba przenieść na 26 lub 27. Alternatywa odporna na oba warianty: **UART na 26/27** od razu, kosztem odejścia od obecnych numerów.
-- **GPIO 2 przy starcie.** Jeżeli LED wyląduje na GPIO 2, dioda z rezystorem do masy trzyma pin w stanie niskim — to jest stan wymagany przy starcie, więc konfiguracja jest bezpieczna. Odwrotne podłączenie (dioda do 3,3 V) zablokuje bootowanie.
-- **Fizyczna wygoda okablowania.** [`01_hardware.md` §3](./01_hardware.md) chwali obecny układ za to, że wszystkie 4 piny SPI sąsiadują fizycznie. Proponowana mapa (18, 19, 23, 5) tę własność traci — SCK/MISO/MOSI sąsiadują, ale CS leży osobno. To argument za wariantem CS = 5 (rząd pinów) zamiast 32.
+- **GPIO 2 przy starcie.** Jeżeli LED wyląduje na GPIO 2, dioda z rezystorem do masy trzyma pin w stanie niskim — zgodnym z wewnętrznym pull-downem tego pinu, więc strapping pozostaje nienaruszony. Odwrotne podłączenie (dioda do 3,3 V) łamie warunek „unconnected/floating albo Low" i **uniemożliwi wejście w bootloader szeregowy, czyli flashowanie** [dokumentacja]. To jest typowe okablowanie diody na płytkach DevKit, więc ryzyko dotyczy własnego PCB, nie gotowej płytki.
+- **Fizyczna wygoda okablowania.** [`01_hardware.md` §3](./01_hardware.md) chwali obecny układ za to, że wszystkie 4 piny SPI sąsiadują fizycznie. Proponowana mapa (18, 19, 23, 32) tę własność traci — SCK/MISO/MOSI sąsiadują, ale CS leży osobno. Świadomy kompromis: bezpieczeństwo strappingu ponad wygodę lutowania, bo CS to jeden przewód, a pomyłka strappingowa kosztuje płytkę.
+- **Sprzeczność w źródłach Espressifa co do GPIO 5.** [ESP-IDF GPIO](https://docs.espressif.com/projects/esp-idf/en/stable/esp32/api-reference/peripherals/gpio.html) i [Schematic Checklist](https://docs.espressif.com/projects/esp-hardware-design-guidelines/en/latest/esp32/schematic-checklist.html) zgodnie wymieniają GPIO 5 jako pin strapujący, ale **różnią się co do kierunku wewnętrznego podciągnięcia** (pull-up wg części materiałów, `wpd` w tabeli IO w Schematic Checklist). Mapa z [§4.1.3](#413-proponowana-mapa-pinów) jest zbudowana tak, żeby **nie zależeć od rozstrzygnięcia tej sprzeczności** — GPIO 5 nie jest w niej użyty do niczego.
 
 ---
 
@@ -357,9 +360,9 @@ Flagi `-D BOARD_*` służyłyby do wyboru mapy pinów w `Config.h` (`#if defined
 |---|---|---|---|---|
 | 1 | `Config.h` — SPI MOSI (11) | **Tak, obowiązkowo** | 🔴 wysokie — pin flash, uruchomienie bez zmiany = brak dostępu do flash | 0,5 h |
 | 2 | `Config.h` — SPI SCK (12) | **Tak, obowiązkowo** | 🔴 wysokie — strapping napięcia flash, ryzyko braku bootu | 0,5 h |
-| 3 | `Config.h` — MODEM_RESET (5) | **Tak, zalecane** | 🟡 średnie — niezamierzony reset modemu przy starcie | 0,5 h |
+| 3 | `Config.h` — MODEM_RESET (5) i SPI CS (14) | **Tak, zalecane** | 🟡 średnie — piny strapujące / JTAG: ryzyko resetu modemu przy starcie i impulsów na linii CS | 0,5 h |
 | 4 | `Config.h` — LED (48) | **Tak, obowiązkowo** | 🟢 niskie — pin nie istnieje, kompilacja przechodzi, dioda nie działa | 0,5 h |
-| 5 | `Config.h` — UART RX (18) | Tak, w konsekwencji SPI | 🟢 niskie | 0,5 h |
+| 5 | `Config.h` — SPI MISO (13) i UART RX (18) | Tak, w konsekwencji przetasowania SPI | 🟢 niskie | 0,5 h |
 | 6 | `StatusLed` — sterownik zamiast `pin_ == 48` | Tak (i tak potrzebne) | 🟢 niskie | 3 h |
 | 7 | `platformio.ini` — `[common]` + drugie env | Tak | 🟢 niskie — **zweryfikowane kompilacją** | 1 h |
 | 8 | Kryptografia | **Nie** | 🟢 brak — brak akceleratora ECC po obu stronach | 0 h |
@@ -573,8 +576,8 @@ Dziewięć pozycji, których nie da się rozstrzygnąć z kodu ani z dokumentacj
 | 1 | Czas `mbedtls_ecp_gen_key(SECP256R1)` na WROOM-32, w ms | Jedyna liczba w [§4.3.3](#433-bezwzględne-czasy-operacji) oparta na przypuszczeniu. Zmierzyć też na S3, żeby mieć porównanie. |
 | 2 | Czas `mbedtls_ecdsa_write_signature` na WROOM-32, w ms | j.w. |
 | 3 | Czy `RTC_DATA_ATTR` przeżywa `esp_restart()` na WROOM-32 | [`03_esp32_reset_and_recovery.md`](./03_esp32_reset_and_recovery.md) sygnalizuje tu wątpliwość („variant ESP32 issue"). Dotyczy licznika restartów w [`Watchdog`](../../../firmware/lib/Watchdog/src/Watchdog.cpp). |
-| 4 | Czy MAX31865 działa na nowej mapie SPI (18/19/23/5) | Zmiana z pinów niestandardowych na natywne VSPI — teoretycznie prostsza, praktycznie do potwierdzenia. |
-| 5 | Czy GPIO 5 jako CS nie powoduje fałszywych transakcji przy starcie | Uzasadnienie w [§4.1.3](#413-proponowana-mapa-pinów) jest teoretyczne. Alternatywa GPIO 32 gotowa. |
+| 4 | Czy MAX31865 działa na nowej mapie SPI (18/19/23/32) | Zmiana z pinów niestandardowych na natywne VSPI (poza CS) — teoretycznie prostsza, praktycznie do potwierdzenia. |
+| 5 | Czy konkretny egzemplarz modułu nie ma PSRAM zajmującego GPIO 16 | UART RX modemu ląduje na GPIO 16, co wyklucza warianty WROVER — [§4.1.4](#414-ryzyko-uboczne-tej-mapy). Sprawdzić oznaczenie modułu przed lutowaniem. |
 | 6 | Czy modem nie resetuje się przy starcie ESP32 na nowym pinie RESET (25) | Powód przeniesienia z GPIO 5. Sprawdzić oscyloskopem albo po logach modemu. |
 | 7 | Czy płytka docelowa ma diodę użytkownika na GPIO 2 | Oryginał Espressif prawdopodobnie nie ma — [§4.2.4](#424-rozstrzygnięcie). |
 | 8 | Rewizja krzemu modułu WROOM-32E (v3.0+?) | Warunek dostępności Secure Boot V2 — [§4.3.5](#435-co-realnie-traci-się-w-warstwie-bezpieczeństwa). |
@@ -617,6 +620,8 @@ Zabezpieczeniem, które **działa**, jest [`Watchdog`](../../../firmware/lib/Wat
 - [ESP-IDF: mbedTLS Support, ESP32-S3](https://docs.espressif.com/projects/esp-idf/en/stable/esp32s3/api-reference/protocols/mbedtls.html) — akceleracja AES / SHA / MPI, brak opcji ECC
 - [ESP-IDF: mbedTLS Support, ESP32](https://docs.espressif.com/projects/esp-idf/en/stable/esp32/api-reference/protocols/mbedtls.html)
 - [ESP-IDF: GPIO & RTC GPIO, ESP32](https://docs.espressif.com/projects/esp-idf/en/stable/esp32/api-reference/peripherals/gpio.html) — GPIO 6–11 / 16–17, GPIO 34–39, piny strapujące
+- [esptool: Boot Mode Selection, ESP32](https://docs.espressif.com/projects/esptool/en/latest/esp32/advanced-topics/boot-mode-selection.html) — warunek na GPIO 2 przy wejściu w bootloader szeregowy, pull-down na MTDI i skutek wymuszenia 1,8 V na flashu
+- [ESP Hardware Design Guidelines: Schematic Checklist, ESP32](https://docs.espressif.com/projects/esp-hardware-design-guidelines/en/latest/esp32/schematic-checklist.html) — lista pinów strapujących i tabela stanów domyślnych IO (źródło sprzeczności co do GPIO 5, [§4.1.4](#414-ryzyko-uboczne-tej-mapy))
 - [ESP-IDF: Digital Signature (DS), ESP32-S3](https://docs.espressif.com/projects/esp-idf/en/stable/esp32s3/api-reference/peripherals/ds.html) — „RSA Digital Signature Peripheral"
 - [ESP-IDF: Secure Boot V2, ESP32](https://docs.espressif.com/projects/esp-idf/en/stable/esp32/security/secure-boot-v2.html) — „supported on ESP32 (v3.0 onwards)"
 - [Espressif Longevity Commitment](https://www.espressif.com/en/products/longevity-commitment) — ESP32 do 2031-01-01, ESP32-S3 do 2033-01-01
