@@ -1752,5 +1752,6 @@ flowchart LR
   - [ADR-0002: Pragmatyczna strategia integracji](./adr/0002-pragmatic-integration-strategy.md)
   - [ADR-0003: Model finansowy — hardware + subskrypcja](./adr/0003-revenue-model-hardware-plus-subscription.md)
 - **Plan wdrożenia backendu MVP**: [docs/business/03_plan_wdrozenia_backend_mvp.md](./03_plan_wdrozenia_backend_mvp.md)
+- **Dofinansowania dla gmin i polityki wsparcia**: [docs/business/05_dofinansowania_dla_gmin.md](./05_dofinansowania_dla_gmin.md) — programy dotacyjne dostępne dla gmin, kwalifikowalność sprzętu i abonamentu, okres trwałości, powiązanie z PZP
 - **Architektura backendu**: [docs/technical/backend/01_backend-architecture.md](../technical/backend/01_backend-architecture.md)
 - **Architektura frontendu**: [docs/technical/frontend/frontend-architecture.md](../technical/frontend/frontend-architecture.md)
